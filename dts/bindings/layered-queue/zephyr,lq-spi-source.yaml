@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Layered Queue SPI Source - Reads data via SPI and pushes to an output queue
+  with expected value validation and error detection.
+
+compatible: "zephyr,lq-spi-source"
+
+properties:
+  spi:
+    type: phandle
+    required: true
+    description: Reference to the SPI bus device
+
+  reg:
+    type: int
+    required: true
+    description: SPI device register/chip select identifier
+
+  output-queue:
+    type: phandle
+    required: true
+    description: Reference to the output queue where samples will be pushed
+
+  poll-interval-ms:
+    type: int
+    default: 100
+    description: Polling interval in milliseconds
+
+  read-length:
+    type: int
+    default: 2
+    description: Number of bytes to read per transaction
+
+  expected-values:
+    type: array
+    description: |
+      Array of expected value-status pairs [value, status, value, status, ...]
+      Used to classify read values into different states
+
+child-binding:
+  description: Expected value definitions for classification
+
+  properties:
+    label:
+      type: string
+      description: Value label (e.g., "ok", "degraded", "invalid")
+
+    value:
+      type: int
+      required: true
+      description: Expected value to match
+
+    status:
+      type: int
+      required: true
+      description: Status code when this value is read
+      enum:
+        - 0  # LQ_OK
+        - 1  # LQ_DEGRADED
+        - 2  # LQ_OUT_OF_RANGE
+        - 3  # LQ_ERROR

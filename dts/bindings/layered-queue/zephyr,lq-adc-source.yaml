@@ -1,0 +1,62 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Layered Queue ADC Source - Reads ADC values and pushes them to an output queue
+  with range validation and status classification.
+
+compatible: "zephyr,lq-adc-source"
+
+properties:
+  adc:
+    type: phandle
+    required: true
+    description: Reference to the ADC device
+
+  channel:
+    type: int
+    required: true
+    description: ADC channel number to read from
+
+  output-queue:
+    type: phandle
+    required: true
+    description: Reference to the output queue where samples will be pushed
+
+  poll-interval-ms:
+    type: int
+    default: 100
+    description: Polling interval in milliseconds
+
+  averaging:
+    type: int
+    default: 1
+    description: Number of samples to average before pushing to queue
+
+child-binding:
+  description: Expected range definitions for value classification
+
+  properties:
+    label:
+      type: string
+      description: Range label (e.g., "valid", "degraded", "fault")
+
+    min:
+      type: int
+      required: true
+      description: Minimum value (inclusive) for this range
+
+    max:
+      type: int
+      required: true
+      description: Maximum value (inclusive) for this range
+
+    status:
+      type: int
+      required: true
+      description: Status code to assign when value falls in this range
+      enum:
+        - 0  # LQ_OK
+        - 1  # LQ_DEGRADED
+        - 2  # LQ_OUT_OF_RANGE
+        - 3  # LQ_ERROR

@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Layered Queue - A data queue node that can connect driver sources to consumers.
+  Queues buffer data items with status information and allow multiple readers/writers.
+
+compatible: "zephyr,lq-queue"
+
+properties:
+  capacity:
+    type: int
+    required: true
+    description: Maximum number of items the queue can hold
+
+  drop-policy:
+    type: string
+    default: "drop-oldest"
+    enum:
+      - "drop-oldest"
+      - "drop-newest"
+      - "block"
+    description: |
+      Behavior when queue is full:
+      - drop-oldest: Remove oldest item to make space
+      - drop-newest: Reject new items
+      - block: Block writer until space available
+
+  priority:
+    type: int
+    default: 0
+    description: Queue priority for scheduling (higher = more important)

@@ -1,0 +1,79 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Layered Queue Merge Voter - Reads from multiple input queues and produces
+  a merged/voted output. Can perform median voting, averaging, or consensus checks
+  for critical redundant systems.
+
+compatible: "zephyr,lq-merge-voter"
+
+properties:
+  input-queues:
+    type: phandles
+    required: true
+    description: Array of input queue references to merge/vote
+
+  output-queue:
+    type: phandle
+    required: true
+    description: Reference to the output queue for merged results
+
+  voting-method:
+    type: string
+    default: "median"
+    enum:
+      - "median"
+      - "average"
+      - "min"
+      - "max"
+      - "majority"
+    description: |
+      Method for merging multiple input values:
+      - median: Use median value (good for outlier rejection)
+      - average: Average all inputs
+      - min/max: Use minimum or maximum value
+      - majority: Require majority consensus within tolerance
+
+  tolerance:
+    type: int
+    default: 0
+    description: Maximum allowed difference between inputs (absolute value)
+
+  status-if-violation:
+    type: int
+    default: 2
+    description: Status code when inputs disagree beyond tolerance
+    enum:
+      - 0  # LQ_OK
+      - 1  # LQ_DEGRADED
+      - 2  # LQ_OUT_OF_RANGE
+      - 3  # LQ_ERROR
+
+  timeout-ms:
+    type: int
+    default: 1000
+    description: Max time to wait for all inputs before using partial data
+
+child-binding:
+  description: Expected range for merged output validation
+
+  properties:
+    label:
+      type: string
+      description: Range label
+
+    min:
+      type: int
+      required: true
+      description: Minimum acceptable value for merged output
+
+    max:
+      type: int
+      required: true
+      description: Maximum acceptable value for merged output
+
+    status-if-violation:
+      type: int
+      required: true
+      description: Status if merged value violates this range

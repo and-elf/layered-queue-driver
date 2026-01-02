@@ -1,0 +1,104 @@
+/*
+ * Copyright (c) 2026 Layered Queue Driver
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Example: Automotive Brake System with Redundant Sensors
+ */
+
+/dts-v1/;
+
+/ {
+    /* Queue infrastructure */
+    q_brake_pressure_1: lq-queue@0 {
+        compatible = "zephyr,lq-queue";
+        capacity = <32>;
+        drop-policy = "drop-oldest";
+        priority = <100>;
+    };
+
+    q_brake_pressure_2: lq-queue@1 {
+        compatible = "zephyr,lq-queue";
+        capacity = <32>;
+        drop-policy = "drop-oldest";
+        priority = <100>;
+    };
+
+    q_brake_final: lq-queue@2 {
+        compatible = "zephyr,lq-queue";
+        capacity = <64>;
+        drop-policy = "drop-oldest";
+        priority = <200>;
+    };
+
+    /* Dual ADC sensors for brake pressure */
+    brake_sensor_1: lq-source@0 {
+        compatible = "zephyr,lq-adc-source";
+        adc = <&adc1>;
+        channel = <0>;
+        output-queue = <&q_brake_pressure_1>;
+        poll-interval-ms = <10>;
+        averaging = <4>;
+
+        normal {
+            min = <500>;   /* 0.5 bar */
+            max = <1500>;  /* 1.5 bar */
+            status = <0>;
+        };
+
+        high_pressure {
+            min = <1501>;
+            max = <8000>;  /* 8 bar max */
+            status = <1>;  /* Warning */
+        };
+
+        sensor_fault {
+            min = <0>;
+            max = <4095>;
+            status = <2>;
+        };
+    };
+
+    brake_sensor_2: lq-source@1 {
+        compatible = "zephyr,lq-adc-source";
+        adc = <&adc2>;
+        channel = <0>;
+        output-queue = <&q_brake_pressure_2>;
+        poll-interval-ms = <10>;
+        averaging = <4>;
+
+        normal {
+            min = <500>;
+            max = <1500>;
+            status = <0>;
+        };
+
+        high_pressure {
+            min = <1501>;
+            max = <8000>;
+            status = <1>;
+        };
+
+        sensor_fault {
+            min = <0>;
+            max = <4095>;
+            status = <2>;
+        };
+    };
+
+    /* Voter for brake pressure with strict tolerance */
+    brake_voter: lq-merge@0 {
+        compatible = "zephyr,lq-merge-voter";
+        input-queues = <&q_brake_pressure_1 &q_brake_pressure_2>;
+        output-queue = <&q_brake_final>;
+        voting-method = "median";
+        tolerance = <100>;  /* Max 0.1 bar difference */
+        status-if-violation = <3>;  /* Critical error */
+        timeout-ms = <50>;
+
+        valid-range {
+            min = <0>;
+            max = <8000>;
+            status-if-violation = <2>;
+        };
+    };
+};

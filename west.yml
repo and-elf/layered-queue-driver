@@ -1,0 +1,14 @@
+# Layered Queue Driver - Zephyr Module
+
+manifest:
+  version: "0.5"
+
+  self:
+    path: .
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      repo-path: zephyr
+      revision: main
+      import: true

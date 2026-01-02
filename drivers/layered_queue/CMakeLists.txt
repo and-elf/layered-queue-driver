@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+zephyr_library()
+
+# Core library (platform-independent)
+zephyr_library_sources(../../src/lq_queue_core.c)
+zephyr_library_sources(../../src/lq_util.c)
+zephyr_library_sources(../../src/lq_spi_source.c)
+zephyr_library_sources(../../src/platform/lq_platform_zephyr.c)
+
+# Zephyr device tree wrappers
+zephyr_library_sources_ifdef(CONFIG_LQ_QUEUE lq_queue.c)
+zephyr_library_sources_ifdef(CONFIG_LQ_ADC_SOURCE lq_adc_source.c)
+zephyr_library_sources_ifdef(CONFIG_LQ_SPI_SOURCE lq_spi_source.c)
+zephyr_library_sources_ifdef(CONFIG_LQ_MERGE_VOTER lq_merge_voter.c)
+zephyr_library_sources_ifdef(CONFIG_LQ_DUAL_INVERTED lq_dual_inverted.c)
+
+zephyr_library_sources(lq_util.c)
+
+zephyr_include_directories(../../include)

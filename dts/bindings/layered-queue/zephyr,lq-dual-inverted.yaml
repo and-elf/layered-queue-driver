@@ -1,0 +1,60 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Layered Queue Dual-Inverted Input - Specialized hardware driver for dual
+  redundant inputs where one signal is inverted. Used in safety-critical systems
+  where two signals should be complementary (e.g., open/closed, true/false).
+
+compatible: "zephyr,lq-dual-inverted"
+
+properties:
+  gpio-normal:
+    type: phandle
+    required: true
+    description: GPIO reference for the normal (non-inverted) signal
+
+  gpio-inverted:
+    type: phandle
+    required: true
+    description: GPIO reference for the inverted signal
+
+  output-queue:
+    type: phandle
+    required: true
+    description: Reference to the output queue for state/error reporting
+
+  poll-interval-ms:
+    type: int
+    default: 50
+    description: Polling interval in milliseconds
+
+  debounce-ms:
+    type: int
+    default: 10
+    description: Debounce time to filter glitches
+
+  error-on-both-high:
+    type: boolean
+    default: true
+    description: Report error when both signals are high
+
+  error-on-both-low:
+    type: boolean
+    default: true
+    description: Report error when both signals are low
+
+  error-status:
+    type: int
+    default: 3
+    description: Status code for inconsistent/error states
+    enum:
+      - 0  # LQ_OK
+      - 1  # LQ_DEGRADED
+      - 2  # LQ_OUT_OF_RANGE
+      - 3  # LQ_ERROR
+
+  ok-status:
+    type: int
+    default: 0
+    description: Status code when signals are consistent

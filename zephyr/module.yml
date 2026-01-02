@@ -1,0 +1,4 @@
+name: layered-queue
+build:
+  cmake: drivers
+  kconfig: drivers/layered_queue/Kconfig
