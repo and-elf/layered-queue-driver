@@ -305,7 +305,7 @@ cmake --build build --target check
 cmake -B build -DENABLE_COVERAGE=ON
 cmake --build build
 cd build && ctest --output-on-failure
-lcov --capture --directory . --output-file coverage.info
+lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
 genhtml coverage.info --output-directory coverage_html
 ```
 
