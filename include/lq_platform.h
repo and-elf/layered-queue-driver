@@ -47,16 +47,29 @@ void lq_platform_sleep_ms(uint32_t ms);
 
 #ifdef LQ_PLATFORM_NATIVE
 #include <pthread.h>
+#ifndef __APPLE__
 #include <semaphore.h>
+#endif
 
 struct lq_mutex {
     pthread_mutex_t mutex;
 };
 
+#ifdef __APPLE__
+/* macOS: Use mutex+cond instead of deprecated sem_init */
+struct lq_sem {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    uint32_t count;
+    uint32_t max_count;
+};
+#else
+/* Other POSIX platforms: Use standard semaphores */
 struct lq_sem {
     sem_t sem;
     uint32_t max_count;
 };
+#endif
 
 #elif defined(__ZEPHYR__)
 #include <zephyr/kernel.h>

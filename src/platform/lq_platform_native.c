@@ -10,7 +10,9 @@
 #ifdef LQ_PLATFORM_NATIVE
 
 #include <pthread.h>
+#ifndef __APPLE__
 #include <semaphore.h>
+#endif
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -95,6 +97,35 @@ void lq_mutex_destroy(lq_mutex_t *mutex)
  * Semaphore implementation
  * ============================================================================ */
 
+#ifdef __APPLE__
+/* macOS: Use mutex+cond instead of deprecated sem_init */
+
+int lq_sem_init(lq_sem_t *sem, uint32_t initial_count, uint32_t max_count)
+{
+    if (!sem) {
+        return -EINVAL;
+    }
+    
+    sem->count = initial_count;
+    sem->max_count = max_count;
+    
+    int ret = pthread_mutex_init(&sem->mutex, NULL);
+    if (ret != 0) {
+        return -ret;
+    }
+    
+    ret = pthread_cond_init(&sem->cond, NULL);
+    if (ret != 0) {
+        pthread_mutex_destroy(&sem->mutex);
+        return -ret;
+    }
+    
+    return 0;
+}
+
+#else
+/* Other POSIX platforms: Use standard semaphores */
+
 int lq_sem_init(lq_sem_t *sem, uint32_t initial_count, uint32_t max_count)
 {
     if (!sem) {
@@ -105,6 +136,74 @@ int lq_sem_init(lq_sem_t *sem, uint32_t initial_count, uint32_t max_count)
     int ret = sem_init(&sem->sem, 0, initial_count);
     return ret == 0 ? 0 : -errno;
 }
+
+#endif
+
+#ifdef __APPLE__
+/* macOS implementation using mutex+cond */
+
+int lq_sem_take(lq_sem_t *sem, uint32_t timeout_ms)
+{
+    if (!sem) {
+        return -EINVAL;
+    }
+    
+    int ret = pthread_mutex_lock(&sem->mutex);
+    if (ret != 0) {
+        return -ret;
+    }
+    
+    if (timeout_ms == 0) {
+        /* Non-blocking */
+        if (sem->count == 0) {
+            pthread_mutex_unlock(&sem->mutex);
+            return -EAGAIN;
+        }
+        sem->count--;
+        pthread_mutex_unlock(&sem->mutex);
+        return 0;
+    } else if (timeout_ms == UINT32_MAX) {
+        /* Blocking forever */
+        while (sem->count == 0) {
+            ret = pthread_cond_wait(&sem->cond, &sem->mutex);
+            if (ret != 0) {
+                pthread_mutex_unlock(&sem->mutex);
+                return -ret;
+            }
+        }
+        sem->count--;
+        pthread_mutex_unlock(&sem->mutex);
+        return 0;
+    } else {
+        /* Timed wait */
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += timeout_ms / 1000;
+        ts.tv_nsec += (timeout_ms % 1000) * 1000000;
+        if (ts.tv_nsec >= 1000000000) {
+            ts.tv_sec++;
+            ts.tv_nsec -= 1000000000;
+        }
+        
+        while (sem->count == 0) {
+            ret = pthread_cond_timedwait(&sem->cond, &sem->mutex, &ts);
+            if (ret == ETIMEDOUT) {
+                pthread_mutex_unlock(&sem->mutex);
+                return -EAGAIN;
+            }
+            if (ret != 0) {
+                pthread_mutex_unlock(&sem->mutex);
+                return -ret;
+            }
+        }
+        sem->count--;
+        pthread_mutex_unlock(&sem->mutex);
+        return 0;
+    }
+}
+
+#else
+/* Other POSIX platforms using standard semaphores */
 
 int lq_sem_take(lq_sem_t *sem, uint32_t timeout_ms)
 {
@@ -142,6 +241,38 @@ int lq_sem_take(lq_sem_t *sem, uint32_t timeout_ms)
     }
 }
 
+#endif
+
+#ifdef __APPLE__
+/* macOS implementation using mutex+cond */
+
+int lq_sem_give(lq_sem_t *sem)
+{
+    if (!sem) {
+        return -EINVAL;
+    }
+    
+    int ret = pthread_mutex_lock(&sem->mutex);
+    if (ret != 0) {
+        return -ret;
+    }
+    
+    /* Check current value against max */
+    if (sem->count >= sem->max_count) {
+        pthread_mutex_unlock(&sem->mutex);
+        return -EINVAL;
+    }
+    
+    sem->count++;
+    pthread_cond_signal(&sem->cond);
+    pthread_mutex_unlock(&sem->mutex);
+    
+    return 0;
+}
+
+#else
+/* Other POSIX platforms using standard semaphores */
+
 int lq_sem_give(lq_sem_t *sem)
 {
     if (!sem) {
@@ -159,12 +290,30 @@ int lq_sem_give(lq_sem_t *sem)
     return ret == 0 ? 0 : -errno;
 }
 
+#endif
+
+#ifdef __APPLE__
+/* macOS implementation using mutex+cond */
+
+void lq_sem_destroy(lq_sem_t *sem)
+{
+    if (sem) {
+        pthread_cond_destroy(&sem->cond);
+        pthread_mutex_destroy(&sem->mutex);
+    }
+}
+
+#else
+/* Other POSIX platforms using standard semaphores */
+
 void lq_sem_destroy(lq_sem_t *sem)
 {
     if (sem) {
         sem_destroy(&sem->sem);
     }
 }
+
+#endif
 
 /* ============================================================================
  * Atomic implementation
