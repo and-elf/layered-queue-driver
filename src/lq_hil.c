@@ -116,6 +116,18 @@ int lq_hil_init(enum lq_hil_mode mode, int pid)
         return -EALREADY;
     }
     
+    /* Auto-detect mode from environment if not specified */
+    if (mode == LQ_HIL_MODE_DISABLED) {
+        const char *env_mode = getenv("LQ_HIL_MODE");
+        if (env_mode) {
+            if (strcmp(env_mode, "sut") == 0) {
+                mode = LQ_HIL_MODE_SUT;
+            } else if (strcmp(env_mode, "tester") == 0) {
+                mode = LQ_HIL_MODE_TESTER;
+            }
+        }
+    }
+    
     hil_state.mode = mode;
     hil_state.pid = (pid == 0) ? getpid() : pid;
     

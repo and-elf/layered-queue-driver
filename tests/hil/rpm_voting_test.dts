@@ -1,0 +1,98 @@
+/*
+ * Example HIL Test: RPM Sensor Voting
+ * 
+ * Tests triple-redundant RPM sensor fusion with fault injection
+ */
+
+/ {
+    hil-test-rpm-normal {
+        compatible = "lq,hil-test";
+        description = "Normal operation with 3 agreeing RPM sensors";
+        timeout-ms = <2000>;
+        
+        sequence {
+            /* Inject all 3 sensors with similar values */
+            step@0 {
+                action = "inject-adc";
+                channel = <0>;
+                value = <3000>;  /* RPM sensor 1 */
+            };
+            
+            step@1 {
+                action = "inject-adc";
+                channel = <1>;
+                value = <3005>;  /* RPM sensor 2 - slight diff */
+            };
+            
+            step@2 {
+                action = "inject-can-pgn";
+                pgn = <61444>;  /* EEC1 */
+                priority = <3>;
+                source-addr = <0x00>;
+                data = [0xE8 0x5E 0x00 0x00 0x00 0x00 0x00 0x00];  /* 3000 RPM */
+            };
+            
+            /* Expect merged output on CAN */
+            step@3 {
+                action = "expect-can";
+                pgn = <61444>;
+                timeout-ms = <150>;
+            };
+        };
+    };
+    
+    hil-test-rpm-fault {
+        compatible = "lq,hil-test";
+        description = "Fault on one RPM sensor - system degrades gracefully";
+        timeout-ms = <5000>;
+        
+        sequence {
+            /* Normal operation first */
+            step@0 {
+                action = "inject-adc";
+                channel = <0>;
+                value = <2500>;
+            };
+            
+            step@1 {
+                action = "inject-adc";
+                channel = <1>;
+                value = <2505>;
+            };
+            
+            /* Inject fault on sensor 1 */
+            step@2 {
+                action = "inject-adc";
+                channel = <0>;
+                value = <9999>;  /* Out of range */
+            };
+            
+            /* Expect DM1 diagnostic within 1.5s */
+            step@3 {
+                action = "expect-can";
+                pgn = <65226>;  /* DM1 */
+                timeout-ms = <1500>;
+            };
+            
+            /* System should still output (degraded) */
+            step@4 {
+                action = "expect-can";
+                pgn = <61444>;
+                timeout-ms = <200>;
+            };
+        };
+    };
+    
+    hil-test-latency {
+        compatible = "lq,hil-test";
+        description = "End-to-end latency measurement";
+        timeout-ms = <1000>;
+        
+        sequence {
+            step@0 {
+                action = "measure-latency";
+                max-latency-us = <10000>;  /* Must respond in 10ms */
+            };
+        };
+    };
+};

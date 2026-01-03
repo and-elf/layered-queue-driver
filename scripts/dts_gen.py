@@ -261,6 +261,11 @@ def generate_source(nodes, output_path):
         # Generate init function
         f.write("/* Initialization */\n")
         f.write("int lq_generated_init(void) {\n")
+        f.write("    /* Auto-detect HIL mode on native platform */\n")
+        f.write("    #ifdef LQ_PLATFORM_NATIVE\n")
+        f.write("    lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */\n")
+        f.write("    #endif\n")
+        f.write("    \n")
         f.write("    /* Hardware input layer */\n")
         f.write("    int ret = lq_hw_input_init(64);\n")
         f.write("    if (ret != 0) return ret;\n")
