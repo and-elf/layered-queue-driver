@@ -168,6 +168,7 @@ if(BUILD_TESTS)
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -I${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src
             -DLQ_PLATFORM_NATIVE=1
+            -DFULL_APP=1
             -lpthread
             -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut_full
         COMMENT "Building full HIL SUT with real generated code"
