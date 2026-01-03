@@ -147,22 +147,47 @@ The engine step runs periodically to process all pending samples:
 
 ```c
 #include "lq_sync_group.h"
+#include "lq_hw_input.h"
+#include "lq_mid_driver.h"
 #include "lq_platform.h"
 
 void engine_task(void)
 {
     struct lq_engine *engine = get_engine_instance();
+    struct lq_event events[MAX_EVENTS];
     
     while (1) {
         uint64_t now = lq_platform_uptime_get() * 1000; // Convert to μs
+        size_t num_events = 0;
+        
+        // Collect events from all pending hardware samples
+        struct lq_hw_sample sample;
+        while (lq_hw_pop(&sample) == 0 && num_events < MAX_EVENTS) {
+            struct lq_mid_driver *drv = find_driver_for_source(sample.src);
+            num_events += lq_mid_process(drv, now, &sample,
+                                        &events[num_events],
+                                        MAX_EVENTS - num_events);
+        }
         
         // Single deterministic processing step
-        lq_engine_step(engine, now);
+        lq_engine_step(engine, now, events, num_events);
+        
+        // Transmit all output events
+        for (size_t i = 0; i < engine->out_event_count; i++) {
+            transmit_output_event(&engine->out_events[i]);
+        }
         
         k_sleep(K_USEC(100));  // 10kHz processing rate
     }
 }
 ```
+
+The engine step internally:
+1. Ingests events into canonical signals
+2. Applies staleness detection
+3. Processes merge/voter logic
+4. Generates on-change outputs
+5. Processes cyclic deadline-scheduled outputs
 
 This replaces the old queue-based approach with a cleaner, more testable design.
 

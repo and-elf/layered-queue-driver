@@ -197,16 +197,90 @@ int lq_engine_init(struct lq_engine *engine);
  * This is the main processing function - PURE with no RTOS calls.
  * 
  * Process flow:
- * 1. Read pending hardware samples
- * 2. Process through mid-level drivers to generate events
- * 3. Route events to output drivers
- * 4. Update synchronized groups if due
+ * 1. Ingest events from mid-level drivers into signals
+ * 2. Apply staleness detection to all inputs
+ * 3. Process merge/voter logic
+ * 4. Process on-change outputs
+ * 5. Process cyclic outputs (deadline-based scheduling)
  * 
  * @param engine Engine instance
  * @param now Current timestamp (microseconds)
- * @return Number of events processed, negative errno on error
+ * @param events Array of events from mid-level drivers
+ * @param n_events Number of events to process
  */
-int lq_engine_step(struct lq_engine *engine, uint64_t now);
+void lq_engine_step(
+    struct lq_engine *engine,
+    uint64_t now,
+    const struct lq_event *events,
+    size_t n_events);
+
+/* ============================================================================
+ * Engine step internal phases
+ * ============================================================================ */
+
+/**
+ * @brief Ingest events into engine signals
+ * 
+ * Updates the canonical signal values from incoming events.
+ * Marks signals as updated for downstream processing.
+ * 
+ * @param e Engine instance
+ * @param events Input events
+ * @param n_events Number of events
+ */
+void lq_ingest_events(
+    struct lq_engine *e,
+    const struct lq_event *events,
+    size_t n_events);
+
+/**
+ * @brief Apply staleness detection to all inputs
+ * 
+ * Checks signal timestamps against configured staleness timeouts.
+ * Updates signal status to LQ_EVENT_TIMEOUT if stale.
+ * 
+ * @param e Engine instance
+ * @param now Current timestamp
+ */
+void lq_apply_input_staleness(
+    struct lq_engine *e,
+    uint64_t now);
+
+/**
+ * @brief Process merge/voter logic
+ * 
+ * Runs voting algorithms on redundant inputs.
+ * Updates merged signal values.
+ * 
+ * @param e Engine instance
+ * @param now Current timestamp
+ */
+void lq_process_merges(
+    struct lq_engine *e,
+    uint64_t now);
+
+/**
+ * @brief Process on-change outputs
+ * 
+ * Generates output events for signals that have changed
+ * and meet their trigger conditions.
+ * 
+ * @param e Engine instance
+ */
+void lq_process_outputs(struct lq_engine *e);
+
+/**
+ * @brief Process cyclic outputs
+ * 
+ * Checks all cyclic contexts and generates output events
+ * for those that have reached their deadline.
+ * 
+ * @param e Engine instance
+ * @param now Current timestamp
+ */
+void lq_process_cyclic_outputs(
+    struct lq_engine *e,
+    uint64_t now);
 
 #ifdef __cplusplus
 }

@@ -87,7 +87,7 @@ int lq_engine_step(struct lq_engine *engine, uint64_t now)
     struct lq_event events[MAX_EVENTS];
     size_t num_events = 0;
     
-    // Process all pending samples
+    // Process all pending samples through mid-level drivers
     while (lq_hw_pop(&sample) == 0) {
         struct lq_mid_driver *drv = find_driver(sample.src);
         num_events += drv->v->process(drv, now, &sample, 
@@ -95,10 +95,30 @@ int lq_engine_step(struct lq_engine *engine, uint64_t now)
                                       MAX_EVENTS - num_events);
     }
     
-    // Route events to outputs
-    route_events(engine, events, num_events);
+    // Execute engine step with collected events
+    lq_engine_step(engine, now, events, num_events);
     
+    // Output events are now in engine->out_events[]
+    // Send to hardware in calling layer
     return num_events;
+}
+
+// Internal implementation
+void lq_engine_step(
+    struct lq_engine *e,
+    uint64_t now,
+    const struct lq_event *events,
+    size_t n_events)
+{
+    e->out_event_count = 0;
+    
+    lq_ingest_events(e, events, n_events);
+    lq_apply_input_staleness(e, now);
+    lq_process_merges(e, now);
+    lq_process_outputs(e);
+    lq_process_cyclic_outputs(e, now);
+    
+    // e->out_events[] now contains all output events ready for transmission
 }
 ```
 

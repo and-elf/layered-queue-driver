@@ -81,11 +81,41 @@ void adc_isr_callback(uint16_t sample)
 - **Responsibility**: Single deterministic processing cycle
 - **RTOS-aware**: NO (completely pure)
 - **Process**:
-  1. Read all pending hardware samples
-  2. Route to appropriate mid-level drivers
-  3. Collect all generated events
-  4. Return events for output processing
+  1. Ingest events into canonical signals
+  2. Apply staleness detection
+  3. Process merge/voter logic
+  4. Generate on-change output events
+  5. Process cyclic deadline-scheduled outputs
 - **Guarantees**: Deterministic, testable, no side effects
+
+**Engine Step Implementation:**
+```c
+void lq_engine_step(
+    struct lq_engine *e,
+    uint64_t now,
+    const struct lq_event *events,
+    size_t n_events)
+{
+    e->out_event_count = 0;
+    
+    // Phase 1: Update canonical signal values
+    lq_ingest_events(e, events, n_events);
+    
+    // Phase 2: Check for stale data
+    lq_apply_input_staleness(e, now);
+    
+    // Phase 3: Run merge/voter algorithms
+    lq_process_merges(e, now);
+    
+    // Phase 4: Generate on-change outputs
+    lq_process_outputs(e);
+    
+    // Phase 5: Generate cyclic outputs (deadline-based)
+    lq_process_cyclic_outputs(e, now);
+    
+    // Output events ready in e->out_events[]
+}
+```
 
 #### Layer 5: Output Drivers
 - **Responsibility**: Adapt events to hardware interfaces
