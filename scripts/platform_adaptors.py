@@ -58,6 +58,10 @@ extern ADC_HandleTypeDef hadc2;
 /* SPI handles */
 extern SPI_HandleTypeDef hspi1;
 
+/* CAN handles */
+extern CAN_HandleTypeDef hcan1;
+extern CAN_HandleTypeDef hcan2;
+
 /* DMA handles if using DMA */
 extern DMA_HandleTypeDef hdma_adc1;
 """
@@ -103,6 +107,34 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
     }}
 }}
 """
+        
+        elif node.compatible == 'lq,hw-can-input':
+            can_instance = node.properties.get('hw_instance', 1)
+            pgn = node.properties.get('pgn', 0)
+            
+            return f"""
+/* CAN Receive Callback for {node.label} (PGN {pgn}) */
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{{
+    if (hcan->Instance == CAN{can_instance}) {{
+        CAN_RxHeaderTypeDef rx_header;
+        uint8_t rx_data[8];
+        
+        if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) == HAL_OK) {{
+            /* Extract J1939 PGN from 29-bit identifier */
+            uint32_t id = rx_header.ExtId;
+            uint32_t msg_pgn = (id >> 8) & 0x3FFFF;
+            
+            if (msg_pgn == {pgn}) {{
+                /* Convert CAN data to int32_t (platform-specific format) */
+                int32_t value = (rx_data[3] << 24) | (rx_data[2] << 16) | 
+                                (rx_data[1] << 8) | rx_data[0];
+                lq_hw_push({signal_id}, value);
+            }}
+        }}
+    }}
+}}
+"""
         return ""
     
     def generate_peripheral_init(self, hw_inputs):
@@ -131,6 +163,29 @@ void lq_platform_peripherals_init(void)
             for node in spi_nodes:
                 spi_instance = node.properties.get('hw_instance', 1)
                 code += f"    HAL_SPI_Receive_IT(&hspi{spi_instance}, (uint8_t*)&spi_rx_buffer, 2);\n"
+        
+        # CAN initialization
+        can_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-can-input']
+        if can_nodes:
+            code += "\n    /* CAN Configuration */\n"
+            for node in can_nodes:
+                can_instance = node.properties.get('hw_instance', 1)
+                pgn = node.properties.get('pgn', 0)
+                code += f"""    /* Configure CAN filter for PGN {pgn} */
+    CAN_FilterTypeDef can_filter;
+    can_filter.FilterIdHigh = ({pgn} << 8) >> 16;
+    can_filter.FilterIdLow = ({pgn} << 8) & 0xFFFF;
+    can_filter.FilterMaskIdHigh = 0xFFFF;
+    can_filter.FilterMaskIdLow = 0xFFFF;
+    can_filter.FilterFIFOAssignment = CAN_RX_FIFO0;
+    can_filter.FilterBank = 0;
+    can_filter.FilterMode = CAN_FILTERMODE_IDMASK;
+    can_filter.FilterScale = CAN_FILTERSCALE_32BIT;
+    can_filter.FilterActivation = ENABLE;
+    HAL_CAN_ConfigFilter(&hcan{can_instance}, &can_filter);
+    HAL_CAN_Start(&hcan{can_instance});
+    HAL_CAN_ActivateNotification(&hcan{can_instance}, CAN_IT_RX_FIFO0_MSG_PENDING);
+"""
         
         code += "}\n"
         return code
@@ -217,11 +272,15 @@ class ESP32Adaptor(PlatformAdaptor):
 #include "driver/adc.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
+#include "driver/twai.h"  /* Two-Wire Automotive Interface (CAN) */
 #include "lq_platform.h"
 #include "lq_hw_input.h"
 
 /* SPI device handle */
 static spi_device_handle_t spi_handle;
+
+/* CAN (TWAI) configuration */
+static twai_handle_t twai_handle;
 """
     
     def generate_isr_wrapper(self, node, signal_id):
@@ -252,6 +311,31 @@ void lq_spi_read_{node.label}(void)
     
     spi_device_transmit(spi_handle, &trans);
     lq_hw_push({signal_id}, (uint32_t)rx_data);
+}}
+"""
+        
+        elif node.compatible == 'lq,hw-can-input':
+            pgn = node.properties.get('pgn', 0)
+            
+            return f"""
+/* CAN (TWAI) receive task for {node.label} (PGN {pgn}) */
+void lq_can_receive_{node.label}(void)
+{{
+    twai_message_t rx_msg;
+    
+    if (twai_receive(&rx_msg, pdMS_TO_TICKS(0)) == ESP_OK) {{
+        if (rx_msg.extd && !rx_msg.rtr) {{
+            /* Extract J1939 PGN from 29-bit identifier */
+            uint32_t msg_pgn = (rx_msg.identifier >> 8) & 0x3FFFF;
+            
+            if (msg_pgn == {pgn}) {{
+                /* Convert CAN data to int32_t */
+                int32_t value = (rx_msg.data[3] << 24) | (rx_msg.data[2] << 16) |
+                                (rx_msg.data[1] << 8) | rx_msg.data[0];
+                lq_hw_push({signal_id}, value);
+            }}
+        }}
+    }}
 }}
 """
         return ""
@@ -292,6 +376,16 @@ void lq_platform_peripherals_init(void)
     
     spi_bus_initialize(HSPI_HOST, &bus_cfg, 1);
     spi_bus_add_device(HSPI_HOST, &dev_cfg, &spi_handle);
+    
+    /* CAN (TWAI) Configuration */
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_21, GPIO_NUM_22, TWAI_MODE_NORMAL);
+    twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
+    twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+    
+    /* Install TWAI driver */
+    if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
+        twai_start();
+    }
 }
 """
         return code
@@ -307,6 +401,7 @@ class NRF52Adaptor(PlatformAdaptor):
         return """/* Nordic NRF52 SDK Platform Headers */
 #include "nrf_drv_saadc.h"
 #include "nrf_drv_spi.h"
+#include "nrf_drv_can.h"  /* External CAN controller (MCP2515 via SPI) */
 #include "lq_platform.h"
 #include "lq_hw_input.h"
 
@@ -315,6 +410,9 @@ static nrf_saadc_value_t adc_buffer[8];
 
 /* SPI instance */
 static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(0);
+
+/* CAN frame buffer */
+static uint8_t can_rx_buffer[13];
 """
     
     def generate_isr_wrapper(self, node, signal_id):
@@ -344,6 +442,30 @@ void spi_event_handler(nrf_drv_spi_evt_t const * p_event, void * p_context)
         uint16_t value = (p_event->data.done.p_rx_buffer[0] << 8) | 
                          p_event->data.done.p_rx_buffer[1];
         lq_hw_push({signal_id}, (uint32_t)value);
+    }}
+}}
+"""
+        
+        elif node.compatible == 'lq,hw-can-input':
+            pgn = node.properties.get('pgn', 0)
+            
+            return f"""
+/* CAN receive handler for {node.label} (PGN {pgn}) via MCP2515 */
+void lq_can_receive_{node.label}(void)
+{{
+    /* Poll MCP2515 via SPI for new messages */
+    if (nrf_drv_can_read_message(can_rx_buffer, sizeof(can_rx_buffer)) == NRF_SUCCESS) {{
+        /* Extract J1939 identifier and PGN */
+        uint32_t id = (can_rx_buffer[0] << 24) | (can_rx_buffer[1] << 16) |
+                      (can_rx_buffer[2] << 8) | can_rx_buffer[3];
+        uint32_t msg_pgn = (id >> 8) & 0x3FFFF;
+        
+        if (msg_pgn == {pgn}) {{
+            /* Data starts at offset 5 in buffer */
+            int32_t value = (can_rx_buffer[8] << 24) | (can_rx_buffer[7] << 16) |
+                            (can_rx_buffer[6] << 8) | can_rx_buffer[5];
+            lq_hw_push({signal_id}, value);
+        }}
     }}
 }}
 """
