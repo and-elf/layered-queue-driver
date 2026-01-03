@@ -5,14 +5,28 @@ DTS to C Code Generator for Layered Queue Driver
 This script parses devicetree files and generates:
 - lq_generated.h: Forward declarations and extern definitions
 - lq_generated.c: Complete engine struct initialization and ISR handlers
+- lq_platform_hw.c: Platform-specific ISRs and peripheral init (optional)
 
 Usage:
-    python3 scripts/dts_gen.py <input.dts> <output_dir>
+    python3 scripts/dts_gen.py <input.dts> <output_dir> [--platform=stm32|samd|esp32|nrf52|baremetal]
+
+Examples:
+    python3 scripts/dts_gen.py app.dts src/             # Generic (no platform ISRs)
+    python3 scripts/dts_gen.py app.dts src/ --platform=stm32   # STM32 HAL ISRs
+    python3 scripts/dts_gen.py app.dts src/ --platform=esp32   # ESP32 IDF ISRs
 """
 
 import sys
 import re
 from pathlib import Path
+
+# Import platform adaptors if available
+try:
+    from platform_adaptors import get_platform_adaptor
+    PLATFORM_SUPPORT = True
+except ImportError:
+    PLATFORM_SUPPORT = False
+    print("Warning: platform_adaptors.py not found. Platform-specific generation disabled.")
 
 class DTSNode:
     def __init__(self, label, compatible, address=None):
@@ -248,21 +262,92 @@ def generate_source(nodes, output_path):
         f.write("/* Initialization */\n")
         f.write("int lq_generated_init(void) {\n")
         f.write("    /* Hardware input layer */\n")
-        f.write("    int ret = lq_hw_input_init();\n")
+        f.write("    int ret = lq_hw_input_init(64);\n")
         f.write("    if (ret != 0) return ret;\n")
         f.write("    \n")
-        f.write("    /* TODO: Configure ADC/SPI/Sensor triggers here */\n")
+        f.write("    /* Platform-specific peripheral init */\n")
+        f.write("    #ifdef LQ_PLATFORM_INIT\n")
+        f.write("    lq_platform_peripherals_init();\n")
+        f.write("    #endif\n")
         f.write("    \n")
         f.write("    return 0;\n")
         f.write("}\n")
 
+def generate_platform_hw(nodes, output_path, platform):
+    """Generate platform-specific hardware interface"""
+    if not PLATFORM_SUPPORT:
+        print(f"Skipping platform-specific generation (platform_adaptors.py not found)")
+        return
+    
+    try:
+        adaptor = get_platform_adaptor(platform)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+    
+    # Collect hardware input nodes
+    hw_inputs = [n for n in nodes if n.compatible.startswith('lq,hw-')]
+    
+    with open(output_path, 'w') as f:
+        f.write(f"""/*
+ * AUTO-GENERATED PLATFORM-SPECIFIC CODE
+ * Platform: {adaptor.platform_name}
+ * Generated from devicetree by scripts/dts_gen.py
+ * 
+ * This file contains real hardware ISRs and peripheral configuration
+ * for flashing directly to {adaptor.platform_name} hardware.
+ */
+
+""")
+        
+        # Platform headers
+        f.write(adaptor.generate_platform_header())
+        f.write("\n")
+        
+        # Generate ISR wrappers for each hardware input
+        f.write("/* ========================================\n")
+        f.write(" * Interrupt Service Routines\n")
+        f.write(" * ======================================== */\n\n")
+        
+        for node in hw_inputs:
+            signal_id = node.properties.get('signal_id', 0)
+            isr_code = adaptor.generate_isr_wrapper(node, signal_id)
+            if isr_code:
+                f.write(isr_code)
+                f.write("\n")
+        
+        # Generate peripheral initialization
+        f.write("/* ========================================\n")
+        f.write(" * Peripheral Initialization\n")
+        f.write(" * ======================================== */\n\n")
+        
+        f.write(adaptor.generate_peripheral_init(hw_inputs))
+    
+    print(f"Generated {output_path} for {adaptor.platform_name}")
+
 def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <input.dts> <output_dir>")
+    # Parse command line arguments
+    platform = None
+    args = sys.argv[1:]
+    
+    # Extract --platform= argument
+    filtered_args = []
+    for arg in args:
+        if arg.startswith('--platform='):
+            platform = arg.split('=')[1]
+        else:
+            filtered_args.append(arg)
+    
+    if len(filtered_args) != 2:
+        print(f"Usage: {sys.argv[0]} <input.dts> <output_dir> [--platform=stm32|samd|esp32|nrf52|baremetal]")
+        print(f"\nExamples:")
+        print(f"  {sys.argv[0]} app.dts src/")
+        print(f"  {sys.argv[0]} app.dts src/ --platform=stm32")
+        print(f"  {sys.argv[0]} app.dts src/ --platform=esp32")
         sys.exit(1)
     
-    input_dts = Path(sys.argv[1])
-    output_dir = Path(sys.argv[2])
+    input_dts = Path(filtered_args[0])
+    output_dir = Path(filtered_args[1])
     output_dir.mkdir(parents=True, exist_ok=True)
     
     if not input_dts.exists():
@@ -282,6 +367,13 @@ def main():
     print(f"Generated {output_dir}/lq_generated.h")
     print(f"Generated {output_dir}/lq_generated.c")
     print(f"Found {len(nodes)} DTS nodes")
+    
+    # Generate platform-specific hardware interface if requested
+    if platform:
+        generate_platform_hw(nodes, output_dir / 'lq_platform_hw.c', platform)
+    else:
+        print(f"\nTip: Add --platform=<name> to generate platform-specific ISRs")
+        print(f"     Supported platforms: stm32, samd, esp32, nrf52, baremetal")
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,98 @@
+/*
+ * Automotive brake system DTS with hardware channel mappings
+ * For STM32F4 target (adapt channels for your specific board)
+ */
+
+/ {
+    compatible = "layered-queue,automotive-brake";
+    
+    lq_engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+    };
+    
+    /* Hardware inputs - ADC channels on STM32F4 */
+    rpm_adc: rpm-adc-sensor {
+        compatible = "lq,hw-adc-input";
+        label = "rpm_adc";
+        signal_id = <0>;
+        stale_us = <100000>;  /* 100ms */
+        
+        /* STM32-specific hardware mapping */
+        hw_instance = <1>;     /* ADC1 */
+        hw_channel = <0>;      /* Channel 0 (PA0) */
+    };
+    
+    temp_adc: temp-adc-sensor {
+        compatible = "lq,hw-adc-input";
+        label = "temp_adc";
+        signal_id = <2>;
+        stale_us = <500000>;  /* 500ms */
+        
+        hw_instance = <1>;     /* ADC1 */
+        hw_channel = <1>;      /* Channel 1 (PA1) */
+    };
+    
+    oil_adc: oil-adc-sensor {
+        compatible = "lq,hw-adc-input";
+        label = "oil_adc";
+        signal_id = <3>;
+        stale_us = <500000>;  /* 500ms */
+        
+        hw_instance = <1>;     /* ADC1 */
+        hw_channel = <2>;      /* Channel 2 (PA2) */
+    };
+    
+    /* Hardware input - SPI sensor */
+    rpm_spi: rpm-spi-sensor {
+        compatible = "lq,hw-spi-input";
+        label = "rpm_spi";
+        signal_id = <1>;
+        stale_us = <100000>;  /* 100ms */
+        
+        hw_instance = <1>;     /* SPI1 */
+        hw_cs_pin = <4>;       /* Chip select GPIO pin */
+    };
+    
+    /* Merge voters */
+    rpm_merge: rpm-merge {
+        compatible = "lq,mid-merge";
+        label = "rpm_merge";
+        output_signal_id = <10>;
+        input_signal_ids = <0 1>;
+        voting_method = "median";
+        tolerance = <50>;
+        stale_us = <200000>;
+    };
+    
+    /* Cyclic outputs - J1939 CAN messages */
+    rpm_output: rpm-output {
+        compatible = "lq,cyclic-output";
+        label = "rpm_output";
+        source_signal_id = <10>;
+        output_type = "j1939";
+        target_id = <65265>;  /* PGN 0xFEF1 - EEC1 */
+        period_us = <100000>; /* 100ms / 10Hz */
+        priority = <3>;
+    };
+    
+    temp_output: temp-output {
+        compatible = "lq,cyclic-output";
+        label = "temp_output";
+        source_signal_id = <2>;
+        output_type = "j1939";
+        target_id = <65262>;  /* PGN 0xFEEE - ET1 */
+        period_us = <1000000>; /* 1s / 1Hz */
+        priority = <6>;
+    };
+    
+    oil_output: oil-output {
+        compatible = "lq,cyclic-output";
+        label = "oil_output";
+        source_signal_id = <3>;
+        output_type = "j1939";
+        target_id = <65263>;  /* PGN 0xFEEF - EFL/P1 */
+        period_us = <1000000>; /* 1s / 1Hz */
+        priority = <4>;
+    };
+};
