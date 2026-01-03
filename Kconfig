@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig LQ_DRIVER
+	bool "Layered Queue Driver"
+	help
+	  Enable the Layered Queue Driver framework for building
+	  robust data pipelines in safety-critical embedded systems.
+
+if LQ_DRIVER
+
+config LQ_MAX_SIGNALS
+	int "Maximum number of signals"
+	default 32
+	range 1 256
+	help
+	  Maximum number of signals that can be maintained by the engine.
+	  Each signal represents a canonical value from a sensor or merged source.
+	  Increase this if you have many sensors or merged values.
+
+config LQ_MAX_CYCLIC_OUTPUTS
+	int "Maximum number of cyclic outputs"
+	default 16
+	range 1 128
+	help
+	  Maximum number of cyclic (deadline-scheduled) outputs.
+	  Each cyclic output periodically transmits a signal value.
+	  Examples: J1939 messages, periodic CAN frames, etc.
+
+config LQ_MAX_OUTPUT_EVENTS
+	int "Output event buffer size"
+	default 64
+	range 8 256
+	help
+	  Size of the output event buffer used during engine step.
+	  Should be large enough to hold all events generated in one cycle.
+	  Typical: (num_cyclic_outputs + num_on_change_outputs) * 2
+
+config LQ_MAX_MERGES
+	int "Maximum number of merge/voter contexts"
+	default 8
+	range 1 64
+	help
+	  Maximum number of merge/voter contexts for redundancy management.
+	  Each merge combines multiple redundant inputs using voting algorithms.
+
+config LQ_HW_RINGBUFFER_SIZE
+	int "Hardware input ringbuffer size"
+	default 128
+	range 16 512
+	help
+	  Size of the ringbuffer used to collect raw hardware samples
+	  from ISRs and polling functions before processing.
+	  Should be large enough to handle burst traffic between engine steps.
+
+config LQ_LOG_LEVEL
+	int "Logging level"
+	default 3
+	range 0 4
+	help
+	  0 = No logging
+	  1 = Errors only
+	  2 = Warnings and errors
+	  3 = Info, warnings, and errors
+	  4 = Debug (all messages)
+
+endif # LQ_DRIVER

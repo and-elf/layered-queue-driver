@@ -146,7 +146,7 @@ Define the complete pipeline in device tree:
 The engine step runs periodically to process all pending samples:
 
 ```c
-#include "lq_sync_group.h"
+#include "lq_engine.h"
 #include "lq_hw_input.h"
 #include "lq_mid_driver.h"
 #include "lq_platform.h"
@@ -266,6 +266,7 @@ enum lq_status {
 
 ```
 layered-queue-driver/
+├── Kconfig                        # KConfig configuration options
 ├── dts/
 │   ├── bindings/layered-queue/     # Device tree bindings
 │   │   ├── lq,adc.yaml
@@ -282,6 +283,7 @@ layered-queue-driver/
 │   ├── lq_hw_input.h              # Hardware input layer (ISR-safe)
 │   ├── lq_mid_driver.h            # Mid-level driver interface (pure)
 │   ├── lq_event.h                 # Event and output driver system
+│   ├── lq_engine.h                # Engine core (pure processing)
 │   ├── lq_sync_group.h            # Synchronized output groups
 │   ├── lq_platform.h              # Platform abstraction
 │   ├── lq_util.h                  # Utility functions
@@ -356,17 +358,28 @@ merged_critical: lq-merge@0 {
 
 ## Configuration
 
-Enable in `prj.conf`:
+Configure in `prj.conf`:
 
 ```ini
 CONFIG_LQ_DRIVER=y
-CONFIG_LQ_QUEUE=y
-CONFIG_LQ_ADC_SOURCE=y
-CONFIG_LQ_SPI_SOURCE=y
-CONFIG_LQ_MERGE_VOTER=y
-CONFIG_LQ_DUAL_INVERTED=y
-CONFIG_LQ_LOG_LEVEL_INF=y
+CONFIG_LQ_MAX_SIGNALS=32
+CONFIG_LQ_MAX_CYCLIC_OUTPUTS=16
+CONFIG_LQ_MAX_OUTPUT_EVENTS=64
+CONFIG_LQ_MAX_MERGES=8
+CONFIG_LQ_HW_RINGBUFFER_SIZE=128
+CONFIG_LQ_LOG_LEVEL=3
 ```
+
+### KConfig Options
+
+- `CONFIG_LQ_MAX_SIGNALS`: Maximum number of signals (default: 32)
+- `CONFIG_LQ_MAX_CYCLIC_OUTPUTS`: Maximum cyclic outputs (default: 16)
+- `CONFIG_LQ_MAX_OUTPUT_EVENTS`: Output event buffer size (default: 64)
+- `CONFIG_LQ_MAX_MERGES`: Maximum merge/voter contexts (default: 8)
+- `CONFIG_LQ_HW_RINGBUFFER_SIZE`: Hardware ringbuffer size (default: 128)
+- `CONFIG_LQ_LOG_LEVEL`: 0=None, 1=Error, 2=Warn, 3=Info, 4=Debug
+
+These configure fixed-size arrays for deterministic memory usage.
 
 ## Building and Testing
 
