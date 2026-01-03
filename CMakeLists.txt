@@ -17,6 +17,15 @@ if(NOT DEFINED LQ_PLATFORM)
     set(LQ_PLATFORM "native")
 endif()
 
+# Platform-specific source files
+if(LQ_PLATFORM STREQUAL "freertos")
+    set(PLATFORM_SOURCES src/platform/lq_platform_freertos.c)
+    set(PLATFORM_DEFINITIONS LQ_PLATFORM_FREERTOS=1)
+else()
+    set(PLATFORM_SOURCES src/platform/lq_platform_native.c)
+    set(PLATFORM_DEFINITIONS LQ_PLATFORM_NATIVE=1)
+endif()
+
 # Compiler flags
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
@@ -34,7 +43,7 @@ add_library(layered_queue
     src/lq_engine.c
     src/lq_hw_input.c
     src/lq_j1939.c
-    src/platform/lq_platform_native.c
+    ${PLATFORM_SOURCES}
 )
 
 target_include_directories(layered_queue PUBLIC
@@ -42,12 +51,20 @@ target_include_directories(layered_queue PUBLIC
 )
 
 target_compile_definitions(layered_queue PUBLIC
-    LQ_PLATFORM_NATIVE=1
+    ${PLATFORM_DEFINITIONS}
 )
 
-# Link pthread
-find_package(Threads REQUIRED)
-target_link_libraries(layered_queue PUBLIC Threads::Threads)
+# Platform-specific linking
+if(LQ_PLATFORM STREQUAL "freertos")
+    # Link FreeRTOS if available
+    if(TARGET freertos_kernel)
+        target_link_libraries(layered_queue PUBLIC freertos_kernel)
+    endif()
+else()
+    # Link pthread for native platform
+    find_package(Threads REQUIRED)
+    target_link_libraries(layered_queue PUBLIC Threads::Threads)
+endif()
 
 # Tests
 if(BUILD_TESTS)
