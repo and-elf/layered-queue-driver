@@ -36,10 +36,24 @@ extern "C" {
 uint32_t lq_platform_uptime_get(void);
 
 /**
+ * @brief Get current time in microseconds
+ * @return Microseconds since system start
+ */
+uint64_t lq_platform_get_time_us(void);
+
+/**
  * @brief Sleep for specified milliseconds
  * @param ms Milliseconds to sleep
  */
 void lq_platform_sleep_ms(uint32_t ms);
+
+/**
+ * @brief Delay for specified milliseconds (alias for sleep)
+ * @param ms Milliseconds to delay
+ */
+static inline void lq_platform_delay_ms(uint32_t ms) {
+    lq_platform_sleep_ms(ms);
+}
 
 /* ============================================================================
  * Mutex API

@@ -21,6 +21,11 @@ uint32_t lq_platform_uptime_get(void)
     return k_uptime_get_32();
 }
 
+uint64_t lq_platform_get_time_us(void)
+{
+    return k_uptime_get() * 1000ULL;  /* Convert ms to us */
+}
+
 void lq_platform_sleep_ms(uint32_t ms)
 {
     k_sleep(K_MSEC(ms));
