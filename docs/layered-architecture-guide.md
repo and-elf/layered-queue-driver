@@ -137,6 +137,38 @@ if (lq_sync_group_is_due(&snapshot, now)) {
 }
 ```
 
+### Cyclic Outputs (Deadline Scheduling)
+```c
+// Send J1939 engine speed every 100ms with deadline scheduling
+struct lq_cyclic_ctx rpm_cyclic = {
+    .type = LQ_OUTPUT_J1939,
+    .target_id = 0xFEF1,          // Engine Speed PGN
+    .source_signal = 100,         // Index into engine->signals[]
+    .period_us = 100000,          // 100ms
+    .next_deadline = 0,
+    .flags = 0
+};
+
+// In engine step - process all cyclic outputs
+for (size_t i = 0; i < engine->num_cyclic_outputs; i++) {
+    lq_cyclic_process(engine, engine->cyclic_outputs[i], now);
+}
+
+// Output events are now in engine->out_events[]
+// Send them to hardware
+for (size_t i = 0; i < engine->out_event_count; i++) {
+    struct lq_output_event *evt = &engine->out_events[i];
+    switch (evt->type) {
+        case LQ_OUTPUT_J1939:
+            j1939_send(evt->target_id, evt->value);
+            break;
+        case LQ_OUTPUT_GPIO:
+            gpio_pin_set(evt->target_id, evt->value);
+            break;
+    }
+}
+```
+
 ## Device Tree Pattern
 
 ```dts
@@ -155,23 +187,35 @@ if (lq_sync_group_is_due(&snapshot, now)) {
         sensor: lq-merge@0 {
             inputs = <&adc0 &spi0>;
             voting-method = "median";
+            signal-index = <100>;  // Maps to engine->signals[100]
         };
     };
     
     // Layer 5: Output adapters
     outputs {
-        can0: lq-output@0 {
-            compatible = "lq,can-output";
-            source = <&sensor>;
-            pgn = <0xFEF1>;
+        // Cyclic output: deadline-scheduled periodic transmission
+        can0: lq-cyclic-output@0 {
+            compatible = "lq,cyclic-output";
+            source-signal = <100>;    // engine->signals[100]
+            output-type = "j1939";
+            target-id = <0xFEF1>;     // PGN
+            period-us = <100000>;     // 10Hz
+        };
+        
+        // On-change output: transmit when value changes
+        gpio0: lq-output@0 {
+            compatible = "lq,gpio-output";
+            source-signal = <100>;
+            pin = <5>;
+            trigger-status = <1>;     // When status >= DEGRADED
         };
     };
     
-    // Layer 6: Sync coordination
+    // Layer 6: Sync coordination (for on-change outputs)
     sync_groups {
         snapshot: lq-sync-group@0 {
             period-us = <100000>;
-            members = <&can0>;
+            members = <&gpio0>;
         };
     };
 };

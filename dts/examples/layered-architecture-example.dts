@@ -109,25 +109,27 @@
      * ======================================================================== */
     
     outputs {
-        /* CAN output: Engine speed */
-        can_rpm: lq-output@0 {
-            compatible = "lq,can-output";
-            source = <&engine_rpm>;
-            pgn = <0xFEF1>;           /* Engine Speed PGN */
-            priority = <3>;
+        /* Cyclic CAN output: Engine speed at 10Hz */
+        can_rpm: lq-cyclic-output@0 {
+            compatible = "lq,cyclic-output";
+            source-signal = <100>;    /* engine_rpm signal index */
+            output-type = "j1939";
+            target-id = <0xFEF1>;     /* Engine Speed PGN */
             period-us = <100000>;     /* 100ms (10Hz) */
+            priority = <3>;
         };
         
-        /* CAN output: Engine temperature */
-        can_temp: lq-output@1 {
-            compatible = "lq,can-output";
-            source = <&engine_temp>;
-            pgn = <0xFEEE>;           /* Engine Temperature PGN */
-            priority = <6>;
+        /* Cyclic CAN output: Engine temperature at 1Hz */
+        can_temp: lq-cyclic-output@1 {
+            compatible = "lq,cyclic-output";
+            source-signal = <101>;    /* engine_temp signal index */
+            output-type = "j1939";
+            target-id = <0xFEEE>;     /* Engine Temperature PGN */
             period-us = <1000000>;    /* 1s (1Hz) */
+            priority = <6>;
         };
         
-        /* GPIO output: Warning LED */
+        /* On-change GPIO output: Warning LED */
         gpio_warning: lq-output@2 {
             compatible = "lq,gpio-output";
             source = <&engine_temp>;
@@ -138,7 +140,7 @@
             trigger-status = <1>;     /* >= LQ_EVENT_DEGRADED */
         };
         
-        /* GPIO output: Critical LED */
+        /* On-change GPIO output: Critical LED */
         gpio_critical: lq-output@3 {
             compatible = "lq,gpio-output";
             source = <&engine_temp>;
@@ -155,12 +157,18 @@
      * ======================================================================== */
     
     sync_groups {
-        /* Update CAN and GPIO together for consistent snapshot */
-        status_snapshot: lq-sync-group@0 {
+        /* 
+         * Note: Cyclic outputs (can_rpm, can_temp) use deadline scheduling
+         * and don't need sync groups - they transmit independently at their
+         * configured periods.
+         * 
+         * On-change outputs (GPIO) can be grouped for atomic updates if needed.
+         */
+        led_status: lq-sync-group@0 {
             compatible = "lq,sync-group";
             period-us = <100000>;     /* 100ms */
-            members = <&can_rpm &can_temp &gpio_warning &gpio_critical>;
-            use-staging;              /* Use stage/commit for atomicity */
+            members = <&gpio_warning &gpio_critical>;
+            use-staging;              /* Atomic LED updates */
         };
     };
 };
