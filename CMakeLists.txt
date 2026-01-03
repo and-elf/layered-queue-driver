@@ -77,10 +77,28 @@ if(BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(queue_test)
     
+    # Generated system tests (from DTS)
+    add_executable(generated_test
+        samples/automotive/src/lq_generated_test.cpp
+        samples/automotive/src/lq_generated.c
+    )
+    
+    target_link_libraries(generated_test PRIVATE
+        layered_queue
+        GTest::gtest
+        GTest::gtest_main
+    )
+    
+    target_include_directories(generated_test PRIVATE
+        samples/automotive/src
+    )
+    
+    gtest_discover_tests(generated_test)
+    
     # Add custom target for running tests
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-        DEPENDS queue_test
+        DEPENDS queue_test generated_test
         COMMENT "Running tests..."
     )
 endif()
