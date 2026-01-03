@@ -176,10 +176,16 @@ def generate_source(nodes, output_path):
 
 """)
         
-        # Generate merge contexts
+        # Generate engine instance with inline array initialization
+        f.write("/* Engine instance */\n")
+        f.write("struct lq_engine g_lq_engine = {\n")
+        f.write("    .num_signals = 0,  /* Initialized at runtime */\n")
+        f.write(f"    .num_merges = {len(merges)},\n")
+        f.write(f"    .num_cyclic_outputs = {len(cyclic_outputs)},\n")
+        
+        # Inline merge contexts
         if merges:
-            f.write("/* Merge contexts */\n")
-            f.write(f"static struct lq_merge_ctx g_merges[{len(merges)}] = {{\n")
+            f.write("    .merges = {\n")
             for i, node in enumerate(merges):
                 vote_method_map = {
                     'median': 'LQ_VOTE_MEDIAN',
@@ -193,20 +199,19 @@ def generate_source(nodes, output_path):
                 if isinstance(input_ids, int):
                     input_ids = [input_ids]
                 
-                f.write(f"    [{i}] = {{\n")
-                f.write(f"        .output_signal = {node.properties.get('output_signal_id', 0)},\n")
-                f.write(f"        .input_signals = {{{', '.join(map(str, input_ids))}}},\n")
-                f.write(f"        .num_inputs = {len(input_ids)},\n")
-                f.write(f"        .voting_method = {vote_method},\n")
-                f.write(f"        .tolerance = {node.properties.get('tolerance', 0)},\n")
-                f.write(f"        .stale_us = {node.properties.get('stale_us', 0)},\n")
-                f.write(f"    }},\n")
-            f.write("};\n\n")
+                f.write(f"        [{i}] = {{\n")
+                f.write(f"            .output_signal = {node.properties.get('output_signal_id', 0)},\n")
+                f.write(f"            .input_signals = {{{', '.join(map(str, input_ids))}}},\n")
+                f.write(f"            .num_inputs = {len(input_ids)},\n")
+                f.write(f"            .voting_method = {vote_method},\n")
+                f.write(f"            .tolerance = {node.properties.get('tolerance', 0)},\n")
+                f.write(f"            .stale_us = {node.properties.get('stale_us', 0)},\n")
+                f.write(f"        }},\n")
+            f.write("    },\n")
         
-        # Generate cyclic output contexts
+        # Inline cyclic output contexts
         if cyclic_outputs:
-            f.write("/* Cyclic output contexts */\n")
-            f.write(f"static struct lq_cyclic_ctx g_cyclic_outputs[{len(cyclic_outputs)}] = {{\n")
+            f.write("    .cyclic_outputs = {\n")
             for i, node in enumerate(cyclic_outputs):
                 output_type_map = {
                     'can': 'LQ_OUTPUT_CAN',
@@ -217,23 +222,17 @@ def generate_source(nodes, output_path):
                 }
                 output_type = output_type_map.get(node.properties.get('output_type', 'can'))
                 
-                f.write(f"    [{i}] = {{\n")
-                f.write(f"        .type = {output_type},\n")
-                f.write(f"        .target_id = {node.properties.get('target_id', 0)},\n")
-                f.write(f"        .source_signal = {node.properties.get('source_signal_id', 0)},\n")
-                f.write(f"        .period_us = {node.properties.get('period_us', 100000)},\n")
-                f.write(f"        .next_deadline = {node.properties.get('deadline_offset_us', 0)},\n")
-                f.write(f"        .flags = 0,\n")
-                f.write(f"        .enabled = true,\n")
-                f.write(f"    }},\n")
-            f.write("};\n\n")
+                f.write(f"        [{i}] = {{\n")
+                f.write(f"            .type = {output_type},\n")
+                f.write(f"            .target_id = {node.properties.get('target_id', 0)},\n")
+                f.write(f"            .source_signal = {node.properties.get('source_signal_id', 0)},\n")
+                f.write(f"            .period_us = {node.properties.get('period_us', 100000)},\n")
+                f.write(f"            .next_deadline = {node.properties.get('deadline_offset_us', 0)},\n")
+                f.write(f"            .flags = 0,\n")
+                f.write(f"            .enabled = true,\n")
+                f.write(f"        }},\n")
+            f.write("    },\n")
         
-        # Generate engine instance
-        f.write("/* Engine instance */\n")
-        f.write("struct lq_engine g_lq_engine = {\n")
-        f.write("    .num_signals = 0,  /* Initialized at runtime */\n")
-        f.write(f"    .num_merges = {len(merges)},\n")
-        f.write(f"    .num_cyclic_outputs = {len(cyclic_outputs)},\n")
         f.write("};\n\n")
         
         # Generate ISR handlers for hardware inputs
@@ -264,19 +263,6 @@ def generate_source(nodes, output_path):
         f.write("    int ret = lq_hw_input_init(64);\n")
         f.write("    if (ret != 0) return ret;\n")
         f.write("    \n")
-        
-        # Copy merge contexts to engine
-        if merges:
-            f.write("    /* Copy merge contexts to engine */\n")
-            f.write(f"    memcpy(g_lq_engine.merges, g_merges, sizeof(g_merges));\n")
-            f.write("    \n")
-        
-        # Copy cyclic output contexts to engine
-        if cyclic_outputs:
-            f.write("    /* Copy cyclic output contexts to engine */\n")
-            f.write(f"    memcpy(g_lq_engine.cyclic_outputs, g_cyclic_outputs, sizeof(g_cyclic_outputs));\n")
-            f.write("    \n")
-        
         f.write("    /* Platform-specific peripheral init */\n")
         f.write("    #ifdef LQ_PLATFORM_INIT\n")
         f.write("    lq_platform_peripherals_init();\n")
