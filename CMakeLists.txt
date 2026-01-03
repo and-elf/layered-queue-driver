@@ -43,6 +43,7 @@ add_library(layered_queue
     src/lq_engine.c
     src/lq_hw_input.c
     src/lq_j1939.c
+    src/lq_hil.c
     ${PLATFORM_SOURCES}
 )
 

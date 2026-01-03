@@ -6,6 +6,7 @@
  */
 
 #include "lq_platform.h"
+#include "lq_hil.h"
 
 #ifdef LQ_PLATFORM_NATIVE
 
