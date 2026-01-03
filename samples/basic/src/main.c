@@ -2,124 +2,86 @@
  * Copyright (c) 2026 Layered Queue Driver
  * SPDX-License-Identifier: Apache-2.0
  *
- * Example application demonstrating layered queue usage
+ * Automotive Engine Monitor - Clean Application
+ * 
+ * This application demonstrates pure C code with all configuration
+ * generated at build-time from devicetree.
+ * 
+ * Build process:
+ *   1. scripts/dts_gen.py parses app.dts
+ *   2. Generates lq_generated.c/h with engine struct and ISRs
+ *   3. This file just includes and uses the generated code
+ * 
+ * No macros, no RTOS dependencies, just clean C.
  */
 
-#include <zephyr/kernel.h>
-#include <zephyr/drivers/layered_queue.h>
-#include <zephyr/logging/log.h>
+#include "lq_engine.h"
+#include "lq_generated.h"
+#include "lq_log.h"
 
-LOG_MODULE_REGISTER(lq_example, LOG_LEVEL_INF);
+LQ_LOG_MODULE_REGISTER(automotive, LQ_LOG_LEVEL_INF);
 
-/* Get queue devices from device tree */
-#define PRESSURE_QUEUE DT_NODELABEL(q_pressure)
-#define STATE_QUEUE DT_NODELABEL(q_state)
-#define MERGED_QUEUE DT_NODELABEL(q_merged)
-
-static const struct device *pressure_queue = DEVICE_DT_GET(PRESSURE_QUEUE);
-static const struct device *state_queue = DEVICE_DT_GET(STATE_QUEUE);
-static const struct device *merged_queue = DEVICE_DT_GET(MERGED_QUEUE);
-
-/* Callback for pressure updates */
-static void pressure_callback(const struct device *dev,
-                              const struct lq_item *item,
-                              void *user_data)
-{
-    LOG_INF("Pressure: %d (status=%d)", item->value, item->status);
-
-    if (item->status == LQ_DEGRADED) {
-        LOG_WRN("Pressure in degraded range!");
-    } else if (item->status != LQ_OK) {
-        LOG_ERR("Pressure sensor fault!");
-    }
-}
-
-/* Consumer thread for merged data */
-static void merged_consumer_thread(void *p1, void *p2, void *p3)
-{
-    ARG_UNUSED(p1);
-    ARG_UNUSED(p2);
-    ARG_UNUSED(p3);
-
-    LOG_INF("Merged consumer started");
-
-    while (1) {
-        struct lq_item item;
-        int ret = lq_pop(merged_queue, &item, K_FOREVER);
-
-        if (ret == 0) {
-            const char *status_str;
-            switch (item.status) {
-            case LQ_OK:
-                status_str = "OK";
-                break;
-            case LQ_DEGRADED:
-                status_str = "DEGRADED";
-                break;
-            case LQ_OUT_OF_RANGE:
-                status_str = "OUT_OF_RANGE";
-                break;
-            case LQ_INCONSISTENT:
-                status_str = "INCONSISTENT";
-                break;
-            default:
-                status_str = "UNKNOWN";
-                break;
-            }
-
-            LOG_INF("Merged value: %d [%s] @ %u ms",
-                    item.value, status_str, item.timestamp);
-        }
-    }
-}
-
-K_THREAD_DEFINE(merged_consumer, 2048,
-                merged_consumer_thread, NULL, NULL, NULL,
-                5, 0, 0);
+/* ============================================================================
+ * Application
+ * ========================================================================== */
 
 int main(void)
 {
-    LOG_INF("Layered Queue Example Application");
-
-    /* Verify devices are ready */
-    if (!device_is_ready(pressure_queue)) {
-        LOG_ERR("Pressure queue not ready");
-        return -1;
+    LQ_LOG_INF("Automotive Engine Monitor - Generated from DTS");
+    LQ_LOG_INF("Engine signals: %u", g_lq_engine.num_signals);
+    LQ_LOG_INF("Merge contexts: %u", g_lq_engine.num_merges);
+    LQ_LOG_INF("Cyclic outputs: %u", g_lq_engine.num_cyclic_outputs);
+    
+    /* Initialize (hardware input layer + sensor setup) */
+    int ret = lq_generated_init();
+    if (ret != 0) {
+        LQ_LOG_ERR("Failed to initialize: %d", ret);
+        return ret;
     }
-
-    if (!device_is_ready(state_queue)) {
-        LOG_ERR("State queue not ready");
-        return -1;
+    
+    /* Start the engine task (if configured) */
+#ifdef CONFIG_LQ_ENGINE_TASK
+    ret = lq_engine_start(&g_lq_engine);
+    if (ret != 0) {
+        LQ_LOG_ERR("Failed to start engine: %d", ret);
+        return ret;
     }
-
-    if (!device_is_ready(merged_queue)) {
-        LOG_ERR("Merged queue not ready");
-        return -1;
-    }
-
-    LOG_INF("All queues ready");
-
-    /* Register callback for pressure updates */
-    lq_register_callback(pressure_queue, pressure_callback, NULL);
-
-    /* Monitor queue statistics */
-    while (1) {
-        k_sleep(K_SECONDS(5));
-
-        struct lq_stats stats;
-
-        lq_get_stats(pressure_queue, &stats);
-        LOG_INF("Pressure queue: %u/%u items, %u dropped, peak %u",
-                stats.items_current,
-                16, /* capacity from DT */
-                stats.items_dropped,
-                stats.peak_usage);
-
-        lq_get_stats(merged_queue, &stats);
-        LOG_INF("Merged queue: %u written, %u read",
-                stats.items_written,
-                stats.items_read);
-    }
-
+    LQ_LOG_INF("Engine task started");
+    
+    /* RTOS will handle scheduling */
     return 0;
+#else
+    /* Manual loop for bare-metal or RTOS-free systems */
+    LQ_LOG_INF("Running engine in main loop (no task)");
+    
+    while (1) {
+        lq_engine_step(&g_lq_engine);
+        
+        /* Platform-specific delay */
+        lq_platform_delay_ms(10);
+    }
+#endif
+}
+
+/* ============================================================================
+ * Example: Accessing signals (for application logic)
+ * ========================================================================== */
+
+void app_read_rpm(void)
+{
+    /* The merged RPM is in signal 10 (from DTS output-signal-id) */
+    struct lq_signal *rpm = &g_lq_engine.signals[10];
+    
+    LQ_LOG_INF("Engine RPM: %d (status=%d, age=%llu us)",
+               rpm->value, rpm->status, 
+               lq_platform_get_time_us() - rpm->timestamp_us);
+}
+
+void app_read_temp(void)
+{
+    /* Temperature is in signal 2 (from DTS signal-id) */
+    struct lq_signal *temp = &g_lq_engine.signals[2];
+    
+    LQ_LOG_INF("Engine Temperature: %d°C (status=%d)",
+               temp->value, temp->status);
 }
