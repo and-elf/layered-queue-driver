@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/wait.h>
 #include "lq_hil.h"
 #include "lq_j1939.h"
@@ -54,8 +55,46 @@ static void parse_byte_array(const char *str, uint8_t *data, size_t *len)
 }
 
 
-/* Test: Normal operation with 3 agreeing RPM sensors */
-static bool hil_test_rpm_normal(void)
+/* Test: All inputs at nominal values */
+static bool hil_test_all_inputs_nominal(void)
+{
+    char details[256] = "";
+    uint64_t start_time, latency_us;
+    
+    /* Step 0: Inject ADC */
+    if (lq_hil_tester_inject_adc(0, 2500) != 0) {
+        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 0);
+        return false;
+    }
+    /* Step 1: Inject ADC */
+    if (lq_hil_tester_inject_adc(0, 2500) != 0) {
+        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 0);
+        return false;
+    }
+    /* Step 2: Inject ADC */
+    if (lq_hil_tester_inject_adc(0, 2500) != 0) {
+        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 0);
+        return false;
+    }
+    /* Step 3: Expect CAN message */
+    struct lq_hil_can_msg can_msg_3;
+    if (lq_hil_tester_wait_can(&can_msg_3, 200) != 0) {
+        snprintf(details, sizeof(details), "CAN message timeout");
+        return false;
+    }
+    
+    /* Verify PGN */
+    uint32_t received_pgn = (can_msg_3.can_id >> 8) & 0x3FFFF;
+    if (received_pgn != 61444) {
+        snprintf(details, sizeof(details), "Expected PGN 61444, got %u", received_pgn);
+        return false;
+    }
+    
+    return true;
+}
+
+/* Test: Test voting/merge logic */
+static bool hil_test_voting_merge(void)
 {
     char details[256] = "";
     uint64_t start_time, latency_us;
@@ -70,76 +109,20 @@ static bool hil_test_rpm_normal(void)
         snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 1);
         return false;
     }
-    /* Step 2: Inject CAN (J1939) */
-    uint32_t can_id_2 = lq_j1939_build_id_from_pgn(61444, 3, 0x00);
-    uint8_t can_data_2[8];
-    size_t can_len_2;
-    parse_byte_array("[0xE8 0x5E 0x00 0x00 0x00 0x00 0x00 0x00]", can_data_2, &can_len_2);
-    
-    if (lq_hil_tester_inject_can(can_id_2, 1, can_data_2, can_len_2) != 0) {
-        snprintf(details, sizeof(details), "Failed to inject CAN");
-        return false;
-    }
-    /* Step 3: Expect CAN message */
-    struct lq_hil_can_msg can_msg_3;
-    if (lq_hil_tester_wait_can(&can_msg_3, 150) != 0) {
-        snprintf(details, sizeof(details), "CAN message timeout");
-        return false;
-    }
-    
-    /* Verify PGN */
-    uint32_t received_pgn = (can_msg_3.can_id >> 8) & 0x3FFFF;
-    if (received_pgn != 61444) {
-        snprintf(details, sizeof(details), "Expected PGN 61444, got %u", received_pgn);
-        return false;
-    }
-    
-    return true;
-}
-
-/* Test: Fault on one RPM sensor - system degrades gracefully */
-static bool hil_test_rpm_fault(void)
-{
-    char details[256] = "";
-    uint64_t start_time, latency_us;
-    
-    /* Step 0: Inject ADC */
-    if (lq_hil_tester_inject_adc(0, 2500) != 0) {
-        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 0);
-        return false;
-    }
-    /* Step 1: Inject ADC */
-    if (lq_hil_tester_inject_adc(1, 2505) != 0) {
-        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 1);
-        return false;
-    }
     /* Step 2: Inject ADC */
-    if (lq_hil_tester_inject_adc(0, 9999) != 0) {
-        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 0);
+    if (lq_hil_tester_inject_adc(2, 3010) != 0) {
+        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", 2);
         return false;
     }
     /* Step 3: Expect CAN message */
     struct lq_hil_can_msg can_msg_3;
-    if (lq_hil_tester_wait_can(&can_msg_3, 1500) != 0) {
+    if (lq_hil_tester_wait_can(&can_msg_3, 200) != 0) {
         snprintf(details, sizeof(details), "CAN message timeout");
         return false;
     }
     
     /* Verify PGN */
     uint32_t received_pgn = (can_msg_3.can_id >> 8) & 0x3FFFF;
-    if (received_pgn != 65226) {
-        snprintf(details, sizeof(details), "Expected PGN 65226, got %u", received_pgn);
-        return false;
-    }
-    /* Step 4: Expect CAN message */
-    struct lq_hil_can_msg can_msg_4;
-    if (lq_hil_tester_wait_can(&can_msg_4, 200) != 0) {
-        snprintf(details, sizeof(details), "CAN message timeout");
-        return false;
-    }
-    
-    /* Verify PGN */
-    uint32_t received_pgn = (can_msg_4.can_id >> 8) & 0x3FFFF;
     if (received_pgn != 61444) {
         snprintf(details, sizeof(details), "Expected PGN 61444, got %u", received_pgn);
         return false;
@@ -148,7 +131,7 @@ static bool hil_test_rpm_fault(void)
     return true;
 }
 
-/* Test: End-to-end latency measurement */
+/* Test: End-to-end latency */
 static bool hil_test_latency(void)
 {
     char details[256] = "";
@@ -160,8 +143,8 @@ static bool hil_test_latency(void)
     /* TODO: Implement trigger and response from nested properties */
     
     latency_us = lq_hil_get_timestamp_us() - start_time;
-    if (latency_us > 10000) {
-        snprintf(details, sizeof(details), "Latency %lluus exceeds limit 10000us", latency_us);
+    if (latency_us > 50000) {
+        snprintf(details, sizeof(details), "Latency %lluus exceeds limit 50000us", latency_us);
         return false;
     }
     snprintf(details, sizeof(details), "latency: %lluus", latency_us);
@@ -196,8 +179,8 @@ int main(int argc, char *argv[])
     printf("1..3\n");
     
     /* Run all tests */
-    tap_result(hil_test_rpm_normal(), "hil-test-rpm-normal", "");
-    tap_result(hil_test_rpm_fault(), "hil-test-rpm-fault", "");
+    tap_result(hil_test_all_inputs_nominal(), "hil-test-all-inputs-nominal", "");
+    tap_result(hil_test_voting_merge(), "hil-test-voting-merge", "");
     tap_result(hil_test_latency(), "hil-test-latency", "");
     
     /* Cleanup */

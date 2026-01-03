@@ -157,6 +157,7 @@ def generate_test_runner(tests, output_file):
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/wait.h>
 #include "lq_hil.h"
 #include "lq_j1939.h"
