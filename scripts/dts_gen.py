@@ -278,6 +278,147 @@ def generate_source(nodes, output_path):
         f.write("    return 0;\n")
         f.write("}\n")
 
+def generate_hil_tests(nodes, output_path):
+    """Auto-generate HIL tests from system definition"""
+    
+    # Collect all inputs
+    adc_sources = [n for n in nodes if 'adc' in n.compatible]
+    spi_sources = [n for n in nodes if 'spi' in n.compatible]
+    can_sources = [n for n in nodes if 'can' in n.compatible]
+    merge_nodes = [n for n in nodes if 'merge' in n.compatible or 'voter' in n.compatible]
+    error_nodes = [n for n in nodes if 'error' in n.compatible]
+    output_nodes = [n for n in nodes if 'cyclic-output' in n.compatible or 'can-output' in n.compatible]
+    
+    with open(output_path, 'w') as f:
+        f.write("/*\n")
+        f.write(" * AUTO-GENERATED HIL Tests\n")
+        f.write(" * Generated from system DTS\n")
+        f.write(" * DO NOT EDIT MANUALLY\n")
+        f.write(" */\n\n")
+        f.write("/ {\n")
+        
+        # Test 1: All inputs nominal
+        f.write("    hil-test-all-inputs-nominal {\n")
+        f.write("        compatible = \"lq,hil-test\";\n")
+        f.write("        description = \"All inputs at nominal values\";\n")
+        f.write("        timeout-ms = <2000>;\n")
+        f.write("        \n")
+        f.write("        sequence {\n")
+        
+        step = 0
+        # Inject all ADC inputs
+        for adc in adc_sources:
+            channel = adc.properties.get('channel', 0)
+            value = adc.properties.get('nominal-value', 2500)
+            f.write(f"            step@{step} {{\n")
+            f.write(f"                action = \"inject-adc\";\n")
+            f.write(f"                channel = <{channel}>;\n")
+            f.write(f"                value = <{value}>;\n")
+            f.write(f"            }};\n")
+            step += 1
+        
+        # Inject all CAN inputs
+        for can in can_sources:
+            pgn = can.properties.get('pgn', 61444)
+            f.write(f"            step@{step} {{\n")
+            f.write(f"                action = \"inject-can-pgn\";\n")
+            f.write(f"                pgn = <{pgn}>;\n")
+            f.write(f"                priority = <3>;\n")
+            f.write(f"                source-addr = <0x00>;\n")
+            f.write(f"                data = [0xE8 0x5E 0x00 0x00 0x00 0x00 0x00 0x00];\n")
+            f.write(f"            }};\n")
+            step += 1
+        
+        # Expect output
+        if output_nodes:
+            output = output_nodes[0]
+            pgn = output.properties.get('pgn', 61444)
+            f.write(f"            step@{step} {{\n")
+            f.write(f"                action = \"expect-can\";\n")
+            f.write(f"                pgn = <{pgn}>;\n")
+            f.write(f"                timeout-ms = <200>;\n")
+            f.write(f"            }};\n")
+        
+        f.write("        };\n")
+        f.write("    };\n\n")
+        
+        # Test 2: Voting/merge behavior
+        if merge_nodes:
+            merge = merge_nodes[0]
+            f.write("    hil-test-voting-merge {\n")
+            f.write("        compatible = \"lq,hil-test\";\n")
+            f.write("        description = \"Test voting/merge logic\";\n")
+            f.write("        timeout-ms = <2000>;\n")
+            f.write("        \n")
+            f.write("        sequence {\n")
+            
+            step = 0
+            # Inject slightly different values
+            for i, adc in enumerate(adc_sources[:3]):  # First 3 sensors
+                channel = adc.properties.get('channel', i)
+                value = 3000 + (i * 5)  # 3000, 3005, 3010
+                f.write(f"            step@{step} {{\n")
+                f.write(f"                action = \"inject-adc\";\n")
+                f.write(f"                channel = <{channel}>;\n")
+                f.write(f"                value = <{value}>;\n")
+                f.write(f"            }};\n")
+                step += 1
+            
+            # Verify merged output
+            if output_nodes:
+                output = output_nodes[0]
+                pgn = output.properties.get('pgn', 61444)
+                f.write(f"            step@{step} {{\n")
+                f.write(f"                action = \"expect-can\";\n")
+                f.write(f"                pgn = <{pgn}>;\n")
+                f.write(f"                timeout-ms = <200>;\n")
+                f.write(f"            }};\n")
+            
+            f.write("        };\n")
+            f.write("    };\n\n")
+        
+        # Test 3: Error detection
+        if error_nodes and adc_sources:
+            error = error_nodes[0]
+            adc = adc_sources[0]
+            channel = adc.properties.get('channel', 0)
+            
+            f.write("    hil-test-error-detection {\n")
+            f.write("        compatible = \"lq,hil-test\";\n")
+            f.write("        description = \"Test error detection and DM1\";\n")
+            f.write("        timeout-ms = <3000>;\n")
+            f.write("        \n")
+            f.write("        sequence {\n")
+            f.write("            step@0 {\n")
+            f.write("                action = \"inject-adc\";\n")
+            f.write(f"                channel = <{channel}>;\n")
+            f.write("                value = <9999>;  /* Out of range */\n")
+            f.write("            };\n")
+            f.write("            step@1 {\n")
+            f.write("                action = \"expect-can\";\n")
+            f.write("                pgn = <65226>;  /* DM1 */\n")
+            f.write("                timeout-ms = <1500>;\n")
+            f.write("            };\n")
+            f.write("        };\n")
+            f.write("    };\n\n")
+        
+        # Test 4: Latency test
+        if adc_sources and output_nodes:
+            f.write("    hil-test-latency {\n")
+            f.write("        compatible = \"lq,hil-test\";\n")
+            f.write("        description = \"End-to-end latency\";\n")
+            f.write("        timeout-ms = <1000>;\n")
+            f.write("        \n")
+            f.write("        sequence {\n")
+            f.write("            step@0 {\n")
+            f.write("                action = \"measure-latency\";\n")
+            f.write("                max-latency-us = <50000>;  /* 50ms */\n")
+            f.write("            };\n")
+            f.write("        };\n")
+            f.write("    };\n\n")
+        
+        f.write("};\n")
+
 def generate_platform_hw(nodes, output_path, platform):
     """Generate platform-specific hardware interface"""
     if not PLATFORM_SUPPORT:
@@ -372,6 +513,10 @@ def main():
     print(f"Generated {output_dir}/lq_generated.h")
     print(f"Generated {output_dir}/lq_generated.c")
     print(f"Found {len(nodes)} DTS nodes")
+    
+    # Auto-generate HIL tests
+    generate_hil_tests(nodes, output_dir / 'lq_generated_test.dts')
+    print(f"Generated {output_dir}/lq_generated_test.dts (HIL tests)")
     
     # Generate platform-specific hardware interface if requested
     if platform:
