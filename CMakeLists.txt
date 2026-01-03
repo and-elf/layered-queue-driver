@@ -31,6 +31,8 @@ add_library(layered_queue
     src/lq_queue_core.c
     src/lq_util.c
     src/lq_spi_source.c
+    src/lq_engine.c
+    src/lq_hw_input.c
     src/platform/lq_platform_native.c
 )
 

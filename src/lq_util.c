@@ -57,7 +57,7 @@ static int compare_int32(const void *a, const void *b)
 
 int lq_vote(const int32_t *values,
             uint8_t num_values,
-            enum lq_voting_method method,
+            enum lq_vote_method method,
             int32_t tolerance,
             int32_t *result,
             enum lq_status *status)
@@ -105,29 +105,9 @@ int lq_vote(const int32_t *values,
         }
         break;
 
-    case LQ_VOTE_MAJORITY: {
-        /* Use median for majority voting */
-        int32_t sorted[num_values];
-        memcpy(sorted, values, num_values * sizeof(int32_t));
-        qsort(sorted, num_values, sizeof(int32_t), compare_int32);
-        *result = sorted[num_values / 2];
-
-        /* Check if majority are within tolerance of median */
-        uint8_t within_tolerance = 0;
-        for (uint8_t i = 0; i < num_values; i++) {
-            if (abs(values[i] - *result) <= tolerance) {
-                within_tolerance++;
-            }
-        }
-
-        if (within_tolerance <= num_values / 2) {
-            *status = LQ_INCONSISTENT;
-        }
-        break;
-    }
-
     default:
-        return -EINVAL;
+        *result = values[0];
+        break;
     }
 
     /* Check tolerance for all methods */

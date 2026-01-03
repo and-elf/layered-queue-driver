@@ -64,4 +64,65 @@ config LQ_LOG_LEVEL
 	  3 = Info, warnings, and errors
 	  4 = Debug (all messages)
 
+config LQ_ENGINE_TASK
+	bool "Enable automatic engine task"
+	default n
+	help
+	  Automatically create and run the engine processing task.
+	  If disabled, you must manually call lq_engine_step() from your code.
+
+if LQ_ENGINE_TASK
+
+choice LQ_ENGINE_TASK_TYPE
+	prompt "Engine task implementation"
+	default LQ_ENGINE_TASK_ZEPHYR if ZEPHYR_KERNEL
+	default LQ_ENGINE_TASK_PTHREAD
+	help
+	  Select the engine task implementation based on platform.
+
+config LQ_ENGINE_TASK_ZEPHYR
+	bool "Zephyr thread"
+	depends on ZEPHYR_KERNEL
+	help
+	  Use Zephyr k_thread for engine processing.
+
+config LQ_ENGINE_TASK_PTHREAD
+	bool "POSIX pthread"
+	help
+	  Use POSIX pthread for engine processing (Linux, macOS, etc).
+
+config LQ_ENGINE_TASK_BARE_METAL
+	bool "Bare metal loop"
+	help
+	  Simple forever loop for bare metal systems.
+	  Call lq_engine_task_run() from main().
+
+endchoice
+
+config LQ_ENGINE_TASK_PRIORITY
+	int "Engine task priority"
+	default 5
+	range 0 31
+	help
+	  Priority for the engine processing task.
+	  Lower values = higher priority in Zephyr.
+
+config LQ_ENGINE_TASK_STACK_SIZE
+	int "Engine task stack size (bytes)"
+	default 2048
+	range 512 8192
+	help
+	  Stack size for the engine processing task.
+
+config LQ_ENGINE_CYCLE_TIME_US
+	int "Engine cycle time (microseconds)"
+	default 100
+	range 10 100000
+	help
+	  Time between engine processing cycles.
+	  Default 100us = 10kHz processing rate.
+	  Lower values = faster response, higher CPU usage.
+
+endif # LQ_ENGINE_TASK
+
 endif # LQ_DRIVER

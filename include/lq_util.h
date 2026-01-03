@@ -8,6 +8,7 @@
 #ifndef LQ_UTIL_H
 #define LQ_UTIL_H
 
+#include "lq_common.h"
 #include <stdint.h>
 #include "layered_queue_core.h"
 
@@ -69,17 +70,6 @@ enum lq_status lq_validate_value(int32_t value,
  * ============================================================================ */
 
 /**
- * @brief Voting method for merging multiple values
- */
-enum lq_voting_method {
-    LQ_VOTE_MEDIAN,      /**< Use median value */
-    LQ_VOTE_AVERAGE,     /**< Use average (mean) value */
-    LQ_VOTE_MIN,         /**< Use minimum value */
-    LQ_VOTE_MAX,         /**< Use maximum value */
-    LQ_VOTE_MAJORITY,    /**< Median with consistency check */
-};
-
-/**
  * @brief Vote on multiple values using specified method
  * 
  * @param values Array of input values
@@ -92,7 +82,7 @@ enum lq_voting_method {
  */
 int lq_vote(const int32_t *values,
             uint8_t num_values,
-            enum lq_voting_method method,
+            enum lq_vote_method method,
             int32_t tolerance,
             int32_t *result,
             enum lq_status *status);

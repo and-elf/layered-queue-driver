@@ -11,6 +11,7 @@
 #ifndef LQ_MID_DRIVER_H_
 #define LQ_MID_DRIVER_H_
 
+#include "lq_common.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -151,12 +152,7 @@ struct lq_mid_merge_ctx {
     size_t num_inputs;                     /**< Number of inputs */
     uint32_t tolerance;                    /**< Maximum deviation */
     uint64_t stale_us;                     /**< Staleness timeout */
-    enum {
-        LQ_VOTE_MEDIAN,
-        LQ_VOTE_AVERAGE,
-        LQ_VOTE_MIN,
-        LQ_VOTE_MAX,
-    } voting_method;
+    enum lq_vote_method voting_method;     /**< Voting algorithm */
 };
 
 #ifdef __cplusplus

@@ -14,6 +14,7 @@
 
 #include "lq_event.h"
 #include "lq_mid_driver.h"
+#include "lq_common.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -91,12 +92,7 @@ struct lq_merge_ctx {
     uint8_t num_inputs;           /**< Number of inputs */
     uint8_t output_signal;        /**< Output signal index */
     
-    enum {
-        LQ_VOTE_MEDIAN,
-        LQ_VOTE_AVERAGE,
-        LQ_VOTE_MIN,
-        LQ_VOTE_MAX,
-    } voting_method;
+    enum lq_vote_method voting_method;  /**< Voting algorithm */
     
     uint32_t tolerance;           /**< Maximum allowed deviation */
     uint64_t stale_us;            /**< Staleness timeout */
@@ -229,6 +225,35 @@ void lq_process_outputs(struct lq_engine *e);
 void lq_process_cyclic_outputs(
     struct lq_engine *e,
     uint64_t now);
+
+/* ============================================================================
+ * Engine task API
+ * ============================================================================ */
+
+/**
+ * @brief Get the global engine instance
+ * 
+ * @return Pointer to global engine instance
+ */
+struct lq_engine *lq_engine_get_instance(void);
+
+/**
+ * @brief Start engine processing task (for manual control)
+ * 
+ * Only needed if CONFIG_LQ_ENGINE_TASK is not enabled.
+ * Creates platform-specific thread/task to run engine.
+ * 
+ * @return 0 on success, negative errno on failure
+ */
+int lq_engine_task_start(void);
+
+/**
+ * @brief Run engine task loop (for bare metal)
+ * 
+ * Never returns. Call from main() in bare metal systems.
+ * Only available if CONFIG_LQ_ENGINE_TASK_BARE_METAL is set.
+ */
+void lq_engine_task_run(void);
 
 /* ============================================================================
  * Utility functions
