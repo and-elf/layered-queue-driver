@@ -22,7 +22,13 @@ int lq_engine_init(struct lq_engine *engine)
         return -22; /* -EINVAL */
     }
     
-    memset(engine, 0, sizeof(*engine));
+    /* Reset runtime state only, preserving static configuration */
+    engine->out_event_count = 0;
+    
+    /* Reset signal runtime state */
+    for (int i = 0; i < LQ_MAX_SIGNALS; i++) {
+        engine->signals[i].updated = false;
+    }
     
     return 0;
 }
