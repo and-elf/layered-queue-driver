@@ -7,6 +7,7 @@
 #include "lq_hw_input.h"
 #include "lq_common.h"
 #include "lq_event.h"
+#include "lq_hil.h"
 #include <string.h>
 
 /* Merge contexts */
@@ -24,59 +25,59 @@ static struct lq_merge_ctx g_merges[1] = {
 /* Cyclic output contexts */
 static struct lq_cyclic_ctx g_cyclic_outputs[3] = {
     [0] = {
-        .signal_id = 10,
-        .output_type = LQ_OUTPUT_J1939,
+        .type = LQ_OUTPUT_J1939,
         .target_id = 65265,
+        .source_signal = 10,
         .period_us = 100000,
-        .next_deadline_us = 0,
-        .priority = 3,
+        .next_deadline = 0,
+        .flags = 0,
+        .enabled = true,
     },
     [1] = {
-        .signal_id = 2,
-        .output_type = LQ_OUTPUT_J1939,
+        .type = LQ_OUTPUT_J1939,
         .target_id = 65262,
+        .source_signal = 2,
         .period_us = 1000000,
-        .next_deadline_us = 10000,
-        .priority = 6,
+        .next_deadline = 10000,
+        .flags = 0,
+        .enabled = true,
     },
     [2] = {
-        .signal_id = 3,
-        .output_type = LQ_OUTPUT_J1939,
+        .type = LQ_OUTPUT_J1939,
         .target_id = 65263,
+        .source_signal = 3,
         .period_us = 200000,
-        .next_deadline_us = 20000,
-        .priority = 4,
+        .next_deadline = 20000,
+        .flags = 0,
+        .enabled = true,
     },
 };
 
 /* Engine instance */
 struct lq_engine g_lq_engine = {
-    .num_signals = 32,
+    .num_signals = 0,  /* Initialized at runtime */
     .num_merges = 1,
     .num_cyclic_outputs = 3,
-    .signals = {0},
-    .merges = g_merges,
-    .cyclic_outputs = g_cyclic_outputs,
 };
 
 /* ADC ISR for rpm_adc */
 void lq_adc_isr_rpm_adc(uint16_t value) {
-    lq_hw_push(0, (int32_t)value, lq_platform_get_time_us());
+    lq_hw_push(0, (uint32_t)value);
 }
 
 /* SPI ISR for rpm_spi */
 void lq_spi_isr_rpm_spi(int32_t value) {
-    lq_hw_push(1, value, lq_platform_get_time_us());
+    lq_hw_push(1, (uint32_t)value);
 }
 
 /* ADC ISR for temp_adc */
 void lq_adc_isr_temp_adc(uint16_t value) {
-    lq_hw_push(2, (int32_t)value, lq_platform_get_time_us());
+    lq_hw_push(2, (uint32_t)value);
 }
 
 /* ADC ISR for oil_adc */
 void lq_adc_isr_oil_adc(uint16_t value) {
-    lq_hw_push(3, (int32_t)value, lq_platform_get_time_us());
+    lq_hw_push(3, (uint32_t)value);
 }
 
 /* Initialization */
@@ -89,6 +90,12 @@ int lq_generated_init(void) {
     /* Hardware input layer */
     int ret = lq_hw_input_init(64);
     if (ret != 0) return ret;
+    
+    /* Copy merge contexts to engine */
+    memcpy(g_lq_engine.merges, g_merges, sizeof(g_merges));
+    
+    /* Copy cyclic output contexts to engine */
+    memcpy(g_lq_engine.cyclic_outputs, g_cyclic_outputs, sizeof(g_cyclic_outputs));
     
     /* Platform-specific peripheral init */
     #ifdef LQ_PLATFORM_INIT

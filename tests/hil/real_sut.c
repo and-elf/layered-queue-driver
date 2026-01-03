@@ -1,13 +1,9 @@
 /*
  * Real SUT for HIL testing - demonstrates how the actual application runs
  * 
- * NOTE: This requires up-to-date generated code. For now, we use this as
- * a template showing how HIL intercepts platform calls.
- * 
- * To use with actual generated code:
- * 1. Generate code with scripts/dts_gen.py
- * 2. Build with lq_platform_hil.c instead of lq_platform_native.c
- * 3. All ADC/CAN/GPIO calls automatically route through HIL
+ * This can run in two modes:
+ * 1. Demo mode (default): Shows platform interception concept
+ * 2. Full mode (with FULL_APP): Runs actual generated application
  */
 
 #include <stdio.h>
@@ -16,12 +12,11 @@
 #include "lq_hil.h"
 #include "lq_platform.h"
 
-/*
- * When you integrate with real generated code, uncomment these:
- * 
- * extern int lq_generated_init(void);
- * extern struct lq_engine g_lq_engine;
- */
+#ifdef FULL_APP
+#include "layered_queue_core.h"
+extern int lq_generated_init(void);
+extern struct lq_engine g_lq_engine;
+#endif
 
 static volatile int running = 1;
 
@@ -34,8 +29,12 @@ int main(void) {
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
     
+#ifdef FULL_APP
+    printf("[SUT] Starting REAL application in HIL mode (PID: %d)\n", getpid());
+#else
     printf("[SUT] HIL Platform Demo (PID: %d)\n", getpid());
     printf("[SUT] This demonstrates how platform calls are intercepted\n");
+#endif
     
     /* Initialize HIL - auto-detects from LQ_HIL_MODE env */
     if (lq_hil_init(LQ_HIL_MODE_DISABLED, 0) != 0) {
@@ -50,22 +49,26 @@ int main(void) {
     
     printf("[SUT] HIL active - platform calls intercepted\n");
     
-    /*
-     * In real application, you would call:
-     * 
-     * int ret = lq_generated_init();
-     * if (ret != 0) {
-     *     fprintf(stderr, "[SUT] lq_generated_init() failed: %d\n", ret);
-     *     return 1;
-     * }
-     * 
-     * ret = lq_engine_start(&g_lq_engine);
-     * if (ret != 0) {
-     *     fprintf(stderr, "[SUT] lq_engine_start() failed: %d\n", ret);
-     *     return 1;
-     * }
-     */
+#ifdef FULL_APP
+    /* Run the REAL generated application */
+    printf("[SUT] Initializing generated system...\n");
     
+    int ret = lq_generated_init();
+    if (ret != 0) {
+        fprintf(stderr, "[SUT] lq_generated_init() failed: %d\n", ret);
+        return 1;
+    }
+    
+    printf("[SUT] Generated system initialized\n");
+    printf("[SUT] Engine ready - all hardware I/O goes through HIL\n");
+    printf("[SUT] Ready for testing\n");
+    
+    /* Keep running until signal */
+    while (running) {
+        lq_platform_sleep_ms(100);
+    }
+#else
+    /* Demo mode - show platform interception */
     printf("[SUT] Demonstrating platform interception:\n");
     printf("[SUT] - lq_adc_read() → receives from HIL tester\n");
     printf("[SUT] - lq_can_send() → sends to HIL tester\n");
@@ -93,6 +96,7 @@ int main(void) {
         
         lq_platform_sleep_ms(10);
     }
+#endif
     
     printf("[SUT] Shutting down...\n");
     lq_hil_cleanup();

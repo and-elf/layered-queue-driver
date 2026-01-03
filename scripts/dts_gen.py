@@ -171,6 +171,7 @@ def generate_source(nodes, output_path):
 #include "lq_hw_input.h"
 #include "lq_common.h"
 #include "lq_event.h"
+#include "lq_hil.h"
 #include <string.h>
 
 """)
@@ -217,29 +218,22 @@ def generate_source(nodes, output_path):
                 output_type = output_type_map.get(node.properties.get('output_type', 'can'))
                 
                 f.write(f"    [{i}] = {{\n")
-                f.write(f"        .signal_id = {node.properties.get('source_signal_id', 0)},\n")
-                f.write(f"        .output_type = {output_type},\n")
+                f.write(f"        .type = {output_type},\n")
                 f.write(f"        .target_id = {node.properties.get('target_id', 0)},\n")
+                f.write(f"        .source_signal = {node.properties.get('source_signal_id', 0)},\n")
                 f.write(f"        .period_us = {node.properties.get('period_us', 100000)},\n")
-                f.write(f"        .next_deadline_us = {node.properties.get('deadline_offset_us', 0)},\n")
-                f.write(f"        .priority = {node.properties.get('priority', 7)},\n")
+                f.write(f"        .next_deadline = {node.properties.get('deadline_offset_us', 0)},\n")
+                f.write(f"        .flags = 0,\n")
+                f.write(f"        .enabled = true,\n")
                 f.write(f"    }},\n")
             f.write("};\n\n")
         
         # Generate engine instance
         f.write("/* Engine instance */\n")
         f.write("struct lq_engine g_lq_engine = {\n")
-        if engine_node:
-            f.write(f"    .num_signals = {engine_node.properties.get('max_signals', 32)},\n")
-        else:
-            f.write(f"    .num_signals = 32,\n")
+        f.write("    .num_signals = 0,  /* Initialized at runtime */\n")
         f.write(f"    .num_merges = {len(merges)},\n")
         f.write(f"    .num_cyclic_outputs = {len(cyclic_outputs)},\n")
-        f.write("    .signals = {0},\n")
-        if merges:
-            f.write("    .merges = g_merges,\n")
-        if cyclic_outputs:
-            f.write("    .cyclic_outputs = g_cyclic_outputs,\n")
         f.write("};\n\n")
         
         # Generate ISR handlers for hardware inputs
@@ -249,13 +243,13 @@ def generate_source(nodes, output_path):
             if node.compatible == 'lq,hw-adc-input':
                 f.write(f"/* ADC ISR for {node.label} */\n")
                 f.write(f"void lq_adc_isr_{node.label}(uint16_t value) {{\n")
-                f.write(f"    lq_hw_push({signal_id}, (int32_t)value, lq_platform_get_time_us());\n")
+                f.write(f"    lq_hw_push({signal_id}, (uint32_t)value);\n")
                 f.write(f"}}\n\n")
             
             elif node.compatible == 'lq,hw-spi-input':
                 f.write(f"/* SPI ISR for {node.label} */\n")
                 f.write(f"void lq_spi_isr_{node.label}(int32_t value) {{\n")
-                f.write(f"    lq_hw_push({signal_id}, value, lq_platform_get_time_us());\n")
+                f.write(f"    lq_hw_push({signal_id}, (uint32_t)value);\n")
                 f.write(f"}}\n\n")
         
         # Generate init function
@@ -270,6 +264,19 @@ def generate_source(nodes, output_path):
         f.write("    int ret = lq_hw_input_init(64);\n")
         f.write("    if (ret != 0) return ret;\n")
         f.write("    \n")
+        
+        # Copy merge contexts to engine
+        if merges:
+            f.write("    /* Copy merge contexts to engine */\n")
+            f.write(f"    memcpy(g_lq_engine.merges, g_merges, sizeof(g_merges));\n")
+            f.write("    \n")
+        
+        # Copy cyclic output contexts to engine
+        if cyclic_outputs:
+            f.write("    /* Copy cyclic output contexts to engine */\n")
+            f.write(f"    memcpy(g_lq_engine.cyclic_outputs, g_cyclic_outputs, sizeof(g_cyclic_outputs));\n")
+            f.write("    \n")
+        
         f.write("    /* Platform-specific peripheral init */\n")
         f.write("    #ifdef LQ_PLATFORM_INIT\n")
         f.write("    lq_platform_peripherals_init();\n")

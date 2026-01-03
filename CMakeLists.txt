@@ -148,6 +148,31 @@ if(BUILD_TESTS)
         COMMENT "Building HIL platform demo"
     )
     
+    # Real SUT with full generated application (when code is up to date)
+    add_custom_target(hil-sut-full
+        COMMAND ${CMAKE_COMMAND} -E echo "Building FULL SUT with generated code..."
+        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dts_gen.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
+            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/
+        COMMAND ${CMAKE_C_COMPILER} 
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/real_sut.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_queue_core.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_util.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_spi_source.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_engine.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hw_input.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_j1939.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/lq_platform_hil.c
+            -I${CMAKE_CURRENT_SOURCE_DIR}/include
+            -I${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src
+            -DLQ_PLATFORM_NATIVE=1
+            -lpthread
+            -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut_full
+        COMMENT "Building full HIL SUT with real generated code"
+    )
+    
     add_custom_target(hil-tests
         COMMAND ${CMAKE_COMMAND} -E echo "Generating HIL test DTS..."
         COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dts_gen.py

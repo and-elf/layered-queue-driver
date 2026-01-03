@@ -56,6 +56,10 @@ int lq_mutex_unlock(struct lq_mutex *mutex) {
     return pthread_mutex_unlock(&mutex->mutex);
 }
 
+void lq_mutex_destroy(struct lq_mutex *mutex) {
+    pthread_mutex_destroy(&mutex->mutex);
+}
+
 /* ============================================================================
  * Semaphore API
  * ============================================================================ */
@@ -109,6 +113,11 @@ int lq_sem_give(struct lq_sem *sem) {
     pthread_mutex_unlock(&sem->mutex);
     return 0;
 }
+
+void lq_sem_destroy(struct lq_sem *sem) {
+    pthread_mutex_destroy(&sem->mutex);
+    pthread_cond_destroy(&sem->cond);
+}
 #else
 int lq_sem_init(struct lq_sem *sem, uint32_t initial, uint32_t max) {
     (void)max;
@@ -133,6 +142,10 @@ int lq_sem_take(struct lq_sem *sem, uint32_t timeout_ms) {
 
 int lq_sem_give(struct lq_sem *sem) {
     return sem_post(&sem->sem);
+}
+
+void lq_sem_destroy(struct lq_sem *sem) {
+    sem_destroy(&sem->sem);
 }
 #endif
 
