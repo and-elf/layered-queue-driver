@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Mid-Level Merge Driver - Multi-input voter with redundancy
+  
+  Combines multiple input signals using a voting algorithm.
+  Processes during engine phase 3 (merges).
+  
+  Voting methods:
+  - median: Use median value (default, best for 3+ sensors)
+  - average: Average all inputs (smooth but sensitive to outliers)
+  - min: Minimum value (conservative)
+  - max: Maximum value (aggressive)
+
+compatible: "lq,mid-merge"
+
+properties:
+  output-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID where merge result is stored.
+      This creates a new internal signal.
+
+  input-signal-ids:
+    type: array
+    required: true
+    description: |
+      Array of input signal IDs to merge.
+      All inputs must be valid for merge to succeed.
+
+  voting-method:
+    type: string
+    default: "median"
+    enum: ["median", "average", "min", "max"]
+    description: Algorithm used to combine input values
+
+  tolerance:
+    type: int
+    default: 0
+    description: |
+      Maximum allowed spread between inputs (after voting).
+      If spread > tolerance, status becomes LQ_EVENT_INCONSISTENT.
+      Set to 0 to disable tolerance checking.
+
+  stale-us:
+    type: int
+    default: 0
+    description: |
+      Staleness timeout for the merged signal.
+      If 0, inherits from input staleness.

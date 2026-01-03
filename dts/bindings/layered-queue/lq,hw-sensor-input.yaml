@@ -1,0 +1,106 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Hardware Input Source - Zephyr Sensor Device
+  
+  Represents a Zephyr sensor driver (using the sensor API).
+  Examples: TMP117, BME280, LSM6DSL, ICP10125, etc.
+  
+  An ISR handler or polling callback will be auto-generated that:
+  - Fetches sensor data via sensor_sample_fetch() / sensor_channel_get()
+  - Converts to int32_t
+  - Calls lq_hw_push() to insert into ringbuffer
+  
+  This is preferred over raw ADC/SPI for sensors with Zephyr drivers.
+
+compatible: "lq,hw-sensor-input"
+
+properties:
+  signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID in the engine's signal array.
+      This is where ingested samples will be stored.
+
+  sensor-device:
+    type: phandle
+    required: true
+    description: |
+      Reference to the sensor device node.
+      Must be a Zephyr sensor driver (compatible with sensor API).
+      
+      Examples:
+        sensor-device = <&tmp117>;
+        sensor-device = <&bme280>;
+        sensor-device = <&lsm6dsl>;
+
+  sensor-channel:
+    type: int
+    required: true
+    description: |
+      Sensor channel to read (from sensor.h enum).
+      
+      Common values:
+        SENSOR_CHAN_AMBIENT_TEMP = 0
+        SENSOR_CHAN_PRESS = 1
+        SENSOR_CHAN_ACCEL_XYZ = 10
+        SENSOR_CHAN_GYRO_XYZ = 13
+        SENSOR_CHAN_RPM = 26
+
+  trigger-type:
+    type: string
+    default: "data-ready"
+    enum: ["data-ready", "threshold", "delta", "poll"]
+    description: |
+      How to trigger sampling:
+      - "data-ready": Use sensor's data-ready interrupt (fastest)
+      - "threshold": Trigger on threshold crossing
+      - "delta": Trigger on value change > delta
+      - "poll": Software polling at fixed interval
+
+  poll-interval-ms:
+    type: int
+    description: |
+      Polling interval in milliseconds (only for trigger-type = "poll").
+      Ignored for interrupt-driven triggers.
+
+  scale-factor:
+    type: int
+    default: 1000
+    description: |
+      Scale factor for converting sensor value to int32_t.
+      
+      Example: For temperature in °C with 0.01°C precision:
+        scale-factor = 100 (stores 2550 for 25.50°C)
+      
+      For RPM with 1 RPM precision:
+        scale-factor = 1
+
+  offset:
+    type: int
+    default: 0
+    description: |
+      Offset to add after scaling.
+      Useful for converting units or biasing values.
+
+  stale-us:
+    type: int
+    default: 100000
+    description: |
+      Staleness timeout in microseconds.
+      If no new sample arrives within this time, signal is marked stale.
+
+  init-priority:
+    type: int
+    default: 80
+    description: |
+      Device initialization priority.
+      Must be > sensor device priority to ensure sensor is ready.
+      
+      Typical Zephyr priorities:
+        50-59: I2C/SPI bus drivers
+        60-69: Sensor drivers
+        70-79: Application drivers
+        80-89: Application (our layer)

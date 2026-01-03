@@ -2,9 +2,301 @@
 
 ## Introduction
 
-This guide explains how to configure the Layered Queue Driver using Zephyr device tree syntax. All driver configuration is declarative—no C code needed for basic pipelines.
+This guide explains how to configure the Layered Queue Driver using Zephyr device tree syntax. The driver supports **complete auto-generation** from DTS specifications, eliminating manual struct initialization and ISR boilerplate.
 
-## Quick Reference
+## Two Approaches
+
+### 1. Legacy Approach (Queue-based)
+- Manual queue configuration
+- Explicit source/voter/output nodes
+- More C boilerplate required
+
+### 2. **New Layered Architecture (Auto-Generated)** ⭐
+- Complete system defined in DTS
+- Auto-generated engine struct initialization
+- Auto-generated ISR handlers
+- **Recommended for new projects**
+
+---
+
+## Auto-Generated Architecture
+
+### Overview
+
+The new architecture enables complete code generation:
+
+```c
+/* ALL of this is auto-generated from DTS: */
+static struct lq_engine engine = LQ_ENGINE_DT_INIT(DT_NODELABEL(engine));
+LQ_FOREACH_HW_ADC_INPUT(LQ_GEN_ADC_ISR_HANDLER)
+LQ_FOREACH_HW_SPI_INPUT(LQ_GEN_SPI_ISR_HANDLER)
+```
+
+### Quick Start
+
+**1. Include the header in your C file:**
+```c
+#include "lq_devicetree.h"
+```
+
+**2. Define your system in DTS:**
+
+See `samples/automotive/app.dts` for complete example.
+
+**3. Use the generated code:**
+```c
+int main(void) {
+    lq_hw_input_init();
+    lq_engine_start(&engine);  /* Auto-configured from DTS */
+}
+```
+
+### DTS Node Types
+
+#### Engine Root Node
+
+```dts
+engine: lq-engine {
+    compatible = "lq,engine";
+    max-signals = <32>;
+    max-merges = <8>;
+    max-cyclic-outputs = <16>;
+};
+```
+
+#### Hardware ADC Input (ISR Auto-Generated)
+
+```dts
+rpm_sensor: lq-hw-adc-input@0 {
+    compatible = "lq,hw-adc-input";
+    status = "okay";
+    
+    signal-id = <0>;          /* Where to store in engine.signals[] */
+    adc-channel = <0>;
+    adc-device = <&adc0>;
+    isr-priority = <3>;
+    stale-us = <5000>;        /* 5ms staleness timeout */
+};
+```
+
+**Generated ISR automatically:**
+- Reads ADC value on interrupt
+- Calls `lq_hw_push(signal_id, value, timestamp)`
+- Wakes engine task
+
+#### Hardware SPI Input (ISR Auto-Generated)
+
+```dts
+rpm_secondary: lq-hw-spi-input@0 {
+    compatible = "lq,hw-spi-input";
+    status = "okay";
+    
+    signal-id = <1>;
+    spi-device = <&spi0>;
+    data-ready-gpio = <&gpio0 5 0>;
+    isr-priority = <3>;
+    num-bytes = <2>;
+    signed;
+    stale-us = <5000>;
+    init-priority = <80>;
+};
+```
+
+**Generated ISR automatically:**
+- Triggered by GPIO data-ready interrupt
+- Reads SPI sensor
+- Calls `lq_hw_push(signal_id, value, timestamp)`
+
+#### Hardware Sensor Input (Zephyr Sensor API) ⭐
+
+**Preferred for real sensors with Zephyr drivers:**
+
+```dts
+/* Reference actual sensor device */
+temp_sensor: lq-hw-sensor-input@0 {
+    compatible = "lq,hw-sensor-input";
+    status = "okay";
+    
+    signal-id = <2>;
+    sensor-device = <&tmp117_engine>;  /* Phandle to sensor */
+    sensor-channel = <0>;              /* SENSOR_CHAN_AMBIENT_TEMP */
+    trigger-type = "data-ready";       /* or "poll", "threshold" */
+    scale-factor = <100>;              /* Convert to int32 */
+    offset = <0>;
+    stale-us = <100000>;
+    init-priority = <80>;              /* After sensor driver (70) */
+};
+
+/* Actual sensor driver node (in board DTS) */
+&i2c0 {
+    tmp117_engine: tmp117@48 {
+        compatible = "ti,tmp117";
+        reg = <0x48>;
+        status = "okay";
+    };
+};
+```
+
+**Supported sensors:** TMP117, BME280, LSM6DSL, ICP10125, LPS22HH, MPU6050, and any Zephyr sensor driver!
+
+**Generated code automatically:**
+- Configures sensor trigger (data-ready interrupt or polling)
+- Fetches via `sensor_sample_fetch()` / `sensor_channel_get()`
+- Scales to int32_t and calls `lq_hw_push()`
+
+**Init priority ensures sensors are ready:**
+- 50-59: I2C/SPI bus drivers
+- 60-69: Sensor drivers
+- 80: Hardware input layer (ISR handlers)
+- 85: Engine layer
+
+#### Mid-Level Merge (Voter)
+
+```dts
+rpm_merged: lq-mid-merge@0 {
+    compatible = "lq,mid-merge";
+    status = "okay";
+    
+    output-signal-id = <10>;        /* Result stored here */
+    input-signal-ids = <0 1>;       /* Merge signals 0 and 1 */
+    voting-method = "median";       /* or "average", "min", "max" */
+    tolerance = <50>;               /* Max allowed spread */
+    stale-us = <10000>;
+};
+```
+
+**Voting methods:**
+- `"median"` - Best for 3+ sensors, rejects outliers
+- `"average"` - Smooth but sensitive to outliers
+- `"min"` - Conservative (use lowest value)
+- `"max"` - Aggressive (use highest value)
+
+#### Cyclic Output (Deadline Scheduling)
+
+```dts
+can_rpm: lq-cyclic-output@0 {
+    compatible = "lq,cyclic-output";
+    status = "okay";
+    
+    source-signal-id = <10>;        /* Read from this signal */
+    output-type = "j1939";          /* or "can", "canopen", "gpio", "uart" */
+    target-id = <0xFEF1>;           /* J1939 PGN or CAN ID */
+    period-us = <100000>;           /* 100ms = 10Hz */
+    priority = <3>;                 /* CAN priority (0=highest) */
+    deadline-offset-us = <0>;       /* Stagger outputs */
+};
+```
+
+**Auto-generated deadline scheduling** prevents drift.
+
+### Complete Example
+
+```dts
+/dts-v1/;
+
+/ {
+    engine: lq-engine {
+        compatible = "lq,engine";
+    };
+    
+    /* Hardware inputs - ISRs auto-generated */
+    rpm_adc: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <0>;
+        adc-channel = <0>;
+        adc-device = <&adc0>;
+        stale-us = <5000>;
+    };
+    
+    rpm_spi: lq-hw-spi-input@0 {
+        compatible = "lq,hw-spi-input";
+        status = "okay";
+        signal-id = <1>;
+        spi-device = <&spi0>;
+        data-ready-gpio = <&gpio0 5 0>;
+        num-bytes = <2>;
+        signed;
+        stale-us = <5000>;
+    };
+    
+    /* Mid-level merge - auto-configured */
+    rpm_merge: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        status = "okay";
+        output-signal-id = <10>;
+        input-signal-ids = <0 1>;
+        voting-method = "median";
+        tolerance = <50>;
+    };
+    
+    /* Cyclic output - auto-scheduled */
+    can_rpm: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        source-signal-id = <10>;
+        output-type = "j1939";
+        target-id = <0xFEF1>;
+        period-us = <100000>;
+        priority = <3>;
+    };
+};
+```
+
+**Generated code:**
+```c
+#include "lq_devicetree.h"
+
+/* Auto-generated from DTS */
+static struct lq_engine engine = LQ_ENGINE_DT_INIT(DT_NODELABEL(engine));
+LQ_FOREACH_HW_ADC_INPUT(LQ_GEN_ADC_ISR_HANDLER)
+LQ_FOREACH_HW_SPI_INPUT(LQ_GEN_SPI_ISR_HANDLER)
+
+int main(void) {
+    lq_hw_input_init();
+    lq_engine_start(&engine);
+    return 0;
+}
+```
+
+### Signal ID Mapping
+
+Signal IDs are your choice - use any scheme:
+
+```dts
+/* Option 1: Sequential */
+rpm_adc:  signal-id = <0>;
+rpm_spi:  signal-id = <1>;
+temp_adc: signal-id = <2>;
+rpm_merge: output-signal-id = <10>;  /* Results start at 10 */
+
+/* Option 2: Semantic ranges */
+/* 0-9: Raw ADC inputs */
+/* 10-19: Raw SPI inputs */  
+/* 100-199: Merged/validated results */
+/* 200-299: Calculated values */
+```
+
+### Benefits
+
+1. **No manual struct initialization** - all from DTS
+2. **Auto-generated ISR handlers** - just define inputs
+3. **Compile-time signal IDs** - no magic numbers
+4. **Easy to add sensors** - add DTS node, rebuild
+5. **Declarative configuration** - system visible in one file
+6. **Type-safe** - devicetree validation catches errors
+
+### See Also
+
+- `samples/automotive/` - Complete auto-generated example
+- `zephyr/include/lq_devicetree.h` - Macro definitions
+- `docs/architecture.md` - Layered architecture details
+
+---
+
+## Legacy Queue-Based Approach
+
+### Quick Reference
 
 ### Include the Header
 

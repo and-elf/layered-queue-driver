@@ -1,0 +1,62 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Hardware Input Source - SPI sensor with ISR-safe ringbuffer
+  
+  Represents a SPI device that generates data-ready interrupts.
+  An ISR handler will be auto-generated that:
+  - Reads the SPI sensor data
+  - Calls lq_hw_push() to insert into ringbuffer
+  - Wakes the engine task
+
+compatible: "lq,hw-spi-input"
+
+properties:
+  signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID in the engine's signal array.
+      This is where ingested samples will be stored.
+
+  spi-device:
+    type: phandle
+    required: true
+    description: Reference to the SPI device node
+
+  data-ready-gpio:
+    type: phandle
+    description: |
+      GPIO pin for data-ready interrupt.
+      If specified, ISR will be configured on this GPIO.
+
+  isr-priority:
+    type: int
+    default: 5
+    description: Interrupt priority for data-ready signal
+
+  num-bytes:
+    type: int
+    default: 2
+    enum: [1, 2, 4]
+    description: Number of bytes to read from SPI (1, 2, or 4)
+
+  signed:
+    type: boolean
+    description: If true, interpret value as signed integer
+
+  stale-us:
+    type: int
+    default: 100000
+    description: |
+      Staleness timeout in microseconds.
+      If no new sample arrives within this time, signal is marked stale.
+
+  init-priority:
+    type: int
+    default: 80
+    description: |
+      Device initialization priority.
+      Must be > SPI device priority.
+      Typical: 80 (after SPI at 50-60)

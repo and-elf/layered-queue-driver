@@ -1,0 +1,59 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Cyclic Output - Deadline-based periodic event generation
+  
+  Generates output events at fixed intervals using deadline scheduling.
+  This prevents drift that occurs with period-based scheduling.
+  
+  Processed during engine phase 5 (cyclic outputs).
+  Events are queued to the output event ringbuffer.
+
+compatible: "lq,cyclic-output"
+
+properties:
+  source-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID to read and transmit.
+      Typically a merge or validator output.
+
+  output-type:
+    type: string
+    required: true
+    enum: ["can", "j1939", "canopen", "gpio", "uart"]
+    description: Target protocol/bus type
+
+  target-id:
+    type: int
+    required: true
+    description: |
+      Protocol-specific identifier:
+      - CAN: CAN ID
+      - J1939: PGN (Parameter Group Number)
+      - CANopen: COB-ID
+      - GPIO: Pin number
+      - UART: Device index
+
+  period-us:
+    type: int
+    required: true
+    description: |
+      Period in microseconds between transmissions.
+      Examples: 10000 (10ms/100Hz), 100000 (100ms/10Hz), 1000000 (1s/1Hz)
+
+  priority:
+    type: int
+    default: 7
+    description: |
+      CAN/J1939 priority (0=highest, 7=lowest).
+      Ignored for non-CAN outputs.
+
+  deadline-offset-us:
+    type: int
+    default: 0
+    description: |
+      Initial offset for deadline scheduling.
+      Allows staggering multiple outputs to avoid bus congestion.

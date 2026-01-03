@@ -1,0 +1,129 @@
+/dts-v1/;
+
+/ {
+    model = "Automotive Engine Monitor - Auto-Generated";
+    
+    /* ========================================================================
+     * ENGINE: Root configuration
+     * ======================================================================== */
+    
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <8>;
+        max-cyclic-outputs = <16>;
+    };
+    
+    /* ========================================================================
+     * HARDWARE INPUTS: ISR handlers will be auto-generated
+     * ======================================================================== */
+    
+    /* ADC input: Primary RPM sensor */
+    rpm_adc: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        
+        signal-id = <0>;              /* Store in signals[0] */
+        adc-channel = <0>;
+        adc-device = <&adc0>;
+        isr-priority = <3>;
+        stale-us = <5000>;            /* 5ms */
+    };
+    
+    /* SPI input: Secondary RPM sensor */
+    rpm_spi: lq-hw-spi-input@0 {
+        compatible = "lq,hw-spi-input";
+        status = "okay";
+        
+        signal-id = <1>;              /* Store in signals[1] */
+        spi-device = <&spi0>;
+        data-ready-gpio = <&gpio0 5 0>;
+        isr-priority = <3>;
+        num-bytes = <2>;
+        signed;
+        stale-us = <5000>;
+    };
+    
+    /* ADC input: Engine temperature */
+    temp_adc: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        
+        signal-id = <2>;              /* Store in signals[2] */
+        adc-channel = <1>;
+        adc-device = <&adc0>;
+        isr-priority = <5>;
+        stale-us = <100000>;          /* 100ms */
+    };
+    
+    /* ADC input: Oil pressure */
+    oil_adc: lq-hw-adc-input@2 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        
+        signal-id = <3>;              /* Store in signals[3] */
+        adc-channel = <2>;
+        adc-device = <&adc0>;
+        isr-priority = <4>;
+        stale-us = <50000>;           /* 50ms */
+    };
+    
+    /* ========================================================================
+     * MID-LEVEL PROCESSING: Merge and validation
+     * ======================================================================== */
+    
+    /* Merge dual RPM sensors */
+    rpm_merge: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        status = "okay";
+        
+        output-signal-id = <10>;      /* Merged result in signals[10] */
+        input-signal-ids = <0 1>;     /* From rpm_adc, rpm_spi */
+        voting-method = "median";
+        tolerance = <50>;             /* Max 50 RPM spread */
+        stale-us = <10000>;
+    };
+    
+    /* ========================================================================
+     * CYCLIC OUTPUTS: Auto-generate deadline scheduling
+     * ======================================================================== */
+    
+    /* CAN output: Engine RPM at 10Hz */
+    can_rpm: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <10>;      /* From rpm_merge */
+        output-type = "j1939";
+        target-id = <0xFEF1>;         /* J1939 Engine Speed PGN */
+        period-us = <100000>;         /* 100ms = 10Hz */
+        priority = <3>;
+        deadline-offset-us = <0>;
+    };
+    
+    /* CAN output: Engine temperature at 1Hz */
+    can_temp: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <2>;       /* From temp_adc */
+        output-type = "j1939";
+        target-id = <0xFEEE>;         /* J1939 Engine Temperature PGN */
+        period-us = <1000000>;        /* 1s = 1Hz */
+        priority = <6>;
+        deadline-offset-us = <10000>; /* Stagger by 10ms */
+    };
+    
+    /* CAN output: Oil pressure at 5Hz */
+    can_oil: lq-cyclic-output@2 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <3>;       /* From oil_adc */
+        output-type = "j1939";
+        target-id = <0xFEEF>;         /* J1939 Engine Fluid Level/Pressure PGN */
+        period-us = <200000>;         /* 200ms = 5Hz */
+        priority = <4>;
+        deadline-offset-us = <20000>; /* Stagger by 20ms */
+    };
+};

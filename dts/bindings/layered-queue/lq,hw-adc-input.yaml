@@ -1,0 +1,62 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Hardware Input Source - ADC channel with ISR-safe ringbuffer
+  
+  Represents a single ADC channel that generates interrupts.
+  An ISR handler will be auto-generated that:
+  - Reads the ADC value
+  - Calls lq_hw_push() to insert into ringbuffer
+  - Wakes the engine task
+
+compatible: "lq,hw-adc-input"
+
+properties:
+  signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID in the engine's signal array.
+      This is where ingested samples will be stored.
+
+  adc-channel:
+    type: int
+    required: true
+    description: ADC channel number (hardware specific)
+
+  adc-device:
+    type: phandle
+    description: |
+      Reference to the ADC device node.
+      If omitted, uses the default ADC device.
+
+  isr-priority:
+    type: int
+    default: 5
+    description: Interrupt priority for this ADC channel
+
+  min-raw:
+    type: int
+    default: 0
+    description: Minimum raw ADC value (for validation)
+
+  max-raw:
+    type: int
+    default: 4095
+    description: Maximum raw ADC value (for validation)
+
+  stale-us:
+    type: int
+    default: 100000
+    description: |
+      Staleness timeout in microseconds.
+      If no new sample arrives within this time, signal is marked stale.
+
+  init-priority:
+    type: int
+    default: 80
+    description: |
+      Device initialization priority.
+      Must be > ADC device priority.
+      Typical: 80 (after ADC at 60-70)

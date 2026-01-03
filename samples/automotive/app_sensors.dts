@@ -1,0 +1,239 @@
+/dts-v1/;
+
+/ {
+    model = "Automotive Engine Monitor - Real Sensor Drivers";
+    
+    /* ========================================================================
+     * ENGINE: Root configuration with init priority
+     * ======================================================================== */
+    
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <8>;
+        max-cyclic-outputs = <16>;
+        init-priority = <85>;        /* After sensors (60-79) */
+    };
+    
+    /* ========================================================================
+     * HARDWARE INPUTS: Using actual Zephyr sensor drivers
+     * ======================================================================== */
+    
+    /* Primary RPM sensor: Hall effect via ADC */
+    rpm_hall: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        
+        signal-id = <0>;
+        adc-channel = <0>;
+        adc-device = <&adc0>;
+        isr-priority = <3>;
+        stale-us = <5000>;           /* 5ms - critical for RPM */
+        init-priority = <80>;
+    };
+    
+    /* Secondary RPM sensor: Encoder via high-speed timer */
+    rpm_encoder: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        
+        signal-id = <1>;
+        adc-channel = <1>;
+        adc-device = <&adc0>;
+        isr-priority = <3>;
+        stale-us = <5000>;
+        init-priority = <80>;
+    };
+    
+    /* Engine temperature: TMP117 high-precision I2C sensor */
+    temp_tmp117: lq-hw-sensor-input@0 {
+        compatible = "lq,hw-sensor-input";
+        status = "okay";
+        
+        signal-id = <2>;
+        sensor-device = <&tmp117_engine>;  /* Reference actual sensor node */
+        sensor-channel = <0>;              /* SENSOR_CHAN_AMBIENT_TEMP */
+        trigger-type = "data-ready";
+        scale-factor = <100>;              /* 0.01°C precision → int32 */
+        offset = <0>;
+        stale-us = <100000>;               /* 100ms */
+        init-priority = <80>;              /* After TMP117 driver (70) */
+    };
+    
+    /* Oil pressure: ICP10125 barometric pressure sensor */
+    oil_pressure: lq-hw-sensor-input@1 {
+        compatible = "lq,hw-sensor-input";
+        status = "okay";
+        
+        signal-id = <3>;
+        sensor-device = <&icp10125_oil>;   /* Reference actual sensor */
+        sensor-channel = <1>;              /* SENSOR_CHAN_PRESS */
+        trigger-type = "data-ready";
+        scale-factor = <1000>;             /* kPa → Pa */
+        offset = <0>;
+        stale-us = <50000>;                /* 50ms */
+        init-priority = <80>;
+    };
+    
+    /* Coolant temperature: BME280 (also provides humidity/pressure) */
+    coolant_temp: lq-hw-sensor-input@2 {
+        compatible = "lq,hw-sensor-input";
+        status = "okay";
+        
+        signal-id = <4>;
+        sensor-device = <&bme280_coolant>;
+        sensor-channel = <0>;              /* SENSOR_CHAN_AMBIENT_TEMP */
+        trigger-type = "poll";
+        poll-interval-ms = <500>;          /* 2Hz polling */
+        scale-factor = <100>;
+        offset = <0>;
+        stale-us = <1000000>;              /* 1s */
+        init-priority = <80>;
+    };
+    
+    /* Vibration: LSM6DSL accelerometer (3-axis) */
+    vibration_x: lq-hw-sensor-input@3 {
+        compatible = "lq,hw-sensor-input";
+        status = "okay";
+        
+        signal-id = <5>;
+        sensor-device = <&lsm6dsl_engine>;
+        sensor-channel = <10>;             /* SENSOR_CHAN_ACCEL_X */
+        trigger-type = "data-ready";
+        scale-factor = <1000>;             /* m/s² to mm/s² */
+        offset = <0>;
+        stale-us = <20000>;                /* 20ms */
+        init-priority = <80>;
+    };
+    
+    /* ========================================================================
+     * MID-LEVEL PROCESSING: Merge and validation
+     * ======================================================================== */
+    
+    /* Merge dual RPM sensors with median voting */
+    rpm_merge: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        status = "okay";
+        
+        output-signal-id = <10>;
+        input-signal-ids = <0 1>;    /* Hall + Encoder */
+        voting-method = "median";
+        tolerance = <50>;            /* Max 50 RPM spread */
+        stale-us = <10000>;
+    };
+    
+    /* Temperature average (could have multiple temp sensors) */
+    temp_validated: lq-mid-merge@1 {
+        compatible = "lq,mid-merge";
+        status = "okay";
+        
+        output-signal-id = <11>;
+        input-signal-ids = <2 4>;    /* Engine temp + Coolant temp */
+        voting-method = "average";
+        tolerance = <500>;           /* Max 5°C difference (scaled) */
+        stale-us = <200000>;
+    };
+    
+    /* ========================================================================
+     * CYCLIC OUTPUTS: Auto-generate deadline scheduling
+     * ======================================================================== */
+    
+    /* J1939 CAN: Engine RPM at 10Hz (high priority) */
+    can_rpm: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <10>;     /* Merged RPM */
+        output-type = "j1939";
+        target-id = <0xFEF1>;        /* SAE J1939 Engine Speed PGN */
+        period-us = <100000>;        /* 100ms = 10Hz */
+        priority = <3>;              /* High priority */
+        deadline-offset-us = <0>;
+    };
+    
+    /* J1939 CAN: Engine temperature at 1Hz */
+    can_temp: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <2>;      /* TMP117 reading */
+        output-type = "j1939";
+        target-id = <0xFEEE>;        /* Engine Temperature PGN */
+        period-us = <1000000>;       /* 1s = 1Hz */
+        priority = <6>;              /* Lower priority */
+        deadline-offset-us = <10000>;
+    };
+    
+    /* J1939 CAN: Oil pressure at 5Hz */
+    can_oil: lq-cyclic-output@2 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <3>;      /* ICP10125 reading */
+        output-type = "j1939";
+        target-id = <0xFEEF>;        /* Engine Fluid Level/Pressure PGN */
+        period-us = <200000>;        /* 200ms = 5Hz */
+        priority = <4>;
+        deadline-offset-us = <20000>;
+    };
+    
+    /* J1939 CAN: Vibration data at 20Hz (diagnostic) */
+    can_vibration: lq-cyclic-output@3 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <5>;      /* LSM6DSL X-axis */
+        output-type = "j1939";
+        target-id = <0xFEF2>;        /* Custom vibration PGN */
+        period-us = <50000>;         /* 50ms = 20Hz */
+        priority = <7>;              /* Lowest priority */
+        deadline-offset-us = <30000>;
+    };
+};
+
+/* ============================================================================
+ * ACTUAL SENSOR DEVICE NODES (referenced above)
+ * These would normally come from your board's .dts file
+ * ========================================================================== */
+
+&i2c0 {
+    status = "okay";
+    
+    /* TMP117: High-precision temperature sensor for engine block */
+    tmp117_engine: tmp117@48 {
+        compatible = "ti,tmp117";
+        reg = <0x48>;
+        status = "okay";
+    };
+    
+    /* BME280: Environmental sensor for coolant system */
+    bme280_coolant: bme280@76 {
+        compatible = "bosch,bme280";
+        reg = <0x76>;
+        status = "okay";
+    };
+    
+    /* LSM6DSL: 6-axis IMU for vibration monitoring */
+    lsm6dsl_engine: lsm6dsl@6a {
+        compatible = "st,lsm6dsl";
+        reg = <0x6a>;
+        status = "okay";
+        irq-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>;
+    };
+};
+
+&i2c1 {
+    status = "okay";
+    
+    /* ICP10125: High-precision pressure sensor for oil pressure */
+    icp10125_oil: icp10125@63 {
+        compatible = "invensense,icp10125";
+        reg = <0x63>;
+        status = "okay";
+    };
+};
+
+&adc0 {
+    status = "okay";
+    /* ADC channels 0-1 used for RPM sensors (Hall + Encoder) */
+};

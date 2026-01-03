@@ -1,0 +1,61 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Layered Queue Engine - root node for complete system configuration
+  
+  This binding defines the top-level engine structure that contains:
+  - Hardware input sources (ISR-safe ringbuffers)
+  - Mid-level processing drivers (merges, validators)
+  - Output event generators (cyclic, on-change)
+  - Signal storage and state
+  
+  The engine coordinates all 5 phases:
+  1. Ingest: Pull samples from hardware inputs
+  2. Staleness: Mark old inputs as stale
+  3. Merges: Voter/validator processing
+  4. Outputs: Generate on-change events
+  5. Cyclic: Generate deadline-based periodic outputs
+
+compatible: "lq,engine"
+
+child-binding:
+  description: |
+    Child nodes define the components of the engine.
+    Use labels to reference nodes in other sections.
+
+properties:
+  max-signals:
+    type: int
+    default: 32
+    description: Maximum number of internal signals (overrides Kconfig)
+
+  max-merges:
+    type: int
+    default: 8
+    description: Maximum number of merge/validator contexts
+
+  max-cyclic-outputs:
+    type: int
+    default: 16
+    description: Maximum number of cyclic output contexts
+
+  max-output-events:
+    type: int
+    default: 64
+    description: Maximum size of output event queue
+
+  init-priority:
+    type: int
+    default: 85
+    description: |
+      Device initialization priority for the engine subsystem.
+      Must be after all sensor/input devices are initialized.
+      
+      Typical priority order:
+        50-59: I2C/SPI/CAN bus drivers
+        60-69: Sensor drivers (TMP117, BME280, etc.)
+        70-79: Application-specific drivers
+        80-84: Hardware input layer
+        85-89: Engine and processing layer
+        90+:   Application tasks
