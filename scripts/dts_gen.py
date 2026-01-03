@@ -114,6 +114,9 @@ def simple_dts_parser(dts_content):
 def generate_header(nodes, output_path):
     """Generate lq_generated.h with declarations"""
     
+    # Collect hardware inputs for ISR declarations
+    hw_inputs = [n for n in nodes if n.compatible.startswith('lq,hw-')]
+    
     with open(output_path, 'w') as f:
         f.write("""/*
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -135,7 +138,19 @@ extern struct lq_engine g_lq_engine;
 /* Initialization function */
 int lq_generated_init(void);
 
-#ifdef __cplusplus
+""")
+        
+        # Add ISR handler declarations
+        if hw_inputs:
+            f.write("/* Hardware ISR handlers */\n")
+            for hw in hw_inputs:
+                if 'adc' in hw.compatible:
+                    f.write(f"void lq_adc_isr_{hw.label}(uint16_t value);\n")
+                elif 'spi' in hw.compatible:
+                    f.write(f"void lq_spi_isr_{hw.label}(int32_t value);\n")
+            f.write("\n")
+        
+        f.write("""#ifdef __cplusplus
 }
 #endif
 
@@ -254,13 +269,19 @@ def generate_source(nodes, output_path):
         # Generate init function
         f.write("/* Initialization */\n")
         f.write("int lq_generated_init(void) {\n")
-        f.write("    /* Auto-detect HIL mode on native platform */\n")
+        f.write("    /* Auto-detect HIL mode on native platform (if not already initialized) */\n")
         f.write("    #ifdef LQ_PLATFORM_NATIVE\n")
-        f.write("    lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */\n")
+        f.write("    if (!lq_hil_is_active()) {\n")
+        f.write("        lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */\n")
+        f.write("    }\n")
         f.write("    #endif\n")
         f.write("    \n")
+        f.write("    /* Initialize engine */\n")
+        f.write("    int ret = lq_engine_init(&g_lq_engine);\n")
+        f.write("    if (ret != 0) return ret;\n")
+        f.write("    \n")
         f.write("    /* Hardware input layer */\n")
-        f.write("    int ret = lq_hw_input_init(64);\n")
+        f.write("    ret = lq_hw_input_init(64);\n")
         f.write("    if (ret != 0) return ret;\n")
         f.write("    \n")
         f.write("    /* Platform-specific peripheral init */\n")
