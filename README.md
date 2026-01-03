@@ -14,117 +14,157 @@ A declarative, device-tree-driven framework for building robust data pipelines i
 
 ## Architecture
 
+The Layered Queue Driver uses a clean layered architecture separating hardware concerns from pure processing logic:
+
 ```
-┌─────────────┐
-│   Hardware  │
-│  (ADC/SPI/  │
-│   GPIO)     │
-└──────┬──────┘
-       │
-┌──────▼──────────┐
-│  Source Driver  │ ◄── Range/Value Validation
-│  (lq-adc-source,│     Error Detection
-│   lq-spi-source)│
-└──────┬──────────┘
-       │
-┌──────▼──────┐
-│    Queue    │ ◄── Buffering, Drop Policy
-│  (lq-queue) │     Statistics
-└──────┬──────┘
-       │
-┌──────▼──────────┐
-│ Merge/Voter     │ ◄── Redundancy, Voting
-│ (lq-merge-voter)│     Tolerance Checking
-└──────┬──────────┘
-       │
-┌──────▼──────┐
-│    Queue    │
-└──────┬──────┘
-       │
-┌──────▼──────────┐
-│  Application    │
-└─────────────────┘
+┌─────────────────────────────────────────────┐
+│         Hardware ISR / Polling              │ ← RTOS-aware, minimal
+│  (ADC callbacks, SPI reads, GPIO events)    │
+└─────────────────┬───────────────────────────┘
+                  │ lq_hw_push()
+┌─────────────────▼───────────────────────────┐
+│      Layer 2: Input Aggregator              │ ← RTOS-aware, thin
+│         (Hardware ringbuffer)               │
+└─────────────────┬───────────────────────────┘
+                  │ lq_hw_pop()
+┌─────────────────▼───────────────────────────┐
+│    Mid-level Drivers (vtable pattern)       │ ← PURE (no RTOS)
+│  • ADC validator                            │
+│  • SPI validator                            │
+│  • Merge/Voter                              │
+│  • Range checker                            │
+└─────────────────┬───────────────────────────┘
+                  │ events
+┌─────────────────▼───────────────────────────┐
+│         ENGINE STEP (pure, once)            │ ← Deterministic
+│    Process all inputs → Generate events     │
+└─────────────────┬───────────────────────────┘
+                  │ events
+┌─────────────────▼───────────────────────────┐
+│          Output Drivers                     │ ← Hardware adapters
+│  • CAN  • GPIO  • UART                      │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│       Sync Groups (atomic updates)          │
+└─────────────────────────────────────────────┘
 ```
+
+**Key Benefits:**
+- **Testability**: Pure mid-level drivers and engine step are easily unit tested
+- **Portability**: Hardware abstraction enables running on any platform
+- **Determinism**: Single engine step processes all inputs predictably
+- **Safety**: Clear separation enables formal verification of pure layers
 
 ## Quick Start
 
-### 1. Device Tree Configuration
+### 1. Hardware Layer - Capture Raw Samples
 
-Define queues, sources, and merge logic in your device tree:
-
-```dts
-/ {
-    /* Define queues */
-    q_pressure: lq-queue@0 {
-        compatible = "zephyr,lq-queue";
-        capacity = <16>;
-        drop-policy = "drop-oldest";
-    };
-
-    /* ADC source with range validation */
-    adc_pressure: lq-source@0 {
-        compatible = "zephyr,lq-adc-source";
-        adc = <&adc1>;
-        channel = <2>;
-        output-queue = <&q_pressure>;
-        poll-interval-ms = <100>;
-
-        valid {
-            min = <1000>;
-            max = <3000>;
-            status = <0>;  /* LQ_OK */
-        };
-
-        degraded {
-            min = <900>;
-            max = <3100>;
-            status = <1>;  /* LQ_DEGRADED */
-        };
-    };
-
-    /* Merge redundant inputs */
-    merged: lq-merge@0 {
-        compatible = "zephyr,lq-merge-voter";
-        input-queues = <&q_adc1 &q_adc2>;
-        output-queue = <&q_merged>;
-        voting-method = "median";
-        tolerance = <50>;
-    };
-};
-```
-
-### 2. Application Code
-
-Use the queue API to consume data:
+Connect hardware interrupts to the input aggregator:
 
 ```c
-#include <zephyr/drivers/layered_queue.h>
+#include "lq_hw_input.h"
 
-const struct device *queue = DEVICE_DT_GET(DT_NODELABEL(q_pressure));
-
-void monitor_pressure(void)
+// ADC interrupt callback
+void adc_isr_callback(uint16_t sample)
 {
-    struct lq_item item;
-    
+    lq_hw_push(LQ_HW_ADC0, sample);  // ISR-safe
+}
+
+// SPI polling task
+void spi_poll_task(void)
+{
     while (1) {
-        if (lq_pop(queue, &item, K_FOREVER) == 0) {
-            printk("Pressure: %d (status=%d)\n", 
-                   item.value, item.status);
-            
-            if (item.status != LQ_OK) {
-                handle_fault();
-            }
-        }
+        uint32_t value = spi_read_sensor();
+        lq_hw_push(LQ_HW_SPI0, value);
+        k_sleep(K_MSEC(10));
     }
 }
 ```
 
-### 3. Build and Run
+### 2. Device Tree Configuration
 
-```bash
-west build -b <your_board> samples/basic
-west flash
+Define the complete pipeline in device tree:
+
+```dts
+/ {
+    /* Hardware inputs */
+    inputs {
+        adc0: lq-adc@0 {
+            compatible = "lq,adc";
+            channel = <0>;
+            min-raw = <0>;
+            max-raw = <4095>;
+            stale-us = <5000>;
+        };
+        
+        spi0: lq-spi@0 {
+            compatible = "lq,spi";
+            channel = <0>;
+            stale-us = <5000>;
+        };
+    };
+    
+    /* Mid-level processing */
+    merges {
+        engine_sensor: lq-merge@0 {
+            inputs = <&adc0 &spi0>;
+            tolerance = <50>;
+            voting-method = "median";
+        };
+    };
+    
+    /* Output adapters */
+    outputs {
+        can_speed: lq-output@0 {
+            compatible = "lq,can-output";
+            source = <&engine_sensor>;
+            pgn = <0xFEF1>;
+            period-us = <100000>;  /* 10Hz */
+        };
+        
+        gpio_warning: lq-output@1 {
+            compatible = "lq,gpio-output";
+            source = <&engine_sensor>;
+            pin = <5>;
+            trigger-status = <1>;  /* >= DEGRADED */
+        };
+    };
+    
+    /* Synchronized updates */
+    sync_groups {
+        snapshot: lq-sync-group@0 {
+            period-us = <100000>;
+            members = <&can_speed &gpio_warning>;
+        };
+    };
+};
 ```
+
+### 3. Engine Processing
+
+The engine step runs periodically to process all pending samples:
+
+```c
+#include "lq_sync_group.h"
+#include "lq_platform.h"
+
+void engine_task(void)
+{
+    struct lq_engine *engine = get_engine_instance();
+    
+    while (1) {
+        uint64_t now = lq_platform_uptime_get() * 1000; // Convert to μs
+        
+        // Single deterministic processing step
+        lq_engine_step(engine, now);
+        
+        k_sleep(K_USEC(100));  // 10kHz processing rate
+    }
+}
+```
+
+This replaces the old queue-based approach with a cleaner, more testable design.
 
 ## Driver Types
 
@@ -200,44 +240,72 @@ enum lq_status {
 ## Directory Structure
 
 ```
-zephyr-declarative-drivers/
+layered-queue-driver/
 ├── dts/
 │   ├── bindings/layered-queue/     # Device tree bindings
-│   │   ├── zephyr,lq-queue.yaml
-│   │   ├── zephyr,lq-adc-source.yaml
-│   │   ├── zephyr,lq-spi-source.yaml
-│   │   ├── zephyr,lq-merge-voter.yaml
-│   │   └── zephyr,lq-dual-inverted.yaml
+│   │   ├── lq,adc.yaml
+│   │   ├── lq,spi.yaml
+│   │   ├── lq,merge-voter.yaml
+│   │   ├── lq,can-output.yaml
+│   │   ├── lq,gpio-output.yaml
+│   │   └── lq,sync-group.yaml
 │   └── examples/                   # Example device trees
-│       ├── layered-queue-example.dts
-│       └── automotive-brake-example.dts
-├── include/zephyr/drivers/
-│   ├── layered_queue.h             # Public API
-│   └── layered_queue_internal.h    # Internal structures
-├── drivers/layered_queue/          # Driver implementations
-│   ├── lq_queue.c
-│   ├── lq_adc_source.c
-│   ├── lq_spi_source.c
-│   ├── lq_merge_voter.c
-│   ├── lq_util.c
+│       ├── layered-architecture-example.dts
+│       ├── layered-queue-example.dts (legacy)
+│       └── automotive-brake-example.dts (legacy)
+├── include/
+│   ├── lq_hw_input.h              # Hardware input layer (ISR-safe)
+│   ├── lq_mid_driver.h            # Mid-level driver interface (pure)
+│   ├── lq_event.h                 # Event and output driver system
+│   ├── lq_sync_group.h            # Synchronized output groups
+│   ├── lq_platform.h              # Platform abstraction
+│   ├── lq_util.h                  # Utility functions
+│   ├── layered_queue_core.h       # Legacy core API
+│   └── zephyr/drivers/
+│       └── layered_queue.h        # Legacy public API
+├── src/
+│   ├── lq_hw_input.c              # Hardware input implementation
+│   ├── lq_engine.c                # Pure engine step
+│   ├── lq_queue_core.c            # Legacy queue implementation
+│   ├── lq_util.c                  # Utility functions
+│   └── platform/
+│       ├── lq_platform_native.c   # Native/POSIX platform
+│       └── lq_platform_zephyr.c   # Zephyr RTOS platform
+├── drivers/layered_queue/          # Zephyr driver implementations
+│   ├── lq_adc_input.c             # ADC input driver
+│   ├── lq_spi_input.c             # SPI input driver
+│   ├── lq_merge_voter.c           # Merge/voter mid-level driver
+│   ├── lq_can_output.c            # CAN output driver
+│   ├── lq_gpio_output.c           # GPIO output driver
+│   ├── lq_sync_group.c            # Sync group implementation
 │   ├── Kconfig
 │   └── CMakeLists.txt
-├── samples/basic/                  # Example application
-│   ├── src/main.c
-│   └── README.md
-├── tests/util/                     # Unit tests
-│   └── src/main.c
+├── samples/
+│   ├── basic/                     # Legacy basic example
+│   └── layered/                   # New layered architecture example
+├── tests/
+│   ├── queue_test.cpp             # Queue tests
+│   ├── engine_test.cpp            # Engine step tests (pure)
+│   └── util/                      # Utility tests
 └── docs/
-    └── architecture.md             # Detailed documentation
+    ├── architecture.md            # Architecture documentation
+    ├── devicetree-guide.md        # Device tree guide
+    └── testing.md                 # Testing guide
 ```
 
 ## Examples
 
-### Example 1: Basic ADC Monitoring
+### Example 1: Layered Architecture - Engine Monitoring
+
+Complete example showing the new layered design with inputs, mid-level processing, outputs, and sync groups:
+
+[See dts/examples/layered-architecture-example.dts](dts/examples/layered-architecture-example.dts)
+
+### Example 2: Basic ADC Monitoring (Legacy)
 
 [See dts/examples/layered-queue-example.dts](dts/examples/layered-queue-example.dts)
 
-### Example 2: Automotive Brake System
+### Example 3: Automotive Brake System (Legacy)
 
 Dual redundant ADC sensors with median voting and strict tolerance:
 

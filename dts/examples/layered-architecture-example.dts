@@ -1,0 +1,166 @@
+/*
+ * Copyright (c) 2026 Layered Queue Driver
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Example: Layered architecture with synchronized outputs
+ * 
+ * This example demonstrates the new layered architecture:
+ * - Hardware ISR layer pushes raw samples
+ * - Mid-level drivers process samples into events
+ * - Output drivers adapt events to hardware (CAN, GPIO)
+ * - Sync groups coordinate atomic updates
+ */
+
+/dts-v1/;
+
+/ {
+    model = "Layered Queue Example - Engine Monitoring";
+    
+    /* ========================================================================
+     * INPUT LAYER: Hardware sources
+     * ======================================================================== */
+    
+    inputs {
+        /* ADC input: Engine RPM sensor */
+        adc0: lq-adc@0 {
+            compatible = "lq,adc";
+            channel = <0>;
+            min-raw = <0>;
+            max-raw = <4095>;
+            stale-us = <5000>;        /* 5ms staleness timeout */
+            source-id = <0>;
+        };
+        
+        /* SPI input: Secondary RPM sensor (redundancy) */
+        spi0: lq-spi@0 {
+            compatible = "lq,spi";
+            channel = <0>;
+            stale-us = <5000>;
+            source-id = <1>;
+        };
+        
+        /* ADC input: Engine temperature */
+        adc1: lq-adc@1 {
+            compatible = "lq,adc";
+            channel = <1>;
+            min-raw = <0>;
+            max-raw = <4095>;
+            stale-us = <100000>;      /* 100ms staleness timeout */
+            source-id = <2>;
+        };
+    };
+    
+    /* ========================================================================
+     * MID-LEVEL LAYER: Processing and validation
+     * ======================================================================== */
+    
+    merges {
+        /* Merge dual RPM sensors with median voting */
+        engine_rpm: lq-merge@0 {
+            compatible = "lq,merge-voter";
+            inputs = <&adc0 &spi0>;
+            tolerance = <50>;         /* Max 50 RPM deviation */
+            stale-us = <10000>;       /* 10ms overall staleness */
+            voting-method = "median";
+            source-id = <100>;
+            
+            ranges {
+                valid {
+                    min = <800>;
+                    max = <6000>;
+                    status = <0>;     /* LQ_EVENT_OK */
+                };
+                degraded {
+                    min = <700>;
+                    max = <6500>;
+                    status = <1>;     /* LQ_EVENT_DEGRADED */
+                };
+            };
+        };
+        
+        /* Temperature with range validation */
+        engine_temp: lq-validator@0 {
+            compatible = "lq,validator";
+            input = <&adc1>;
+            source-id = <101>;
+            
+            ranges {
+                normal {
+                    min = <60>;       /* 60°C */
+                    max = <95>;       /* 95°C */
+                    status = <0>;
+                };
+                warning {
+                    min = <50>;
+                    max = <105>;
+                    status = <1>;
+                };
+                critical {
+                    min = <0>;
+                    max = <120>;
+                    status = <2>;
+                };
+            };
+        };
+    };
+    
+    /* ========================================================================
+     * OUTPUT LAYER: Hardware adapters
+     * ======================================================================== */
+    
+    outputs {
+        /* CAN output: Engine speed */
+        can_rpm: lq-output@0 {
+            compatible = "lq,can-output";
+            source = <&engine_rpm>;
+            pgn = <0xFEF1>;           /* Engine Speed PGN */
+            priority = <3>;
+            period-us = <100000>;     /* 100ms (10Hz) */
+        };
+        
+        /* CAN output: Engine temperature */
+        can_temp: lq-output@1 {
+            compatible = "lq,can-output";
+            source = <&engine_temp>;
+            pgn = <0xFEEE>;           /* Engine Temperature PGN */
+            priority = <6>;
+            period-us = <1000000>;    /* 1s (1Hz) */
+        };
+        
+        /* GPIO output: Warning LED */
+        gpio_warning: lq-output@2 {
+            compatible = "lq,gpio-output";
+            source = <&engine_temp>;
+            pin = <5>;
+            active-high;
+            
+            /* Turn on when temp is degraded or worse */
+            trigger-status = <1>;     /* >= LQ_EVENT_DEGRADED */
+        };
+        
+        /* GPIO output: Critical LED */
+        gpio_critical: lq-output@3 {
+            compatible = "lq,gpio-output";
+            source = <&engine_temp>;
+            pin = <6>;
+            active-high;
+            
+            /* Turn on when temp is out of range */
+            trigger-status = <2>;     /* >= LQ_EVENT_OUT_OF_RANGE */
+        };
+    };
+    
+    /* ========================================================================
+     * SYNC GROUPS: Coordinated atomic updates
+     * ======================================================================== */
+    
+    sync_groups {
+        /* Update CAN and GPIO together for consistent snapshot */
+        status_snapshot: lq-sync-group@0 {
+            compatible = "lq,sync-group";
+            period-us = <100000>;     /* 100ms */
+            members = <&can_rpm &can_temp &gpio_warning &gpio_critical>;
+            use-staging;              /* Use stage/commit for atomicity */
+        };
+    };
+};

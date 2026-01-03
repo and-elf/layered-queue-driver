@@ -2,35 +2,107 @@
 
 ## Overview
 
-The Layered Queue Driver provides a flexible, declarative framework for building data pipelines in Zephyr RTOS applications. It enables declarative device-tree configuration of sensor inputs, data queues, redundancy management, and fault detection for safety-critical embedded systems.
+The Layered Queue Driver provides a flexible, declarative framework for building robust data pipelines in safety-critical embedded systems. The architecture uses clean layering to separate hardware concerns from pure processing logic, enabling testability, portability, and deterministic behavior.
 
-## Architecture
+## Layered Architecture
+
+The system is organized into distinct layers with clear responsibilities:
+
+```
+┌─────────────────────────────────────────────┐
+│         Hardware ISR / Polling              │ ← RTOS-aware, minimal
+│  (ADC callbacks, SPI reads, GPIO events)    │
+└─────────────────┬───────────────────────────┘
+                  │ lq_hw_push()
+┌─────────────────▼───────────────────────────┐
+│      Layer 2: Input Aggregator              │ ← RTOS-aware, thin
+│         (Hardware ringbuffer)               │
+└─────────────────┬───────────────────────────┘
+                  │ lq_hw_pop()
+┌─────────────────▼───────────────────────────┐
+│    Mid-level Drivers (vtable pattern)       │ ← PURE (no RTOS calls)
+│  • ADC validator                            │
+│  • SPI validator                            │
+│  • Merge/Voter                              │
+│  • Range checker                            │
+└─────────────────┬───────────────────────────┘
+                  │ events
+┌─────────────────▼───────────────────────────┐
+│         ENGINE STEP (pure, once)            │ ← PURE (deterministic)
+│    Process all inputs → Generate events     │
+└─────────────────┬───────────────────────────┘
+                  │ events
+┌─────────────────▼───────────────────────────┐
+│          Output Drivers                     │ ← Hardware adapters
+│  • CAN                                      │
+│  • GPIO                                     │
+│  • UART/Serial                              │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│       Sync Groups (atomic updates)          │
+│    Coordinate multiple outputs together     │
+└─────────────────────────────────────────────┘
+```
+
+### Layer Responsibilities
+
+#### Layer 1: Hardware ISR / Polling
+- **Responsibility**: Capture raw hardware samples as quickly as possible
+- **RTOS-aware**: Yes (ISR-safe, uses ringbuffer)
+- **Side effects**: Minimal - just capture and timestamp
+- **Example**:
+```c
+void adc_isr_callback(uint16_t sample)
+{
+    lq_hw_push(LQ_HW_ADC0, sample);  // ISR-safe
+}
+```
+
+#### Layer 2: Input Aggregator
+- **Responsibility**: Buffer samples from all hardware sources
+- **RTOS-aware**: Yes (mutex-protected ringbuffer)
+- **Interface**: `lq_hw_push()` (ISR-safe) and `lq_hw_pop()` (thread-safe)
+- **Data structure**: `struct lq_hw_sample` with source ID, value, timestamp
+
+#### Layer 3: Mid-level Drivers
+- **Responsibility**: Pure processing - validate, filter, merge
+- **RTOS-aware**: NO (completely pure functions)
+- **Interface**: Vtable pattern with `init()` and `process()` methods
+- **Input**: Raw samples + timestamp
+- **Output**: Validated events
+- **Types**:
+  - ADC validator: Range checking, staleness detection
+  - SPI validator: Communication error detection
+  - Merge/Voter: Redundancy management with median/average/min/max
+  - Range checker: Multi-level range validation
+
+#### Layer 4: Engine Step
+- **Responsibility**: Single deterministic processing cycle
+- **RTOS-aware**: NO (completely pure)
+- **Process**:
+  1. Read all pending hardware samples
+  2. Route to appropriate mid-level drivers
+  3. Collect all generated events
+  4. Return events for output processing
+- **Guarantees**: Deterministic, testable, no side effects
+
+#### Layer 5: Output Drivers
+- **Responsibility**: Adapt events to hardware interfaces
+- **RTOS-aware**: Yes (calls hardware APIs)
+- **Interface**: Vtable with `write()`, optional `stage()`/`commit()`
+- **Types**:
+  - CAN: Format events as CAN frames with PGN
+  - GPIO: Drive pins based on event status
+  - UART: Serialize events for transmission
+
+#### Layer 6: Sync Groups
+- **Responsibility**: Coordinate atomic updates across outputs
+- **Use case**: Ensure CAN frames, GPIO, and other outputs update together
+- **Pattern**: Stage → Commit for atomicity
+- **Timing**: Configurable period (e.g., 100ms snapshots)
 
 ### Core Components
-
-1. **Queue Nodes** (`zephyr,lq-queue`)
-   - Ring buffer-based FIFO queues
-   - Configurable capacity and drop policies
-   - Thread-safe with semaphore-based blocking
-   - Statistics tracking (writes, reads, drops, peak usage)
-
-2. **Source Drivers**
-   - **ADC Source** (`zephyr,lq-adc-source`): Polls ADC channels, validates ranges
-   - **SPI Source** (`zephyr,lq-spi-source`): Reads SPI devices, validates discrete values
-   - **Dual-Inverted** (`zephyr,lq-dual-inverted`): Monitors complementary GPIO signals
-
-3. **Merge/Voter** (`zephyr,lq-merge-voter`)
-   - Combines multiple redundant inputs
-   - Voting algorithms: median, average, min, max, majority
-   - Tolerance checking for consistency validation
-
-### Data Flow
-
-```
-[Hardware] → [Source Driver] → [Queue] → [Merge/Voter] → [Queue] → [Application]
-                    ↓                            ↑
-              [Range Check]                [Multiple Queues]
-```
 
 ## Runtime Behavior
 
