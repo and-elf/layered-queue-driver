@@ -122,15 +122,30 @@ if(BUILD_TESTS)
     )
     
     # HIL testing targets
-    add_custom_target(hil-sut
-        COMMAND ${CMAKE_COMMAND} -E echo "Building simple SUT for HIL testing..."
+    
+    # Simple echo SUT (for framework testing)
+    add_custom_target(hil-sut-simple
+        COMMAND ${CMAKE_COMMAND} -E echo "Building simple echo SUT..."
         COMMAND ${CMAKE_C_COMPILER} 
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/simple_sut.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -lpthread
+            -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut_simple
+        COMMENT "Building simple HIL SUT"
+    )
+    
+    # HIL Platform demo (shows how platform calls are intercepted)
+    add_custom_target(hil-sut
+        COMMAND ${CMAKE_COMMAND} -E echo "Building HIL platform demo..."
+        COMMAND ${CMAKE_C_COMPILER} 
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/real_sut.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/lq_platform_hil.c
+            -I${CMAKE_CURRENT_SOURCE_DIR}/include
+            -lpthread
             -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut
-        COMMENT "Building HIL SUT"
+        COMMENT "Building HIL platform demo"
     )
     
     add_custom_target(hil-tests

@@ -259,6 +259,55 @@ void lq_log(lq_log_level_t level, const char *module, const char *fmt, ...);
 #define LQ_LOG_DBG(module, fmt, ...) lq_log(LQ_LOG_LEVEL_DBG, module, fmt, ##__VA_ARGS__)
 
 /* ============================================================================
+ * Hardware Abstraction API
+ * ============================================================================ */
+
+/**
+ * @brief Read ADC channel
+ * @param channel ADC channel number
+ * @param value Pointer to store ADC value (0-4095 for 12-bit)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_adc_read(uint8_t channel, uint16_t *value);
+
+/**
+ * @brief Send CAN message
+ * @param can_id CAN identifier
+ * @param is_extended true for 29-bit extended ID, false for 11-bit standard
+ * @param data Message data bytes
+ * @param len Data length (0-8)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);
+
+/**
+ * @brief Receive CAN message
+ * @param can_id Pointer to store CAN identifier
+ * @param is_extended Pointer to store ID type flag
+ * @param data Buffer for message data (must be >=8 bytes)
+ * @param len Pointer to store data length
+ * @param timeout_ms Receive timeout in milliseconds (0xFFFFFFFF = forever)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_can_recv(uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len, uint32_t timeout_ms);
+
+/**
+ * @brief Set GPIO output
+ * @param pin GPIO pin number
+ * @param value true for high, false for low
+ * @return 0 on success, negative errno on failure
+ */
+int lq_gpio_set(uint8_t pin, bool value);
+
+/**
+ * @brief Read GPIO input
+ * @param pin GPIO pin number
+ * @param value Pointer to store pin state
+ * @return 0 on success, negative errno on failure
+ */
+int lq_gpio_get(uint8_t pin, bool *value);
+
+/* ============================================================================
  * Error codes (POSIX-compatible)
  * ============================================================================ */
 
