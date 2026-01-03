@@ -58,7 +58,10 @@ extern ADC_HandleTypeDef hadc2;
 /* SPI handles */
 extern SPI_HandleTypeDef hspi1;
 
-/* CAN handles */
+/* CAN handles - Uses STM32's BUILT-IN CAN controller (bxCAN or FDCAN)
+ * You only need an external CAN transceiver chip (TJA1050, MCP2551, etc.)
+ * to convert TX/RX logic levels to differential CANH/CANL bus signals.
+ */
 extern CAN_HandleTypeDef hcan1;
 extern CAN_HandleTypeDef hcan2;
 

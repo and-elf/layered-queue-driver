@@ -137,6 +137,8 @@ python3 scripts/dts_gen.py automotive_can.dts src/ --platform=nrf52
 
 ### STM32 HAL
 
+**Uses STM32's built-in CAN controller** (bxCAN on F1/F4/L4, FDCAN on G0/G4/H7/U5).
+
 **Generated ISR:**
 ```c
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -186,6 +188,8 @@ void lq_can_transmit_j1939(uint32_t pgn, uint8_t priority, uint8_t sa,
 
 ### ESP32 IDF (TWAI)
 
+**Uses ESP32's built-in TWAI (Two-Wire Automotive Interface)** - ESP32's name for their CAN controller.
+
 **Generated ISR:**
 ```c
 void lq_can_receive_rpm_can(void)
@@ -233,6 +237,8 @@ void lq_platform_peripherals_init(void)
 ```
 
 ### Nordic nRF52 (External MCP2515)
+
+**Important:** nRF52 does NOT have a built-in CAN controller, so we use an external MCP2515 via SPI.
 
 Since nRF52 doesn't have built-in CAN, use external MCP2515 via SPI:
 

@@ -73,19 +73,29 @@ dm1_output: fault-broadcast {
 ## Hardware Setup
 
 ### STM32 + CAN Transceiver (TJA1050/MCP2551)
+
+**Important:** STM32 has a **built-in CAN controller** (bxCAN on F1/F4, FDCAN on newer). You only need an external CAN transceiver chip to convert logic levels to differential CAN bus signals.
+
 ```
-STM32 Pin    | CAN Transceiver | J1939 Bus
--------------|-----------------|----------
-PA11 (CAN_RX)| RX              |
-PA12 (CAN_TX)| TX              |
-GND          | GND             | Pin 3
-             | CANH            | Pin 6 (120Ω termination)
-             | CANL            | Pin 14 (120Ω termination)
+STM32 (Built-in CAN) | CAN Transceiver Chip | J1939 Bus
+---------------------|----------------------|----------
+PA11 (CAN1_RX)       | RX                   |
+PA12 (CAN1_TX)       | TX                   |
+3.3V/5V              | VCC                  |
+GND                  | GND                  | Pin 3
+                     | CANH                 | Pin 6 (120Ω termination)
+                     | CANL                 | Pin 14 (120Ω termination)
 ```
+
+**Generated code uses:**
+- ✅ STM32's built-in CAN1 peripheral (via HAL)
+- ✅ Hardware CAN message filters
+- ✅ DMA-capable CAN interrupts
+- ✅ No external CAN controller needed!
 
 **Bit Rate:** 250 kbps (J1939 standard)  
 **ID Type:** Extended 29-bit  
-**Voltage:** 5V CAN transceiver
+**Voltage:** 5V CAN transceiver (3.3V works too)
 
 ### ESP32 + SN65HVD230 Transceiver
 ```
