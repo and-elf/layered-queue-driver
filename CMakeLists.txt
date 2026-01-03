@@ -120,6 +120,61 @@ if(BUILD_TESTS)
         DEPENDS queue_test generated_test
         COMMENT "Running tests..."
     )
+    
+    # HIL testing targets
+    add_custom_target(hil-sut
+        COMMAND ${CMAKE_COMMAND} -E echo "Building simple SUT for HIL testing..."
+        COMMAND ${CMAKE_C_COMPILER} 
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/simple_sut.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            -I${CMAKE_CURRENT_SOURCE_DIR}/include
+            -lpthread
+            -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut
+        COMMENT "Building HIL SUT"
+    )
+    
+    add_custom_target(hil-tests
+        COMMAND ${CMAKE_COMMAND} -E echo "Generating HIL test DTS..."
+        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dts_gen.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
+            ${CMAKE_CURRENT_BINARY_DIR}/hil/
+        COMMAND ${CMAKE_COMMAND} -E echo "Generating test runner..."
+        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hil_test_gen.py
+            ${CMAKE_CURRENT_BINARY_DIR}/hil/lq_generated_test.dts
+            ${CMAKE_CURRENT_BINARY_DIR}/hil/
+        COMMAND ${CMAKE_COMMAND} -E echo "Compiling test runner..."
+        COMMAND ${CMAKE_C_COMPILER}
+            ${CMAKE_CURRENT_BINARY_DIR}/hil/test_runner.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_j1939.c
+            -I${CMAKE_CURRENT_SOURCE_DIR}/include
+            -lpthread
+            -o ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner
+        DEPENDS hil-sut
+        COMMENT "Generating and compiling HIL tests"
+    )
+    
+    add_custom_target(hil
+        COMMAND ${CMAKE_COMMAND} -E echo "=== Running HIL Tests ==="
+        COMMAND ${CMAKE_COMMAND} -E env LQ_HIL_MODE=sut
+            ${CMAKE_COMMAND} -E env PYTHONUNBUFFERED=1
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/run_hil_cmake.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/hil_sut
+            ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner
+        DEPENDS hil-tests
+        COMMENT "Running HIL test suite"
+    )
+    
+    # Quick HIL test (doesn't fail build on test failure)
+    add_custom_target(hil-quick
+        COMMAND ${CMAKE_COMMAND} -E echo "=== Quick HIL Test ==="
+        COMMAND ${CMAKE_COMMAND} -E env LQ_HIL_MODE=sut
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/run_hil_cmake.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/hil_sut
+            ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner || true
+        DEPENDS hil-tests
+        COMMENT "Running HIL tests (non-failing)"
+    )
 endif()
 
 # Install
@@ -142,5 +197,12 @@ message(STATUS "Build tests: ${BUILD_TESTS}")
 message(STATUS "Enable coverage: ${ENABLE_COVERAGE}")
 message(STATUS "C Compiler: ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
 message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+if(BUILD_TESTS)
+    message(STATUS "")
+    message(STATUS "Available test targets:")
+    message(STATUS "  make test       - Run unit tests")
+    message(STATUS "  make hil-quick  - Run HIL tests (demo)")
+    message(STATUS "  make hil        - Run HIL tests (strict)")
+endif()
 message(STATUS "==========================================")
 message(STATUS "")
