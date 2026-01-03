@@ -2,6 +2,51 @@
 
 HIL tests are defined in devicetree format for declarative, platform-agnostic testing.
 
+## Architecture
+
+### Software HIL (Native Linux)
+```
+┌─────────────┐  Unix Sockets  ┌──────────────┐
+│ SUT Process │ ←──────────────→ │ Test Runner  │
+│ (Your App)  │                 │ (Generated)  │
+└─────────────┘                 └──────────────┘
+```
+
+### Hardware HIL (Real Embedded)
+```
+┌──────────────┐   UART/USB    ┌──────────────┐
+│ STM32/ESP32  │ ←────────────→ │  HIL Rig PC  │
+│ (Flashed SUT)│   Ethernet    │ (Test Runner)│
+└──────────────┘                └──────────────┘
+```
+
+**Same tests work on both!** The transport layer is abstracted.
+
+## Deployment Modes
+
+### Mode 1: Native Development (Current)
+```bash
+# SUT runs on Linux, tester runs on Linux, Unix sockets
+make hil-quick
+```
+
+### Mode 2: Hardware-in-Loop (Future)
+```bash
+# Flash SUT to STM32
+west flash
+
+# Run tester on HIL rig PC
+./hil_test_runner --transport=uart --device=/dev/ttyUSB0 --baudrate=115200
+```
+
+### Mode 3: Network HIL (ESP32/Networked devices)
+```bash
+# SUT runs on ESP32 with WiFi
+# Tester connects via TCP
+
+./hil_test_runner --transport=tcp --host=192.168.1.100 --port=5555
+```
+
 ## Test Structure
 
 ```dts
