@@ -49,7 +49,7 @@ jobs:
     - name: Generate coverage report
       run: |
         lcov --capture --directory build --output-file coverage.info --rc lcov_branch_coverage=0 --ignore-errors mismatch
-        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/googletest/*' '*/build/_deps/*' --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/googletest/*' '*/build/_deps/*' '*/samples/*' --output-file coverage.info
         lcov --list coverage.info
     
     - name: Upload coverage to Codecov
