@@ -341,7 +341,7 @@ def generate_source(nodes, output_path):
         if wake_functions:
             f.write("/* Fault monitor wake callbacks - weak stubs (user can override) */\n")
             for wake_fn in sorted(wake_functions):
-                f.write(f"__attribute__((weak))\n")
+                f.write(f"__weak\n")
                 f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, bool fault_detected) {{\n")
                 f.write(f"    /* Default: no action. Override this function to implement safety response. */\n")
                 f.write(f"    (void)monitor_id;\n")
