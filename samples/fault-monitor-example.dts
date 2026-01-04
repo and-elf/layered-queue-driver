@@ -55,6 +55,9 @@
         /* Detect merge failures (voting inconsistencies) */
         check-status;
         
+        /* Severity level: 2 = Error / Medium fault */
+        fault-level = <2>;
+        
         /* Call wake function for immediate safety action */
         wake-function = "sensor_fault_wake";
     };
@@ -83,6 +86,9 @@
         /* Also check for stale data */
         check-staleness;
         stale-timeout-us = <500000>;  /* 500ms */
+        
+        /* Severity level: 3 = Critical / Hard fault */
+        fault-level = <3>;
         
         /* Call wake function for overtemperature protection */
         wake-function = "temperature_fault_wake";

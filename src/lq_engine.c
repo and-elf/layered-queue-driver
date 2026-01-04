@@ -212,7 +212,8 @@ void lq_process_fault_monitors(
         }
         
         /* Update fault output signal */
-        int32_t new_value = fault_detected ? 1 : 0;
+        enum lq_fault_level level = fault_detected ? mon->fault_level : LQ_FAULT_LEVEL_0;
+        int32_t new_value = (int32_t)level;
         bool changed = (fault_out->value != new_value);
         fault_out->value = new_value;
         fault_out->status = LQ_EVENT_OK;
@@ -221,7 +222,7 @@ void lq_process_fault_monitors(
         
         /* Call wake function on fault state change */
         if (changed && mon->wake) {
-            mon->wake(i, input->value, fault_detected);
+            mon->wake(i, input->value, level);
         }
     }
 }

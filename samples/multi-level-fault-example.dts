@@ -1,0 +1,154 @@
+/dts-v1/;
+
+/*
+ * Multi-Level Fault Monitoring Example
+ * 
+ * Demonstrates differentiated fault severity levels:
+ *   Level 0: Info/OK - Normal operation
+ *   Level 1: Warning - Soft fault, continue with degraded mode
+ *   Level 2: Error - Moderate fault, reduce capability significantly
+ *   Level 3: Critical - Hard fault, emergency shutdown required
+ * 
+ * This example shows temperature monitoring with multiple thresholds:
+ *   - Warning at 110°C (reduce power, increase cooling)
+ *   - Error at 120°C (further reduce power, limp mode)
+ *   - Critical at 130°C (emergency shutdown)
+ */
+
+/ {
+    model = "Multi-Level Fault Example";
+    
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <2>;
+        max-fault-monitors = <8>;
+        max-cyclic-outputs = <4>;
+    };
+    
+    /* Temperature sensor input */
+    temp_sensor: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <0>;
+        adc-channel = <0>;
+        stale-us = <100000>;  /* 100ms */
+    };
+    
+    /* Staleness monitor - Info level for diagnostics */
+    temp_stale_monitor: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <0>;
+        fault-output-signal-id = <10>;
+        
+        check-staleness;
+        stale-timeout-us = <500000>;  /* 500ms timeout */
+        
+        fault-level = <0>;  /* Info/diagnostic - not a safety issue */
+        wake-function = "temp_stale_wake";
+    };
+    
+    /* Warning level - 110°C threshold */
+    temp_warning_monitor: lq-fault-monitor@1 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <0>;
+        fault-output-signal-id = <11>;
+        
+        check-range;
+        max-value = <1100>;  /* 110.0°C in decidegrees */
+        
+        fault-level = <1>;  /* Warning - soft fault */
+        wake-function = "temp_warning_wake";
+    };
+    
+    /* Error level - 120°C threshold */
+    temp_error_monitor: lq-fault-monitor@2 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <0>;
+        fault-output-signal-id = <12>;
+        
+        check-range;
+        max-value = <1200>;  /* 120.0°C */
+        
+        fault-level = <2>;  /* Error - moderate fault */
+        wake-function = "temp_error_wake";
+    };
+    
+    /* Critical level - 130°C threshold */
+    temp_critical_monitor: lq-fault-monitor@3 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <0>;
+        fault-output-signal-id = <13>;
+        
+        check-range;
+        max-value = <1300>;  /* 130.0°C */
+        
+        fault-level = <3>;  /* Critical - hard fault, emergency action */
+        wake-function = "temp_critical_wake";
+    };
+    
+    /* Redundant sensor for voting */
+    temp_sensor_b: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <1>;
+        adc-channel = <1>;
+        stale-us = <100000>;
+    };
+    
+    /* Merge sensors with voting */
+    merged_temp: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        status = "okay";
+        
+        output-signal-id = <5>;
+        input-signal-ids = <0 1>;
+        voting-method = "median";
+        tolerance = <50>;  /* 5.0°C */
+        stale-us = <100000>;
+    };
+    
+    /* Monitor merge for voting failures - Error level */
+    merge_fault_monitor: lq-fault-monitor@4 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <5>;
+        fault-output-signal-id = <14>;
+        
+        check-status;  /* Detects voting inconsistencies */
+        
+        fault-level = <2>;  /* Error - sensor disagreement */
+        wake-function = "merge_fault_wake";
+    };
+    
+    /* Output temperature value periodically */
+    temp_output: lq-cyclic-j1939-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <5>;  /* Merged temperature */
+        output-type = "j1939";
+        target-id = <0xFEEE>;    /* PGN for engine temperature */
+        period-us = <100000>;    /* 100ms / 10Hz */
+    };
+    
+    /* Output fault status flags */
+    fault_status_output: lq-cyclic-j1939-output@1 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <13>;  /* Critical fault flag */
+        output-type = "j1939";
+        target-id = <0xFECA>;     /* PGN for DM1 diagnostics */
+        period-us = <1000000>;    /* 1s / 1Hz */
+    };
+};

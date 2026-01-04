@@ -49,13 +49,23 @@ properties:
     type: boolean
     description: Check for FAULT/INCONSISTENT status from merges
 
+  fault-level:
+    type: int
+    description: |
+      Severity level when fault is detected (default: 1)
+      0 = No fault (informational)
+      1 = Warning / Soft fault
+      2 = Error / Medium fault
+      3 = Critical / Hard fault
+      Higher levels available with LQ_MAX_FAULT_LEVELS config
+
   wake-function:
     type: string
     description: |
       Name of wake callback function to call when fault state changes.
       User must implement: void function_name(uint8_t monitor_id, 
                                                int32_t input_value, 
-                                               bool fault_detected)
+                                               enum lq_fault_level level)
       Use this for immediate safety actions (shutdown, limp mode, etc.)
 
   status:

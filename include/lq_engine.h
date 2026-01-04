@@ -111,9 +111,9 @@ struct lq_merge_ctx {
  * 
  * @param monitor_id Index of the fault monitor that triggered
  * @param input_value Current value of monitored signal
- * @param fault_detected New fault state (0=cleared, 1=detected)
+ * @param fault_level Severity level of the fault (0=OK, 1+=fault levels)
  */
-typedef void (*lq_fault_wake_fn)(uint8_t monitor_id, int32_t input_value, bool fault_detected);
+typedef void (*lq_fault_wake_fn)(uint8_t monitor_id, int32_t input_value, enum lq_fault_level fault_level);
 
 /**
  * @brief Fault monitor context
@@ -128,7 +128,7 @@ typedef void (*lq_fault_wake_fn)(uint8_t monitor_id, int32_t input_value, bool f
  */
 struct lq_fault_monitor_ctx {
     uint8_t input_signal;         /**< Signal to monitor */
-    uint8_t fault_output_signal;  /**< Fault flag output (0=OK, 1=FAULT) */
+    uint8_t fault_output_signal;  /**< Fault flag output (0=OK, 1+=level) */
     
     /* Fault conditions */
     bool check_staleness;         /**< Enable staleness check */
@@ -139,6 +139,8 @@ struct lq_fault_monitor_ctx {
     int32_t max_value;            /**< Maximum valid value */
     
     bool check_status;            /**< Check for LQ_EVENT_FAULT status */
+    
+    enum lq_fault_level fault_level;  /**< Severity level when fault detected */
     
     lq_fault_wake_fn wake;        /**< Wake callback for immediate action */
     bool enabled;                 /**< Enable/disable monitor */

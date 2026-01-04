@@ -168,7 +168,7 @@ int lq_generated_init(void);
             if wake_functions:
                 f.write("/* Fault monitor wake callbacks */\n")
                 for wake_fn in sorted(wake_functions):
-                    f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, bool fault_detected);\n")
+                    f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, enum lq_fault_level fault_level);\n")
                 f.write("\n")
         
         f.write("""#ifdef __cplusplus
@@ -278,6 +278,10 @@ def generate_source(nodes, output_path):
                 
                 f.write(f"            .check_status = {'true' if check_status else 'false'},\n")
                 
+                # Fault level
+                fault_level = node.properties.get('fault_level', 1)
+                f.write(f"            .fault_level = {fault_level},\n")
+                
                 # Wake function
                 wake_fn = node.properties.get('wake_function')
                 if wake_fn:
@@ -342,11 +346,11 @@ def generate_source(nodes, output_path):
             f.write("/* Fault monitor wake callbacks - weak stubs (user can override) */\n")
             for wake_fn in sorted(wake_functions):
                 f.write(f"__weak\n")
-                f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, bool fault_detected) {{\n")
+                f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, enum lq_fault_level fault_level) {{\n")
                 f.write(f"    /* Default: no action. Override this function to implement safety response. */\n")
                 f.write(f"    (void)monitor_id;\n")
                 f.write(f"    (void)input_value;\n")
-                f.write(f"    (void)fault_detected;\n")
+                f.write(f"    (void)fault_level;\n")
                 f.write(f"}}\n\n")
         
         # Generate init function
