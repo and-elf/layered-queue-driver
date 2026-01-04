@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/time.h>
@@ -50,8 +51,15 @@ static void make_socket_path(char *buf, size_t size, const char *fmt, int pid)
 /* Helper: Create Unix domain socket */
 static int create_unix_socket(const char *path, bool is_server)
 {
-    int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) {
+        return -errno;
+    }
+    
+    /* Set non-blocking mode (portable approach for macOS/BSD compatibility) */
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (flags < 0 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+        close(sock);
         return -errno;
     }
     
