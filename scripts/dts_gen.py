@@ -121,6 +121,9 @@ def generate_header(nodes, output_path):
     # Collect hardware inputs for ISR declarations
     hw_inputs = [n for n in nodes if n.compatible.startswith('lq,hw-')]
     
+    # Collect fault monitors for wake function declarations
+    fault_monitors = [n for n in nodes if n.compatible == 'lq,fault-monitor']
+    
     with open(output_path, 'w') as f:
         f.write("""/*
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -153,6 +156,20 @@ int lq_generated_init(void);
                 elif 'spi' in hw.compatible:
                     f.write(f"void lq_spi_isr_{hw.label}(int32_t value);\n")
             f.write("\n")
+        
+        # Add fault wake function declarations
+        if fault_monitors:
+            wake_functions = set()
+            for fm in fault_monitors:
+                wake_fn = fm.properties.get('wake_function')
+                if wake_fn:
+                    wake_functions.add(wake_fn)
+            
+            if wake_functions:
+                f.write("/* Fault monitor wake callbacks */\n")
+                for wake_fn in sorted(wake_functions):
+                    f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, bool fault_detected);\n")
+                f.write("\n")
         
         f.write("""#ifdef __cplusplus
 }
@@ -260,6 +277,14 @@ def generate_source(nodes, output_path):
                     f.write(f"            .max_value = 0,\n")
                 
                 f.write(f"            .check_status = {'true' if check_status else 'false'},\n")
+                
+                # Wake function
+                wake_fn = node.properties.get('wake_function')
+                if wake_fn:
+                    f.write(f"            .wake = {wake_fn},\n")
+                else:
+                    f.write(f"            .wake = NULL,\n")
+                
                 f.write(f"            .enabled = true,\n")
                 f.write(f"        }},\n")
             f.write("    },\n")
@@ -304,6 +329,24 @@ def generate_source(nodes, output_path):
                 f.write(f"/* SPI ISR for {node.label} */\n")
                 f.write(f"void lq_spi_isr_{node.label}(int32_t value) {{\n")
                 f.write(f"    lq_hw_push({signal_id}, (uint32_t)value);\n")
+                f.write(f"}}\n\n")
+        
+        # Generate weak stub implementations for fault wake functions
+        wake_functions = set()
+        for fm in fault_monitors:
+            wake_fn = fm.properties.get('wake_function')
+            if wake_fn:
+                wake_functions.add(wake_fn)
+        
+        if wake_functions:
+            f.write("/* Fault monitor wake callbacks - weak stubs (user can override) */\n")
+            for wake_fn in sorted(wake_functions):
+                f.write(f"__attribute__((weak))\n")
+                f.write(f"void {wake_fn}(uint8_t monitor_id, int32_t input_value, bool fault_detected) {{\n")
+                f.write(f"    /* Default: no action. Override this function to implement safety response. */\n")
+                f.write(f"    (void)monitor_id;\n")
+                f.write(f"    (void)input_value;\n")
+                f.write(f"    (void)fault_detected;\n")
                 f.write(f"}}\n\n")
         
         # Generate init function

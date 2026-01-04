@@ -49,6 +49,15 @@ properties:
     type: boolean
     description: Check for FAULT/INCONSISTENT status from merges
 
+  wake-function:
+    type: string
+    description: |
+      Name of wake callback function to call when fault state changes.
+      User must implement: void function_name(uint8_t monitor_id, 
+                                               int32_t input_value, 
+                                               bool fault_detected)
+      Use this for immediate safety actions (shutdown, limp mode, etc.)
+
   status:
     type: string
     description: "okay" to enable, "disabled" to disable

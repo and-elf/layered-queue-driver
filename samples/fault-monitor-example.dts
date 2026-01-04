@@ -54,6 +54,9 @@
         
         /* Detect merge failures (voting inconsistencies) */
         check-status;
+        
+        /* Call wake function for immediate safety action */
+        wake-function = "sensor_fault_wake";
     };
     
     /* Monitor temperature with range checking */
@@ -80,6 +83,9 @@
         /* Also check for stale data */
         check-staleness;
         stale-timeout-us = <500000>;  /* 500ms */
+        
+        /* Call wake function for overtemperature protection */
+        wake-function = "temperature_fault_wake";
     };
     
     /* Output merged sensor value periodically */

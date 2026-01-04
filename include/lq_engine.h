@@ -104,6 +104,18 @@ struct lq_merge_ctx {
 };
 
 /**
+ * @brief Fault monitor wake callback
+ * 
+ * Called immediately when a fault condition is detected.
+ * User implements this to take safety action (shutdown, limp mode, etc.)
+ * 
+ * @param monitor_id Index of the fault monitor that triggered
+ * @param input_value Current value of monitored signal
+ * @param fault_detected New fault state (0=cleared, 1=detected)
+ */
+typedef void (*lq_fault_wake_fn)(uint8_t monitor_id, int32_t input_value, bool fault_detected);
+
+/**
  * @brief Fault monitor context
  * 
  * Monitors signals for fault conditions and sets a fault output signal.
@@ -111,6 +123,8 @@ struct lq_merge_ctx {
  * - Staleness: Input signal hasn't updated within timeout
  * - Range: Input value outside min/max bounds
  * - Merge failure: Voting/merge produced FAULT status
+ * 
+ * When a fault is detected, calls the wake function for immediate action.
  */
 struct lq_fault_monitor_ctx {
     uint8_t input_signal;         /**< Signal to monitor */
@@ -126,6 +140,7 @@ struct lq_fault_monitor_ctx {
     
     bool check_status;            /**< Check for LQ_EVENT_FAULT status */
     
+    lq_fault_wake_fn wake;        /**< Wake callback for immediate action */
     bool enabled;                 /**< Enable/disable monitor */
 };
 

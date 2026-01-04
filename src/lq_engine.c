@@ -218,6 +218,11 @@ void lq_process_fault_monitors(
         fault_out->status = LQ_EVENT_OK;
         fault_out->timestamp = now;
         fault_out->updated = changed;
+        
+        /* Call wake function on fault state change */
+        if (changed && mon->wake) {
+            mon->wake(i, input->value, fault_detected);
+        }
     }
 }
 
