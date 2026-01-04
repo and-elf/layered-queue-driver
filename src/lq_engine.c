@@ -159,11 +159,10 @@ void lq_process_merges(
         }
         /* Update output signal */
         struct lq_signal *out = &e->signals[merge->output_signal];
-        bool changed = (out->value != result);
         out->value = result;
         out->status = result_status;
         out->timestamp = now;
-        out->updated = changed;
+        out->updated = true;  /* Signal was processed/updated */
     }
 }
 
