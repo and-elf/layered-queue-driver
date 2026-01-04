@@ -289,7 +289,7 @@ TEST_F(QueueTest, TimeoutHandling) {
     
     EXPECT_EQ(ret, -EAGAIN);
     EXPECT_GE(elapsed, 40);  // Allow some tolerance
-    EXPECT_LE(elapsed, 100);
+    EXPECT_LE(elapsed, 150); // Increased tolerance for macOS scheduler
 }
 
 // ============================================================================

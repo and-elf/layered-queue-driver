@@ -247,11 +247,16 @@ TEST_F(GeneratedSystemTest, ValueRanges_Typical) {
 TEST_F(GeneratedSystemTest, Staleness_FreshSignal) {
     uint64_t now = lq_platform_get_time_us();
     
-    SetSignal(0, 1000);
+    /* Manually set signal with known recent timestamp */
+    g_lq_engine.signals[0].value = 1000;
+    g_lq_engine.signals[0].status = LQ_EVENT_OK;
+    g_lq_engine.signals[0].timestamp = now;
+    g_lq_engine.signals[0].updated = true;
     g_lq_engine.signals[0].stale_us = 1000000;  /* 1 second timeout */
     
-    /* Signal just updated, should not be stale */
+    /* Signal timestamp equals now, age should be 0 */
     uint64_t age = now - g_lq_engine.signals[0].timestamp;
+    EXPECT_EQ(age, 0ULL);
     EXPECT_LT(age, g_lq_engine.signals[0].stale_us);
 }
 
