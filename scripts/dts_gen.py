@@ -103,9 +103,13 @@ def simple_dts_parser(dts_content):
             prop_value = parse_property_value(prop_match.group(2))
             node.properties[prop_name] = prop_value
         
-        # Check for boolean properties (no value)
-        if 'signed' in content and 'signed' not in node.properties:
-            node.properties['signed'] = True
+        # Check for boolean properties (no value) - standalone keywords
+        bool_props = ['signed', 'check_staleness', 'check_range', 'check_status']
+        for bool_prop in bool_props:
+            # Convert from kebab-case to snake_case for matching
+            dts_prop = bool_prop.replace('_', '-')
+            if re.search(rf'\b{dts_prop}\b', content) and bool_prop not in node.properties:
+                node.properties[bool_prop] = True
         
         nodes.append(node)
     
@@ -164,6 +168,7 @@ def generate_source(nodes, output_path):
     engine_node = None
     hw_inputs = []
     merges = []
+    fault_monitors = []
     cyclic_outputs = []
     
     for node in nodes:
@@ -173,6 +178,8 @@ def generate_source(nodes, output_path):
             hw_inputs.append(node)
         elif node.compatible == 'lq,mid-merge':
             merges.append(node)
+        elif node.compatible == 'lq,fault-monitor':
+            fault_monitors.append(node)
         elif node.compatible == 'lq,cyclic-output':
             cyclic_outputs.append(node)
     
@@ -196,6 +203,7 @@ def generate_source(nodes, output_path):
         f.write("struct lq_engine g_lq_engine = {\n")
         f.write("    .num_signals = 0,  /* Initialized at runtime */\n")
         f.write(f"    .num_merges = {len(merges)},\n")
+        f.write(f"    .num_fault_monitors = {len(fault_monitors)},\n")
         f.write(f"    .num_cyclic_outputs = {len(cyclic_outputs)},\n")
         
         # Inline merge contexts
@@ -221,6 +229,38 @@ def generate_source(nodes, output_path):
                 f.write(f"            .voting_method = {vote_method},\n")
                 f.write(f"            .tolerance = {node.properties.get('tolerance', 0)},\n")
                 f.write(f"            .stale_us = {node.properties.get('stale_us', 0)},\n")
+                f.write(f"        }},\n")
+            f.write("    },\n")
+        
+        # Inline fault monitor contexts
+        if fault_monitors:
+            f.write("    .fault_monitors = {\n")
+            for i, node in enumerate(fault_monitors):
+                f.write(f"        [{i}] = {{\n")
+                f.write(f"            .input_signal = {node.properties.get('input_signal_id', 0)},\n")
+                f.write(f"            .fault_output_signal = {node.properties.get('fault_output_signal_id', 0)},\n")
+                
+                # Fault condition flags
+                check_staleness = 'check_staleness' in node.properties
+                check_range = 'check_range' in node.properties
+                check_status = 'check_status' in node.properties
+                
+                f.write(f"            .check_staleness = {'true' if check_staleness else 'false'},\n")
+                if check_staleness:
+                    f.write(f"            .stale_timeout_us = {node.properties.get('stale_timeout_us', 1000000)},\n")
+                else:
+                    f.write(f"            .stale_timeout_us = 0,\n")
+                
+                f.write(f"            .check_range = {'true' if check_range else 'false'},\n")
+                if check_range:
+                    f.write(f"            .min_value = {node.properties.get('min_value', 0)},\n")
+                    f.write(f"            .max_value = {node.properties.get('max_value', 65535)},\n")
+                else:
+                    f.write(f"            .min_value = 0,\n")
+                    f.write(f"            .max_value = 0,\n")
+                
+                f.write(f"            .check_status = {'true' if check_status else 'false'},\n")
+                f.write(f"            .enabled = true,\n")
                 f.write(f"        }},\n")
             f.write("    },\n")
         

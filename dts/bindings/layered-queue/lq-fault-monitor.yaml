@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# Fault monitor binding
+
+description: |
+  Fault monitor that checks signal conditions and outputs fault flags.
+  
+  Monitors a single input signal for various fault conditions:
+  - Staleness: Signal hasn't updated within timeout
+  - Range: Signal value outside min/max bounds  
+  - Status: Signal has FAULT or INCONSISTENT status
+  
+  When any enabled fault condition is detected, sets the fault output
+  signal to 1 (fault), otherwise 0 (OK).
+
+compatible: "lq,fault-monitor"
+
+properties:
+  input-signal-id:
+    type: int
+    required: true
+    description: Signal ID to monitor
+
+  fault-output-signal-id:
+    type: int
+    required: true
+    description: Signal ID for fault output (0=OK, 1=FAULT)
+
+  check-staleness:
+    type: boolean
+    description: Enable staleness detection
+
+  stale-timeout-us:
+    type: int
+    description: Staleness timeout in microseconds
+
+  check-range:
+    type: boolean
+    description: Enable range checking
+
+  min-value:
+    type: int
+    description: Minimum valid value
+
+  max-value:
+    type: int
+    description: Maximum valid value
+
+  check-status:
+    type: boolean
+    description: Check for FAULT/INCONSISTENT status from merges
+
+  status:
+    type: string
+    description: "okay" to enable, "disabled" to disable

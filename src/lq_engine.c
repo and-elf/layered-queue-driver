@@ -168,7 +168,61 @@ void lq_process_merges(
 }
 
 /* ============================================================================
- * Phase 4: Process on-change outputs
+ * Phase 4: Process fault monitors
+ * ============================================================================ */
+
+void lq_process_fault_monitors(
+    struct lq_engine *e,
+    uint64_t now)
+{
+    for (uint8_t i = 0; i < e->num_fault_monitors; i++) {
+        struct lq_fault_monitor_ctx *mon = &e->fault_monitors[i];
+        
+        if (!mon->enabled) {
+            continue;
+        }
+        
+        const struct lq_signal *input = &e->signals[mon->input_signal];
+        struct lq_signal *fault_out = &e->signals[mon->fault_output_signal];
+        
+        bool fault_detected = false;
+        
+        /* Check staleness */
+        if (mon->check_staleness) {
+            uint64_t age = now - input->timestamp;
+            if (age > mon->stale_timeout_us) {
+                fault_detected = true;
+            }
+        }
+        
+        /* Check range violation */
+        if (mon->check_range) {
+            if (input->value < mon->min_value || input->value > mon->max_value) {
+                fault_detected = true;
+            }
+        }
+        
+        /* Check status (e.g., merge failure) */
+        if (mon->check_status) {
+            if (input->status == LQ_EVENT_ERROR || 
+                input->status == LQ_EVENT_INCONSISTENT ||
+                input->status == LQ_EVENT_OUT_OF_RANGE) {
+                fault_detected = true;
+            }
+        }
+        
+        /* Update fault output signal */
+        int32_t new_value = fault_detected ? 1 : 0;
+        bool changed = (fault_out->value != new_value);
+        fault_out->value = new_value;
+        fault_out->status = LQ_EVENT_OK;
+        fault_out->timestamp = now;
+        fault_out->updated = changed;
+    }
+}
+
+/* ============================================================================
+ * Phase 5: Process on-change outputs
  * ============================================================================ */
 
 void lq_process_outputs(struct lq_engine *e)
@@ -213,6 +267,7 @@ void lq_engine_step(
     lq_ingest_events(engine, events, n_events);
     lq_apply_input_staleness(engine, now);
     lq_process_merges(engine, now);
+    lq_process_fault_monitors(engine, now);
     lq_process_outputs(engine);
     lq_process_cyclic_outputs(engine, now);
 }

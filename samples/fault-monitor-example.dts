@@ -1,0 +1,106 @@
+/dts-v1/;
+
+/ {
+    model = "Fault Monitor Example";
+    
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <4>;
+        max-fault-monitors = <4>;
+        max-cyclic-outputs = <8>;
+    };
+    
+    /* Hardware inputs */
+    sensor_a: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <0>;
+        adc-channel = <0>;
+        stale-us = <10000>;  /* 10ms */
+    };
+    
+    sensor_b: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <1>;
+        adc-channel = <1>;
+        stale-us = <10000>;
+    };
+    
+    /* Merge sensors with voting */
+    merged_sensor: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        status = "okay";
+        
+        output-signal-id = <10>;
+        input-signal-ids = <0 1>;
+        voting-method = "median";
+        tolerance = <100>;
+        stale-us = <10000>;
+    };
+    
+    /* Monitor merged sensor for faults */
+    sensor_fault_monitor: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <10>;           /* Monitor merged sensor */
+        fault-output-signal-id = <20>;    /* Output fault flag */
+        
+        /* Detect if merged sensor is stale */
+        check-staleness;
+        stale-timeout-us = <50000>;       /* 50ms fault threshold */
+        
+        /* Detect merge failures (voting inconsistencies) */
+        check-status;
+    };
+    
+    /* Monitor temperature with range checking */
+    temp_sensor: lq-hw-adc-input@2 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <2>;
+        adc-channel = <2>;
+        stale-us = <100000>;  /* 100ms */
+    };
+    
+    temp_fault_monitor: lq-fault-monitor@1 {
+        compatible = "lq,fault-monitor";
+        status = "okay";
+        
+        input-signal-id = <2>;
+        fault-output-signal-id = <21>;
+        
+        /* Temperature must be in range 0-150°C (ADC counts) */
+        check-range;
+        min-value = <0>;
+        max-value = <1500>;  /* 150.0°C in decidegrees */
+        
+        /* Also check for stale data */
+        check-staleness;
+        stale-timeout-us = <500000>;  /* 500ms */
+    };
+    
+    /* Output merged sensor value periodically */
+    sensor_output: lq-cyclic-j1939-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <10>;
+        output-type = "j1939";
+        target-id = <0xFEF1>;    /* PGN for sensor data */
+        period-us = <100000>;    /* 100ms / 10Hz */
+    };
+    
+    /* Output fault flags */
+    fault_output: lq-cyclic-j1939-output@1 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <20>;  /* Sensor fault flag */
+        output-type = "j1939";
+        target-id = <0xFECA>;     /* PGN for diagnostic messages */
+        period-us = <1000000>;    /* 1s / 1Hz */
+    };
+};

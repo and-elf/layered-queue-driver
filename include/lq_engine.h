@@ -43,6 +43,10 @@ extern "C" {
 #define LQ_MAX_MERGES 8             /**< Maximum merge/voter contexts */
 #endif
 
+#ifndef LQ_MAX_FAULT_MONITORS
+#define LQ_MAX_FAULT_MONITORS 8     /**< Maximum fault monitor contexts */
+#endif
+
 /* ============================================================================
  * Core structures
  * ============================================================================ */
@@ -100,6 +104,32 @@ struct lq_merge_ctx {
 };
 
 /**
+ * @brief Fault monitor context
+ * 
+ * Monitors signals for fault conditions and sets a fault output signal.
+ * Supports multiple fault detection strategies:
+ * - Staleness: Input signal hasn't updated within timeout
+ * - Range: Input value outside min/max bounds
+ * - Merge failure: Voting/merge produced FAULT status
+ */
+struct lq_fault_monitor_ctx {
+    uint8_t input_signal;         /**< Signal to monitor */
+    uint8_t fault_output_signal;  /**< Fault flag output (0=OK, 1=FAULT) */
+    
+    /* Fault conditions */
+    bool check_staleness;         /**< Enable staleness check */
+    uint64_t stale_timeout_us;    /**< Staleness timeout */
+    
+    bool check_range;             /**< Enable range check */
+    int32_t min_value;            /**< Minimum valid value */
+    int32_t max_value;            /**< Maximum valid value */
+    
+    bool check_status;            /**< Check for LQ_EVENT_FAULT status */
+    
+    bool enabled;                 /**< Enable/disable monitor */
+};
+
+/**
  * @brief Engine configuration
  * 
  * Top-level structure with fixed-size arrays for deterministic memory usage.
@@ -113,6 +143,10 @@ struct lq_engine {
     /* Merge/voter contexts */
     struct lq_merge_ctx merges[LQ_MAX_MERGES];
     uint8_t num_merges;
+    
+    /* Fault monitor contexts */
+    struct lq_fault_monitor_ctx fault_monitors[LQ_MAX_FAULT_MONITORS];
+    uint8_t num_fault_monitors;
     
     /* Cyclic output schedulers */
     struct lq_cyclic_ctx cyclic_outputs[LQ_MAX_CYCLIC_OUTPUTS];
@@ -200,6 +234,19 @@ void lq_apply_input_staleness(
  * @param now Current timestamp
  */
 void lq_process_merges(
+    struct lq_engine *e,
+    uint64_t now);
+
+/**
+ * @brief Process fault monitors
+ * 
+ * Checks fault conditions on monitored signals.
+ * Sets fault output signals based on detection results.
+ * 
+ * @param e Engine instance
+ * @param now Current timestamp
+ */
+void lq_process_fault_monitors(
     struct lq_engine *e,
     uint64_t now);
 
