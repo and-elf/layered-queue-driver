@@ -10,6 +10,10 @@
 #include "lq_mid_driver.h"
 #include "lq_platform.h"
 #include "lq_util.h"
+#include "lq_remap.h"
+#include "lq_scale.h"
+#include "lq_verified_output.h"
+#include "lq_pid.h"
 #include <string.h>
 #include <limits.h>
 

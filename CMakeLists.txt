@@ -86,43 +86,31 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
-    # Queue tests
-    add_executable(queue_test
+    # Combined test executable with all tests
+    add_executable(all_tests
         tests/queue_test.cpp
-    )
-    
-    target_link_libraries(queue_test PRIVATE
-        layered_queue
-        GTest::gtest
-        GTest::gtest_main
-    )
-    
-    include(GoogleTest)
-    gtest_discover_tests(queue_test)
-    
-    # Generated system tests (from DTS)
-    add_executable(generated_test
+        tests/driver_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
     )
     
-    target_link_libraries(generated_test PRIVATE
+    target_link_libraries(all_tests PRIVATE
         layered_queue
-        GTest::gtest
-        GTest::gtest_main
+        GTest::gtest_main  # Single main for all tests
     )
     
-    target_include_directories(generated_test PRIVATE
+    target_include_directories(all_tests PRIVATE
         samples/automotive/src
     )
     
-    gtest_discover_tests(generated_test)
+    include(GoogleTest)
+    gtest_discover_tests(all_tests)
     
     # Add custom target for running tests
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-        DEPENDS queue_test generated_test
-        COMMENT "Running tests..."
+        DEPENDS all_tests
+        COMMENT "Running all tests..."
     )
     
     # HIL testing targets

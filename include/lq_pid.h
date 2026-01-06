@@ -11,6 +11,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declarations */
 struct lq_engine;
 
@@ -69,5 +73,9 @@ void lq_process_pids(
     struct lq_pid_ctx *pids,
     uint8_t num_pids,
     uint64_t now);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LQ_PID_H */

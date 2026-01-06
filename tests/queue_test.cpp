@@ -562,12 +562,3 @@ TEST_F(SPISourceTest, InvalidParameters) {
     // Zero length
     EXPECT_EQ(lq_spi_source_process(data, 0, &config, &value, &status), -EINVAL);
 }
-
-// ============================================================================
-// Main
-// ============================================================================
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

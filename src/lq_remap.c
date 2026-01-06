@@ -34,8 +34,9 @@ void lq_process_remaps(
         const struct lq_signal *input = &engine->signals[remap->input_signal];
         struct lq_signal *output = &engine->signals[remap->output_signal];
         
-        /* Skip if input has error status */
+        /* Propagate error status from input */
         if (input->status != LQ_EVENT_OK) {
+            output->value = input->value;  /* Propagate value even on error */
             output->status = input->status;
             output->timestamp = now;
             output->updated = true;

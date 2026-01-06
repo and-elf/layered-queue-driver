@@ -12,6 +12,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declarations */
 struct lq_engine;
 
@@ -67,5 +71,9 @@ void lq_process_verified_outputs(
     struct lq_verified_output_ctx *outputs,
     uint8_t num_outputs,
     uint64_t now);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LQ_VERIFIED_OUTPUT_H */

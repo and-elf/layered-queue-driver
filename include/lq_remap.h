@@ -11,6 +11,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declarations */
 struct lq_engine;
 
@@ -43,5 +47,9 @@ void lq_process_remaps(
     const struct lq_remap_ctx *remaps,
     uint8_t num_remaps,
     uint64_t now);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LQ_REMAP_H */

@@ -11,6 +11,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declarations */
 struct lq_engine;
 
@@ -47,5 +51,9 @@ void lq_process_scales(
     const struct lq_scale_ctx *scales,
     uint8_t num_scales,
     uint64_t now);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LQ_SCALE_H */
