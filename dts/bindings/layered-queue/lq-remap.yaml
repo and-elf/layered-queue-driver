@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# Remap driver - maps input signals to named functions
+
+description: |
+  Remaps input signals to logical function names.
+  
+  This driver allows you to decouple hardware inputs from their logical
+  purpose. For example, you might remap a joystick X-axis (hardware signal)
+  to a "steering" function, or a trigger button to "throttle".
+  
+  The function-name is purely for documentation and DTS clarity - the actual
+  signal routing uses signal IDs. However, this makes configurations much
+  more readable and maintainable.
+  
+  Example use case:
+    joystick_x (signal 0) -> remap -> "steering" function (signal 10)
+    joystick_y (signal 1) -> remap -> "throttle" function (signal 11)
+    button_a (signal 2) -> remap -> "fire" function (signal 12)
+
+compatible: "lq,remap"
+
+properties:
+  input-signal-id:
+    type: int
+    required: true
+    description: Source signal ID to remap
+
+  output-signal-id:
+    type: int
+    required: true
+    description: Destination signal ID (the remapped function)
+
+  function-name:
+    type: string
+    required: false
+    description: |
+      Human-readable name for this function (e.g., "steering", "throttle").
+      This is for documentation purposes and doesn't affect code generation.
+
+  invert:
+    type: boolean
+    required: false
+    description: |
+      If true, invert the signal value (multiply by -1).
+      Useful for reversing joystick axes.
+
+  deadzone:
+    type: int
+    required: false
+    description: |
+      Deadzone threshold in raw units. Values within ±deadzone of zero
+      will be clamped to zero. Useful for eliminating joystick drift.
+      Default: 0 (no deadzone)

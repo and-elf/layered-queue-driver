@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# Scale driver - applies linear transformation to signals
+
+description: |
+  Applies a scale factor and offset to input signals.
+  
+  This driver performs the transformation:
+    output = (input * scale / 1000) + offset
+  
+  The scale factor uses fixed-point with 1000 = 1.0, so:
+    - scale = 1000 means 1.0x (no scaling)
+    - scale = 2000 means 2.0x (double)
+    - scale = 500 means 0.5x (half)
+    - scale = -1000 means -1.0x (invert)
+  
+  Common use cases:
+    - Convert ADC counts to engineering units
+    - Normalize joystick range (-32768 to 32767) to percentage (-1000 to 1000)
+    - Apply sensitivity adjustments to user controls
+    - Convert between different units (RPM to Hz, etc.)
+  
+  Example: Joystick normalization
+    Input: -32768 to 32767 (16-bit ADC)
+    scale = 31  (approximately 1000/32)
+    offset = 0
+    Output: -1000 to 1000 (normalized percentage)
+
+compatible: "lq,scale"
+
+properties:
+  input-signal-id:
+    type: int
+    required: true
+    description: Source signal ID to scale
+
+  output-signal-id:
+    type: int
+    required: true
+    description: Destination signal ID (scaled result)
+
+  scale-factor:
+    type: int
+    required: true
+    description: |
+      Scale multiplier in fixed-point (1000 = 1.0).
+      Can be negative for inversion.
+
+  offset:
+    type: int
+    required: false
+    description: |
+      Value to add after scaling. In same units as output.
+      Default: 0
+
+  clamp-min:
+    type: int
+    required: false
+    description: |
+      Minimum output value (clamping). If specified, output will be
+      clamped to this minimum. Useful for limiting control ranges.
+
+  clamp-max:
+    type: int
+    required: false
+    description: |
+      Maximum output value (clamping). If specified, output will be
+      clamped to this maximum. Useful for limiting control ranges.

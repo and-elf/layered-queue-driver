@@ -1,0 +1,196 @@
+/dts-v1/;
+
+/*
+ * Joystick Control Example with Remap and Scale
+ * 
+ * This example shows how to use remap and scale drivers to create a
+ * flexible joystick control system where:
+ * 
+ * 1. Hardware inputs (ADC channels) are remapped to logical functions
+ * 2. Functions are scaled and normalized for output drivers
+ * 3. Configuration is clear and maintainable using function names
+ * 
+ * Hardware setup:
+ *   - Joystick X-axis on ADC0 -> "steering" function
+ *   - Joystick Y-axis on ADC1 -> "throttle" function  
+ *   - Trigger button on ADC2 -> "fire" function
+ * 
+ * Processing chain:
+ *   ADC Input → Remap (to function) → Scale (normalize) → PWM/CAN Output
+ */
+
+/ {
+    model = "Joystick Control System";
+    
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <0>;
+        max-fault-monitors = <0>;
+        max-cyclic-outputs = <3>;
+    };
+    
+    /* ========================================================================
+     * Hardware Inputs - Raw ADC readings from joystick
+     * ======================================================================== */
+    
+    /* Joystick X-axis: -32768 (left) to 32767 (right) */
+    joystick_x: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <0>;
+        adc-channel = <0>;
+        stale-us = <50000>;  /* 50ms timeout */
+    };
+    
+    /* Joystick Y-axis: -32768 (down) to 32767 (up) */
+    joystick_y: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <1>;
+        adc-channel = <1>;
+        stale-us = <50000>;
+    };
+    
+    /* Trigger button: 0 (released) to 4095 (fully pressed) */
+    trigger: lq-hw-adc-input@2 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <2>;
+        adc-channel = <2>;
+        stale-us = <50000>;
+    };
+    
+    /* ========================================================================
+     * Remap Layer - Map hardware inputs to logical functions
+     * ======================================================================== */
+    
+    /* Map X-axis to "steering" function */
+    remap_steering: lq-remap@0 {
+        compatible = "lq,remap";
+        status = "okay";
+        
+        input-signal-id = <0>;   /* joystick_x */
+        output-signal-id = <10>; /* steering function */
+        function-name = "steering";
+        
+        /* Apply deadzone to eliminate drift */
+        deadzone = <500>;        /* ±500 counts = no movement */
+    };
+    
+    /* Map Y-axis to "throttle" function (inverted) */
+    remap_throttle: lq-remap@1 {
+        compatible = "lq,remap";
+        status = "okay";
+        
+        input-signal-id = <1>;   /* joystick_y */
+        output-signal-id = <11>; /* throttle function */
+        function-name = "throttle";
+        
+        /* Invert Y-axis (up = positive throttle) */
+        invert;
+        deadzone = <500>;
+    };
+    
+    /* Map trigger to "fire" function */
+    remap_fire: lq-remap@2 {
+        compatible = "lq,remap";
+        status = "okay";
+        
+        input-signal-id = <2>;   /* trigger */
+        output-signal-id = <12>; /* fire function */
+        function-name = "fire";
+    };
+    
+    /* ========================================================================
+     * Scale Layer - Normalize functions to standard ranges
+     * ======================================================================== */
+    
+    /* Scale steering: -32768..32767 -> -1000..1000 (normalized %) */
+    scale_steering: lq-scale@0 {
+        compatible = "lq,scale";
+        status = "okay";
+        
+        input-signal-id = <10>;  /* steering function */
+        output-signal-id = <20>; /* normalized steering */
+        
+        /* scale = 1000/32768 ≈ 31 */
+        scale-factor = <31>;
+        offset = <0>;
+        
+        /* Clamp to ±1000 */
+        clamp-min = <-1000>;
+        clamp-max = <1000>;
+    };
+    
+    /* Scale throttle: -32768..32767 -> 0..2000 (0-200%) */
+    scale_throttle: lq-scale@1 {
+        compatible = "lq,scale";
+        status = "okay";
+        
+        input-signal-id = <11>;  /* throttle function */
+        output-signal-id = <21>; /* normalized throttle */
+        
+        /* Map -32768..32767 to 0..2000 */
+        scale-factor = <31>;
+        offset = <1000>;  /* Center at 1000 (100%) */
+        
+        /* Clamp to 0-200% range */
+        clamp-min = <0>;
+        clamp-max = <2000>;
+    };
+    
+    /* Scale fire: 0..4095 -> 0..1000 (trigger pressure %) */
+    scale_fire: lq-scale@2 {
+        compatible = "lq,scale";
+        status = "okay";
+        
+        input-signal-id = <12>;  /* fire function */
+        output-signal-id = <22>; /* normalized fire */
+        
+        /* scale = 1000/4095 ≈ 244 */
+        scale-factor = <244>;
+        offset = <0>;
+        
+        /* Clamp to 0-100% */
+        clamp-min = <0>;
+        clamp-max = <1000>;
+    };
+    
+    /* ========================================================================
+     * Outputs - Send normalized values to actuators via CAN
+     * ======================================================================== */
+    
+    /* Steering output on CAN */
+    steering_output: lq-cyclic-j1939-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <20>;  /* normalized steering */
+        output-type = "j1939";
+        target-id = <0xCF00400>; /* PGN for steering command */
+        period-us = <20000>;      /* 20ms / 50Hz */
+    };
+    
+    /* Throttle output on CAN */
+    throttle_output: lq-cyclic-j1939-output@1 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <21>;  /* normalized throttle */
+        output-type = "j1939";
+        target-id = <0xCF00500>; /* PGN for throttle command */
+        period-us = <20000>;      /* 20ms / 50Hz */
+    };
+    
+    /* Fire output on CAN */
+    fire_output: lq-cyclic-j1939-output@2 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <22>;  /* normalized fire */
+        output-type = "j1939";
+        target-id = <0xCF00600>; /* PGN for fire command */
+        period-us = <20000>;      /* 20ms / 50Hz */
+    };
+};

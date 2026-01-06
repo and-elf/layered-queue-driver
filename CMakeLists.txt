@@ -44,6 +44,8 @@ add_library(layered_queue
     src/lq_hw_input.c
     src/lq_j1939.c
     src/lq_hil.c
+    src/lq_remap.c
+    src/lq_scale.c
     ${PLATFORM_SOURCES}
 )
 

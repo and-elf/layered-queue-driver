@@ -15,6 +15,8 @@
 #include "lq_event.h"
 #include "lq_mid_driver.h"
 #include "lq_common.h"
+#include "lq_remap.h"
+#include "lq_scale.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -45,6 +47,14 @@ extern "C" {
 
 #ifndef LQ_MAX_FAULT_MONITORS
 #define LQ_MAX_FAULT_MONITORS 8     /**< Maximum fault monitor contexts */
+#endif
+
+#ifndef LQ_MAX_REMAPS
+#define LQ_MAX_REMAPS 16            /**< Maximum remap contexts */
+#endif
+
+#ifndef LQ_MAX_SCALES
+#define LQ_MAX_SCALES 16            /**< Maximum scale contexts */
 #endif
 
 /* ============================================================================
@@ -160,6 +170,14 @@ struct lq_engine {
     /* Merge/voter contexts */
     struct lq_merge_ctx merges[LQ_MAX_MERGES];
     uint8_t num_merges;
+    
+    /* Remap contexts (input->function mapping) */
+    struct lq_remap_ctx remaps[LQ_MAX_REMAPS];
+    uint8_t num_remaps;
+    
+    /* Scale contexts (linear transformations) */
+    struct lq_scale_ctx scales[LQ_MAX_SCALES];
+    uint8_t num_scales;
     
     /* Fault monitor contexts */
     struct lq_fault_monitor_ctx fault_monitors[LQ_MAX_FAULT_MONITORS];
