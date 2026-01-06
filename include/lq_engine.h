@@ -17,7 +17,6 @@
 #include "lq_common.h"
 #include "lq_remap.h"
 #include "lq_scale.h"
-#include "lq_limp_home.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -56,10 +55,6 @@ extern "C" {
 
 #ifndef LQ_MAX_SCALES
 #define LQ_MAX_SCALES 16            /**< Maximum scale contexts */
-#endif
-
-#ifndef LQ_MAX_LIMP_HOMES
-#define LQ_MAX_LIMP_HOMES 8         /**< Maximum limp-home mode controllers */
 #endif
 
 /* ============================================================================
@@ -158,6 +153,24 @@ struct lq_fault_monitor_ctx {
     enum lq_fault_level fault_level;  /**< Severity level when fault detected */
     
     lq_fault_wake_fn wake;        /**< Wake callback for immediate action */
+    
+    /* Limp-home mode actions (optional) */
+    bool has_limp_action;         /**< Enable limp-home response */
+    uint8_t limp_target_scale_id; /**< Scale driver to modify */
+    int32_t limp_scale_factor;    /**< Scale factor override (INT32_MIN = no change) */
+    int32_t limp_clamp_max;       /**< Max clamp override (INT32_MIN = no change) */
+    int32_t limp_clamp_min;       /**< Min clamp override (INT32_MIN = no change) */
+    uint32_t restore_delay_ms;    /**< Delay before restoring normal mode */
+    
+    /* Limp-home runtime state */
+    bool limp_active;             /**< Currently in limp mode */
+    uint64_t fault_clear_time_ms; /**< When fault last cleared */
+    int32_t saved_scale_factor;   /**< Saved normal scale factor */
+    int32_t saved_clamp_max;      /**< Saved normal clamp max */
+    int32_t saved_clamp_min;      /**< Saved normal clamp min */
+    bool saved_has_clamp_min;     /**< Saved clamp min flag */
+    bool saved_has_clamp_max;     /**< Saved clamp max flag */
+    
     bool enabled;                 /**< Enable/disable monitor */
 };
 
@@ -184,11 +197,7 @@ struct lq_engine {
     struct lq_scale_ctx scales[LQ_MAX_SCALES];
     uint8_t num_scales;
     
-    /* Limp-home mode controllers (safety degradation) */
-    struct lq_limp_home_ctx limp_homes[LQ_MAX_LIMP_HOMES];
-    uint8_t num_limp_homes;
-    
-    /* Fault monitor contexts */
+    /* Fault monitor contexts (includes optional limp-home actions) */
     struct lq_fault_monitor_ctx fault_monitors[LQ_MAX_FAULT_MONITORS];
     uint8_t num_fault_monitors;
     

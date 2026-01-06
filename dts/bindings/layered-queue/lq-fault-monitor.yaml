@@ -10,7 +10,11 @@ description: |
   - Status: Signal has FAULT or INCONSISTENT status
   
   When any enabled fault condition is detected, sets the fault output
-  signal to 1 (fault), otherwise 0 (OK).
+  signal to the configured fault-level, otherwise 0 (OK).
+  
+  Optionally can trigger limp-home mode by modifying a scale driver's
+  parameters when faults are detected. This provides automatic safety
+  degradation without requiring external wake callbacks.
 
 compatible: "lq,fault-monitor"
 
@@ -67,6 +71,41 @@ properties:
                                                int32_t input_value, 
                                                enum lq_fault_level level)
       Use this for immediate safety actions (shutdown, limp mode, etc.)
+
+  limp-target-scale-id:
+    type: int
+    description: |
+      Index of scale driver to modify when fault is detected (0-based).
+      When specified, enables limp-home mode response. The fault monitor
+      will automatically modify this scale driver's parameters when the
+      fault is active and restore them when the fault clears.
+
+  limp-scale-factor:
+    type: int
+    description: |
+      Scale factor to use in limp mode (1000 = 1.0x).
+      If not specified, normal scale factor is unchanged.
+      Use to reduce sensitivity: 500 = half response, 250 = quarter response.
+
+  limp-clamp-max:
+    type: int
+    description: |
+      Maximum output clamp in limp mode.
+      If not specified, normal clamp-max is unchanged.
+      Use to limit maximum output when faults occur.
+
+  limp-clamp-min:
+    type: int
+    description: |
+      Minimum output clamp in limp mode.
+      If not specified, normal clamp-min is unchanged.
+
+  restore-delay-ms:
+    type: int
+    description: |
+      Delay in milliseconds before restoring normal mode after fault
+      clears. Prevents oscillation between modes (hysteresis).
+      Default: 0 (immediate restore)
 
   status:
     type: string

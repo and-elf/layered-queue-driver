@@ -92,11 +92,11 @@
     };
     
     /* ========================================================================
-     * Fault Monitoring - Detect over-temperature
+     * Fault Monitoring with Limp-Home Responses
      * ======================================================================== */
     
     /* Warning level: 100-120°C
-     * Sets fault output to level 1
+     * Sets fault output to level 1 and reduces boost capability
      */
     temp_fault_warning: lq-fault-monitor@0 {
         compatible = "lq,fault-monitor";
@@ -110,10 +110,15 @@
         fault-level = <1>;              /* Warning level */
         check-staleness;
         stale-timeout-us = <500000>;    /* 500ms */
+        
+        /* Limp-home action: reduce max output */
+        limp-target-scale-id = <1>;     /* Target throttle_scale (index 1) */
+        limp-clamp-max = <1500>;        /* Limit to 150% in limp mode */
+        restore-delay-ms = <5000>;      /* Wait 5s after temp drops */
     };
     
     /* Critical level: 120°C+
-     * Overrides to level 2 (higher priority)
+     * Sets fault output to level 2 and applies severe power reduction
      */
     temp_fault_critical: lq-fault-monitor@1 {
         compatible = "lq,fault-monitor";
@@ -127,53 +132,12 @@
         fault-level = <2>;              /* Critical level */
         check-staleness;
         stale-timeout-us = <500000>;
-    };
-    
-    /* ========================================================================
-     * Limp-Home Safety Controllers
-     * ======================================================================== */
-    
-    /* Warning mode: 100-120°C
-     * Reduce boost capability to 150% max
-     */
-    limp_warning: lq-limp-home@0 {
-        compatible = "lq,limp-home";
         
-        /* Monitor temperature fault signal */
-        fault-signal-id = <SIGNAL_TEMP_FAULT>;
-        fault-threshold = <1>;          /* Activate on warning level (1) */
-        
-        /* Modify throttle scale driver (index 1 in scales array) */
-        target-scale-id = <1>;
-        
-        /* Limp mode parameters - reduce max output */
-        /* scale-factor unchanged (still 488) */
-        limp-clamp-max = <1500>;        /* Limit to 150% */
-        /* limp-clamp-min unchanged (still 0) */
-        
-        /* Wait 5 seconds after temp drops before restoring full power */
-        restore-delay-ms = <5000>;
-    };
-    
-    /* Critical limp mode: 120°C+
-     * Severe power reduction - no boost allowed
-     */
-    limp_critical: lq-limp-home@1 {
-        compatible = "lq,limp-home";
-        
-        /* Monitor temperature fault signal */
-        fault-signal-id = <SIGNAL_TEMP_FAULT>;
-        fault-threshold = <2>;          /* Activate on critical level (2) */
-        
-        /* Modify same throttle scale driver */
-        target-scale-id = <1>;
-        
-        /* Severe limp mode - reduce both sensitivity and max */
+        /* Severe limp-home: reduce sensitivity and max output */
+        limp-target-scale-id = <1>;     /* Target throttle_scale */
         limp-scale-factor = <244>;      /* Half sensitivity (244/1000) */
         limp-clamp-max = <1000>;        /* Limit to 100% (no boost) */
-        
-        /* Wait 10 seconds after critical fault clears */
-        restore-delay-ms = <10000>;
+        restore-delay-ms = <10000>;     /* Wait 10s after critical clears */
     };
     
     /* ========================================================================

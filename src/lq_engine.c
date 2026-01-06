@@ -10,8 +10,8 @@
 #include "lq_mid_driver.h"
 #include "lq_platform.h"
 #include "lq_util.h"
-#include "lq_limp_home.h"
 #include <string.h>
+#include <limits.h>
 
 /* ============================================================================
  * Engine initialization
@@ -175,6 +175,8 @@ void lq_process_fault_monitors(
     struct lq_engine *e,
     uint64_t now)
 {
+    uint64_t current_time_ms = lq_platform_uptime_get();
+    
     for (uint8_t i = 0; i < e->num_fault_monitors; i++) {
         struct lq_fault_monitor_ctx *mon = &e->fault_monitors[i];
         
@@ -223,6 +225,59 @@ void lq_process_fault_monitors(
         /* Call wake function on fault state change */
         if (changed && mon->wake) {
             mon->wake(i, input->value, level);
+        }
+        
+        /* Process limp-home actions if configured */
+        if (mon->has_limp_action && mon->limp_target_scale_id < e->num_scales) {
+            struct lq_scale_ctx *scale = &e->scales[mon->limp_target_scale_id];
+            
+            if (fault_detected) {
+                /* Entering or maintaining limp mode */
+                if (!mon->limp_active) {
+                    /* Save current scale parameters */
+                    mon->saved_scale_factor = scale->scale_factor;
+                    mon->saved_clamp_max = scale->clamp_max;
+                    mon->saved_clamp_min = scale->clamp_min;
+                    mon->saved_has_clamp_min = scale->has_clamp_min;
+                    mon->saved_has_clamp_max = scale->has_clamp_max;
+                    
+                    /* Apply limp mode parameters */
+                    if (mon->limp_scale_factor != INT32_MIN) {
+                        scale->scale_factor = mon->limp_scale_factor;
+                    }
+                    if (mon->limp_clamp_max != INT32_MIN) {
+                        scale->clamp_max = mon->limp_clamp_max;
+                        scale->has_clamp_max = true;
+                    }
+                    if (mon->limp_clamp_min != INT32_MIN) {
+                        scale->clamp_min = mon->limp_clamp_min;
+                        scale->has_clamp_min = true;
+                    }
+                    
+                    mon->limp_active = true;
+                }
+                /* Update fault clear timestamp while fault is active */
+                mon->fault_clear_time_ms = current_time_ms;
+            } else {
+                /* Fault cleared - check if we can restore normal mode */
+                if (mon->limp_active) {
+                    uint64_t elapsed_ms = current_time_ms - mon->fault_clear_time_ms;
+                    
+                    if (elapsed_ms >= mon->restore_delay_ms) {
+                        /* Restore normal parameters */
+                        scale->scale_factor = mon->saved_scale_factor;
+                        scale->clamp_max = mon->saved_clamp_max;
+                        scale->clamp_min = mon->saved_clamp_min;
+                        scale->has_clamp_min = mon->saved_has_clamp_min;
+                        scale->has_clamp_max = mon->saved_has_clamp_max;
+                        
+                        mon->limp_active = false;
+                    }
+                } else {
+                    /* Normal mode, update timestamp */
+                    mon->fault_clear_time_ms = current_time_ms;
+                }
+            }
         }
     }
 }
@@ -274,17 +329,15 @@ void lq_engine_step(
      * 2. Check input staleness
      * 3. Apply remapping (hardware -> functions)
      * 4. Process merges/voting
-     * 5. Monitor for faults
-     * 6. Apply limp-home mode (dynamic scale adjustment)
-     * 7. Apply scaling/normalization
-     * 8. Generate outputs
+     * 5. Monitor for faults (includes limp-home responses)
+     * 6. Apply scaling/normalization
+     * 7. Generate outputs
      */
     lq_ingest_events(engine, events, n_events);
     lq_apply_input_staleness(engine, now);
     lq_process_remaps(engine, engine->remaps, engine->num_remaps, now);
     lq_process_merges(engine, now);
     lq_process_fault_monitors(engine, now);
-    lq_process_limp_home(engine);
     lq_process_scales(engine, engine->scales, engine->num_scales, now);
     lq_process_outputs(engine);
     lq_process_cyclic_outputs(engine, now);
