@@ -148,7 +148,7 @@ void lq_process_merges(
         }
         
         /* Apply voting algorithm */
-        int32_t result;
+        int32_t result = -999;  /* Initialize to obviously wrong value for debugging */
         enum lq_status vote_status = LQ_OK;
         
         int rc = lq_vote(values, valid_count, merge->voting_method, merge->tolerance, &result, &vote_status);

@@ -33,9 +33,7 @@ static void *hil_receiver_thread(void *arg) {
         struct lq_hil_adc_msg adc_msg;
         
         /* Poll for ADC injections */
-        printf("[SUT-RX] Calling lq_hil_sut_recv_adc...\n");
         int ret = lq_hil_sut_recv_adc(&adc_msg, 1000);
-        printf("[SUT-RX] lq_hil_sut_recv_adc returned %d\n", ret);
         if (ret == 0) {
             printf("[SUT-RX] Received ADC ch%d = %u\n", adc_msg.hdr.channel, adc_msg.value);
             /* Call the appropriate ISR based on channel */
@@ -156,7 +154,13 @@ int main(void) {
         }
         
         /* Process merges/voting */
+        printf("[SUT-MERGE] Before merge: signal[0]=%d status=%d, signal[1]=%d status=%d, signal[10]=%d status=%d\n",
+               g_lq_engine.signals[0].value, g_lq_engine.signals[0].status,
+               g_lq_engine.signals[1].value, g_lq_engine.signals[1].status,
+               g_lq_engine.signals[10].value, g_lq_engine.signals[10].status);
         lq_process_merges(&g_lq_engine, now);
+        printf("[SUT-MERGE] After merge: signal[10]=%d status=%d\n",
+               g_lq_engine.signals[10].value, g_lq_engine.signals[10].status);
         
         /* Process cyclic outputs (periodic CAN messages) */
         printf("[SUT-MAIN] Calling lq_process_cyclic_outputs (now=%llu, out_count=%zu)\n", 

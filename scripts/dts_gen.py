@@ -200,6 +200,29 @@ def generate_source(nodes, output_path):
         elif node.compatible == 'lq,cyclic-output':
             cyclic_outputs.append(node)
     
+    # Calculate maximum signal ID
+    max_signal_id = 0
+    for node in hw_inputs:
+        signal_id = node.properties.get('signal_id', 0)
+        max_signal_id = max(max_signal_id, signal_id)
+    for node in merges:
+        output_id = node.properties.get('output_signal_id', 0)
+        input_ids = node.properties.get('input_signal_ids', [])
+        if isinstance(input_ids, int):
+            input_ids = [input_ids]
+        max_signal_id = max(max_signal_id, output_id)
+        if input_ids:
+            max_signal_id = max(max_signal_id, max(input_ids))
+    for node in cyclic_outputs:
+        source_id = node.properties.get('source_signal_id', 0)
+        max_signal_id = max(max_signal_id, source_id)
+    for node in fault_monitors:
+        input_id = node.properties.get('input_signal_id', 0)
+        output_id = node.properties.get('fault_output_signal_id', 0)
+        max_signal_id = max(max_signal_id, input_id, output_id)
+    
+    num_signals = max_signal_id + 1  # +1 because IDs are 0-indexed
+    
     with open(output_path, 'w') as f:
         f.write("""/*
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -218,7 +241,7 @@ def generate_source(nodes, output_path):
         # Generate engine instance with inline array initialization
         f.write("/* Engine instance */\n")
         f.write("struct lq_engine g_lq_engine = {\n")
-        f.write("    .num_signals = 0,  /* Initialized at runtime */\n")
+        f.write(f"    .num_signals = {num_signals},\n")
         f.write(f"    .num_merges = {len(merges)},\n")
         f.write(f"    .num_fault_monitors = {len(fault_monitors)},\n")
         f.write(f"    .num_cyclic_outputs = {len(cyclic_outputs)},\n")
@@ -246,6 +269,7 @@ def generate_source(nodes, output_path):
                 f.write(f"            .voting_method = {vote_method},\n")
                 f.write(f"            .tolerance = {node.properties.get('tolerance', 0)},\n")
                 f.write(f"            .stale_us = {node.properties.get('stale_us', 0)},\n")
+                f.write(f"            .enabled = true,\n")
                 f.write(f"        }},\n")
             f.write("    },\n")
         

@@ -125,14 +125,22 @@ TEST_F(HILTest, AllInputsNominal) {
     ASSERT_EQ(lq_hil_tester_inject_adc(0, 2500), 0) << "Failed to inject ADC ch0";
     ASSERT_EQ(lq_hil_tester_inject_adc(0, 2500), 0) << "Failed to inject ADC ch0";
     
-    // Wait for CAN response with RPM data
+    // Wait for CAN response with RPM data (PGN 0xFEF1 = 65265)
+    // Filter for the specific PGN since SUT sends multiple cyclic outputs
     struct lq_hil_can_msg can_msg;
-    ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 200), 0) 
-        << "CAN message timeout";
+    uint32_t received_pgn = 0;
+    const uint32_t target_pgn = 65265;  // 0xFEF1
     
-    // Verify PGN (should be 0xFEF1 = 65265 from generated config)
-    uint32_t received_pgn = (can_msg.can_id >> 8) & 0x3FFFF;
-    EXPECT_EQ(received_pgn, 65265) << "Expected PGN 65265 (0xFEF1)";
+    for (int attempts = 0; attempts < 10; attempts++) {
+        ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 200), 0) 
+            << "CAN message timeout";
+        received_pgn = (can_msg.can_id >> 8) & 0x3FFFF;
+        if (received_pgn == target_pgn) {
+            break;  // Found our message
+        }
+    }
+    
+    EXPECT_EQ(received_pgn, target_pgn) << "Expected PGN 65265 (0xFEF1)";
 }
 
 TEST_F(HILTest, VotingMerge) {
@@ -142,18 +150,32 @@ TEST_F(HILTest, VotingMerge) {
     ASSERT_EQ(lq_hil_tester_inject_adc(1, 2500), 0);  // RPM SPI (median)
     ASSERT_EQ(lq_hil_tester_inject_adc(2, 2600), 0);  // Temp ADC
     
-    // Wait for merged/voted result on CAN
-    struct lq_hil_can_msg can_msg;
-    ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 200), 0)
-        << "CAN message timeout";
+    // Give time for data to propagate through system
+    usleep(10000);  // 10ms
     
-    // Verify PGN (0xFEF1 = 65265)
-    uint32_t received_pgn = (can_msg.can_id >> 8) & 0x3FFFF;
-    EXPECT_EQ(received_pgn, 65265);
+    // Wait for merged/voted result on CAN - filter for PGN 0xFEF1 (65265)
+    // and wait for a non-zero value
+    struct lq_hil_can_msg can_msg;
+    uint32_t received_pgn = 0;
+    uint16_t rpm_value = 0;
+    const uint32_t target_pgn = 65265;  // 0xFEF1
+    
+    for (int attempts = 0; attempts < 100; attempts++) {
+        ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 200), 0)
+            << "CAN message timeout";
+        received_pgn = (can_msg.can_id >> 8) & 0x3FFFF;
+        if (received_pgn == target_pgn) {
+            rpm_value = can_msg.data[0] | (can_msg.data[1] << 8);
+            if (rpm_value != 0) {
+                break;  // Found message with non-zero value
+            }
+        }
+    }
+    
+    EXPECT_EQ(received_pgn, target_pgn) << "Expected PGN 65265 (0xFEF1)";
     
     // The voted value should be close to the median (2500)
     // Parse RPM from CAN data (assume first 2 bytes, little-endian)
-    uint16_t rpm_value = can_msg.data[0] | (can_msg.data[1] << 8);
     EXPECT_NEAR(rpm_value, 2500, 100) << "Voted RPM should be near median";
 }
 
@@ -223,10 +245,10 @@ TEST_F(HILTest, SequentialInputs) {
 }
 
 /* ============================================================================
- * Optional: Disabled by default, enable with --gtest_also_run_disabled_tests
+ * Stress Test
  * ============================================================================ */
 
-TEST_F(HILTest, DISABLED_StressTest) {
+TEST_F(HILTest, StressTest) {
     // Rapid injection of many ADC values
     for (int i = 0; i < 100; i++) {
         ASSERT_EQ(lq_hil_tester_inject_adc(0, 2000 + (i % 1000)), 0);
