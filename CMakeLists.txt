@@ -46,6 +46,8 @@ add_library(layered_queue
     src/lq_hil.c
     src/lq_remap.c
     src/lq_scale.c
+    src/lq_verified_output.c
+    src/lq_pid.c
     ${PLATFORM_SOURCES}
 )
 

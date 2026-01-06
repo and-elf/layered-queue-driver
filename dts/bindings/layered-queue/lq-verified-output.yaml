@@ -1,0 +1,139 @@
+# SPDX-License-Identifier: Apache-2.0
+# Verified output driver binding
+
+description: |
+  Verified output driver that commands hardware and verifies the output
+  actually occurred by reading back a verification signal.
+  
+  Critical safety feature: Don't just command hardware - VERIFY it happened.
+  If commanded output doesn't match verification within tolerance and timeout,
+  sets fault status for safety response.
+  
+  Use cases:
+  - GPIO: Command pin, verify with readback or separate verification pin
+  - PWM: Command duty cycle, measure actual duty/frequency
+  - Relay/Solenoid: Command state, verify position switch
+  - Motor: Command speed, verify with encoder/tachometer
+  - Valve: Command position, verify with position sensor
+  
+  Verification methods:
+  1. Direct readback: Read same output pin/register
+  2. Separate sensor: Different physical verification pin/signal
+  3. Measured feedback: Analog measurement of actual output
+  
+  On verification failure:
+  - Sets output signal status to FAULT
+  - Can trigger fault monitor / limp-home
+  - Provides measured value for closed-loop control (PID)
+
+compatible: "lq,verified-output"
+
+properties:
+  command-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID containing the desired output command value.
+      This is what you WANT the output to be.
+
+  verification-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID containing the measured/verified actual output value.
+      This is what the output ACTUALLY is (read from hardware).
+      
+      For GPIO: Could be same signal (readback) or different (verify pin)
+      For PWM: Measured duty cycle or frequency
+      For motors: Encoder feedback
+      For valves: Position sensor
+
+  output-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID for the verified output status and value.
+      
+      Value: Actual measured output (from verification-signal)
+      Status: OK if verified, FAULT if mismatch detected
+      
+      This signal can feed into fault monitors or PID controllers.
+
+  output-type:
+    type: string
+    required: true
+    description: |
+      Type of output hardware being verified.
+      - "gpio": Digital output (0/1)
+      - "pwm": PWM duty cycle (0-1000 = 0-100%)
+      - "analog": Analog output voltage/current
+      - "position": Linear/rotary position
+      - "speed": Motor speed (RPM, rad/s, etc.)
+    enum:
+      - gpio
+      - pwm
+      - analog
+      - position
+      - speed
+
+  tolerance:
+    type: int
+    required: false
+    description: |
+      Maximum allowed difference between command and verification.
+      
+      For GPIO: Must be 0 (exact match)
+      For PWM: Duty cycle tolerance (e.g., 50 = ±5%)
+      For analog: Voltage/current tolerance
+      For position: Position error tolerance
+      
+      If |command - verification| > tolerance, status = FAULT
+      Default: 0 (exact match)
+
+  verification-timeout-us:
+    type: int
+    required: false
+    description: |
+      Maximum time to wait for verification after commanding output.
+      Some outputs (relays, valves) take time to actuate.
+      
+      Verification is checked AFTER this timeout expires.
+      If still mismatched, status = FAULT
+      
+      Default: 0 (immediate verification)
+
+  continuous-verify:
+    type: boolean
+    description: |
+      Enable continuous verification monitoring.
+      
+      true: Continuously check verification matches command (e.g., GPIO)
+      false: Only verify once after timeout (e.g., slow valves)
+      
+      Default: true
+
+  gpio-verify-pin:
+    type: int
+    description: |
+      For GPIO verification: Separate verification pin number.
+      If not specified, reads back same pin that was commanded.
+      
+      Use separate pin when:
+      - Hardware has position switch distinct from command output
+      - Want to verify through independent circuit path
+
+  pwm-measure-type:
+    type: string
+    description: |
+      For PWM verification: What to measure
+      - "duty": Measure duty cycle percentage (0-1000)
+      - "frequency": Measure frequency in Hz
+      - "both": Verify both duty and frequency
+    enum:
+      - duty
+      - frequency
+      - both
+
+  status:
+    type: string
+    description: "okay" to enable, "disabled" to disable

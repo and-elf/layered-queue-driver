@@ -17,6 +17,8 @@
 #include "lq_common.h"
 #include "lq_remap.h"
 #include "lq_scale.h"
+#include "lq_verified_output.h"
+#include "lq_pid.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -55,6 +57,14 @@ extern "C" {
 
 #ifndef LQ_MAX_SCALES
 #define LQ_MAX_SCALES 16            /**< Maximum scale contexts */
+#endif
+
+#ifndef LQ_MAX_VERIFIED_OUTPUTS
+#define LQ_MAX_VERIFIED_OUTPUTS 16  /**< Maximum verified output contexts */
+#endif
+
+#ifndef LQ_MAX_PIDS
+#define LQ_MAX_PIDS 8               /**< Maximum PID controller contexts */
 #endif
 
 /* ============================================================================
@@ -220,6 +230,14 @@ struct lq_engine {
     /* Fault monitor contexts (includes optional limp-home actions) */
     struct lq_fault_monitor_ctx fault_monitors[LQ_MAX_FAULT_MONITORS];
     uint8_t num_fault_monitors;
+    
+    /* Verified output contexts (command vs feedback verification) */
+    struct lq_verified_output_ctx verified_outputs[LQ_MAX_VERIFIED_OUTPUTS];
+    uint8_t num_verified_outputs;
+    
+    /* PID controller contexts (closed-loop control) */
+    struct lq_pid_ctx pids[LQ_MAX_PIDS];
+    uint8_t num_pids;
     
     /* Cyclic output schedulers */
     struct lq_cyclic_ctx cyclic_outputs[LQ_MAX_CYCLIC_OUTPUTS];

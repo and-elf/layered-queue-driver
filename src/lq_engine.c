@@ -341,13 +341,15 @@ void lq_engine_step(
     engine->out_event_count = 0;
     
     /* Execute processing phases in order:
-     * 1. Ingest raw hardware events
+     * 1. Ingest raw hardware events (+ immediate wake)
      * 2. Check input staleness
      * 3. Apply remapping (hardware -> functions)
      * 4. Process merges/voting
      * 5. Monitor for faults (includes limp-home responses)
      * 6. Apply scaling/normalization
-     * 7. Generate outputs
+     * 7. Process PIDs (closed-loop control)
+     * 8. Verify outputs (command vs feedback)
+     * 9. Generate outputs
      */
     lq_ingest_events(engine, events, n_events);
     lq_apply_input_staleness(engine, now);
@@ -355,6 +357,8 @@ void lq_engine_step(
     lq_process_merges(engine, now);
     lq_process_fault_monitors(engine, now);
     lq_process_scales(engine, engine->scales, engine->num_scales, now);
+    lq_process_pids(engine, engine->pids, engine->num_pids, now);
+    lq_process_verified_outputs(engine, engine->verified_outputs, engine->num_verified_outputs, now);
     lq_process_outputs(engine);
     lq_process_cyclic_outputs(engine, now);
 }

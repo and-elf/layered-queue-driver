@@ -1,0 +1,306 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Temperature Control with Verified Output and PID Example
+ * 
+ * This example demonstrates closed-loop temperature control using:
+ * 1. Verified output - Command heater and verify it's actually on
+ * 2. PID controller - Maintain temperature setpoint
+ * 
+ * System Architecture:
+ * - Temperature sensor (ADC) measures actual temperature
+ * - PID controller calculates required heater power
+ * - Heater is commanded via GPIO
+ * - Heater status is verified via separate feedback pin
+ * - If verification fails, fault monitor triggers safety response
+ * 
+ * Control Loop:
+ * Setpoint (75°C) → PID → Heater Command → Verified Output → Heater
+ *                     ↑                                        ↓
+ *                     └────── Temperature Sensor ←─────────────┘
+ */
+
+/ {
+    /* ========================================================================
+     * Signal Definitions
+     * ======================================================================== */
+    
+    /* Hardware inputs */
+    #define SIGNAL_TEMP_ADC         0   /* Raw temperature ADC (0-4095) */
+    #define SIGNAL_HEATER_FB        1   /* Heater feedback pin (0=off, 1=on) */
+    
+    /* Processed signals */
+    #define SIGNAL_TEMP_CELSIUS     10  /* Temperature in °C (0-150) */
+    #define SIGNAL_TEMP_SETPOINT    11  /* Desired temperature (75°C) */
+    
+    /* Control signals */
+    #define SIGNAL_PID_OUTPUT       20  /* PID controller output (0-1000) */
+    #define SIGNAL_HEATER_CMD       21  /* Heater command (0=off, 1=on) */
+    #define SIGNAL_HEATER_VERIFIED  22  /* Verified heater status */
+    
+    /* Fault signals */
+    #define SIGNAL_HEATER_FAULT     30  /* 0=OK, 1=verification failed */
+    
+    /* ========================================================================
+     * Hardware Input Layer
+     * ======================================================================== */
+    
+    /* Temperature sensor ADC */
+    temp_adc: lq-adc@0 {
+        compatible = "lq,adc-source";
+        signal-id = <SIGNAL_TEMP_ADC>;
+        adc-channel = <0>;
+        sample-rate-hz = <10>;          /* 10 Hz sampling */
+        staleness-us = <200000>;        /* 200ms timeout */
+    };
+    
+    /* Heater feedback GPIO (verify heater is actually on) */
+    heater_feedback: lq-gpio@0 {
+        compatible = "lq,gpio-source";
+        signal-id = <SIGNAL_HEATER_FB>;
+        gpio-pin = <15>;                /* GPIO pin 15 */
+        sample-rate-hz = <100>;         /* 100 Hz verification */
+        staleness-us = <20000>;         /* 20ms timeout */
+    };
+    
+    /* ========================================================================
+     * Scaling Layer - Convert ADC to Engineering Units
+     * ======================================================================== */
+    
+    /* Convert temperature ADC (0-4095) to Celsius (0-150°C) */
+    temp_scale: lq-scale@0 {
+        compatible = "lq,scale";
+        input-signal-id = <SIGNAL_TEMP_ADC>;
+        output-signal-id = <SIGNAL_TEMP_CELSIUS>;
+        scale-factor = <37>;            /* 37/1000 = 0.037 °C per count */
+        offset = <0>;
+        clamp-min = <0>;
+        clamp-max = <150>;
+    };
+    
+    /* ========================================================================
+     * Setpoint Configuration
+     * ======================================================================== */
+    
+    /* Static setpoint: 75°C
+     * In real system, this could come from user input or schedule
+     */
+    temp_setpoint: lq-constant@0 {
+        compatible = "lq,constant";
+        signal-id = <SIGNAL_TEMP_SETPOINT>;
+        value = <75>;                   /* Target: 75°C */
+    };
+    
+    /* ========================================================================
+     * PID Controller - Maintain Temperature
+     * ======================================================================== */
+    
+    /* PID controller calculates heater power needed to reach setpoint
+     * 
+     * Tuning example (furnace with slow thermal mass):
+     * - Kp=20.0: Strong proportional response to error
+     * - Ki=0.5: Small integral to eliminate steady-state offset
+     * - Kd=5.0: Moderate derivative to dampen overshoot
+     * 
+     * Output: 0-1000 representing 0-100% heater power
+     */
+    temp_pid: lq-pid@0 {
+        compatible = "lq,pid-controller";
+        
+        setpoint-signal-id = <SIGNAL_TEMP_SETPOINT>;     /* Target: 75°C */
+        measurement-signal-id = <SIGNAL_TEMP_CELSIUS>;   /* Actual temp */
+        output-signal-id = <SIGNAL_PID_OUTPUT>;          /* Heater power */
+        
+        /* PID gains (scaled by 1000) */
+        kp = <20000>;                   /* Kp = 20.0 */
+        ki = <500>;                     /* Ki = 0.5 */
+        kd = <5000>;                    /* Kd = 5.0 */
+        
+        /* Output limits (0-100% power) */
+        output-min = <0>;
+        output-max = <1000>;
+        
+        /* Integral anti-windup */
+        integral-min = <-10000>;
+        integral-max = <10000>;
+        
+        /* Stop integrating when within ±1°C of setpoint */
+        deadband = <1>;
+        
+        /* Reset integral when setpoint changes */
+        reset-on-setpoint-change;
+    };
+    
+    /* ========================================================================
+     * Convert PID Output to On/Off Control
+     * ======================================================================== */
+    
+    /* Simple threshold: PID > 500 (50%) = heater ON
+     * For more sophisticated control, could use PWM with duty cycle
+     */
+    heater_threshold: lq-comparator@0 {
+        compatible = "lq,comparator";
+        input-signal-id = <SIGNAL_PID_OUTPUT>;
+        output-signal-id = <SIGNAL_HEATER_CMD>;
+        threshold = <500>;              /* ON if power > 50% */
+        hysteresis = <100>;             /* ±10% hysteresis to avoid chatter */
+    };
+    
+    /* ========================================================================
+     * Verified Output - Command and Verify Heater
+     * ======================================================================== */
+    
+    /* Verify heater is actually on when commanded
+     * 
+     * Safety critical: Don't just command heater, VERIFY it activated!
+     * If verification fails:
+     * - Output status = FAULT
+     * - Fault monitor detects
+     * - Emergency shutdown triggered
+     */
+    heater_verified: lq-verified-output@0 {
+        compatible = "lq,verified-output";
+        
+        command-signal-id = <SIGNAL_HEATER_CMD>;         /* What we want */
+        verification-signal-id = <SIGNAL_HEATER_FB>;     /* What we got */
+        output-signal-id = <SIGNAL_HEATER_VERIFIED>;     /* Verified status */
+        
+        output-type = "gpio";
+        
+        /* GPIO must match exactly (0 or 1) */
+        tolerance = <0>;
+        
+        /* Wait 50ms for relay/SSR to activate before verifying */
+        verification-timeout-us = <50000>;
+        
+        /* Continuously verify heater stays on */
+        continuous-verify;
+    };
+    
+    /* ========================================================================
+     * Fault Monitoring - Detect Verification Failure
+     * ======================================================================== */
+    
+    /* Monitor verified heater status
+     * If status = FAULT (command != feedback), take immediate action
+     */
+    heater_fault_monitor: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        input-signal-id = <SIGNAL_HEATER_VERIFIED>;
+        fault-output-signal-id = <SIGNAL_HEATER_FAULT>;
+        
+        /* Check for FAULT status from verified output */
+        check-status;
+        
+        fault-level = <3>;              /* Critical fault */
+        
+        /* Immediate wake callback for safety shutdown */
+        wake-function = "heater_fault_wake";
+    };
+    
+    /* ========================================================================
+     * Output Layer - Transmit Status
+     * ======================================================================== */
+    
+    /* Transmit temperature */
+    temp_output: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-j1939";
+        signal-id = <SIGNAL_TEMP_CELSIUS>;
+        pgn = <0xFEEE00>;               /* Engine temperature PGN */
+        period-us = <100000>;           /* 10 Hz */
+        priority = <6>;
+    };
+    
+    /* Transmit PID output for tuning/diagnostics */
+    pid_output: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-j1939";
+        signal-id = <SIGNAL_PID_OUTPUT>;
+        pgn = <0xFEF100>;               /* Diagnostic PGN */
+        period-us = <100000>;           /* 10 Hz */
+        priority = <6>;
+    };
+    
+    /* Transmit fault status */
+    fault_output: lq-cyclic-output@2 {
+        compatible = "lq,cyclic-j1939";
+        signal-id = <SIGNAL_HEATER_FAULT>;
+        pgn = <0xFECA00>;               /* Diagnostic message PGN */
+        period-us = <100000>;           /* 10 Hz */
+        priority = <3>;                 /* High priority for faults */
+    };
+};
+
+/* ============================================================================
+ * Operational Scenarios
+ * ============================================================================
+ * 
+ * Scenario 1: Cold Start (Normal Operation)
+ * ------------------------------------------
+ * Initial: Temp = 20°C, Setpoint = 75°C
+ * 
+ * t=0s:
+ *   error = 75 - 20 = 55°C (large error)
+ *   P = 20.0 * 55 = 1100 (clamped to 1000)
+ *   I = 0 (no accumulation yet)
+ *   D = 0 (no history)
+ *   PID output = 1000 (100% power)
+ *   Heater command = 1 (ON, threshold exceeded)
+ *   
+ * t=50ms:
+ *   Heater feedback = 1 (verified ON)
+ *   Verified output status = OK
+ *   Heater continues running
+ * 
+ * t=30s:
+ *   Temp = 74°C (approaching setpoint)
+ *   error = 75 - 74 = 1°C (small error)
+ *   P = 20.0 * 1 = 20
+ *   I = accumulated error ≈ 5
+ *   D = small damping
+ *   PID output = 25 (low power)
+ *   Heater command = 0 (OFF, below threshold)
+ *   
+ * Steady state:
+ *   Temp oscillates around 75°C ± 1°C
+ *   Heater cycles on/off to maintain setpoint
+ * 
+ * Scenario 2: Verification Failure (Safety Response)
+ * ---------------------------------------------------
+ * Command heater ON, but feedback shows OFF (relay failed)
+ * 
+ * t=0ms:
+ *   PID commands heater = 1
+ *   Heater feedback = 0 (should be 1!)
+ *   
+ * t=50ms (after verification timeout):
+ *   Verified output: command=1, verification=0
+ *   Tolerance = 0, so mismatch detected
+ *   Output status = FAULT
+ *   
+ * t=50ms + ε (immediate):
+ *   Fault monitor sees FAULT status
+ *   Calls heater_fault_wake(monitor_id=0, value=0, level=CRITICAL)
+ *   
+ * In wake function:
+ *   emergency_shutdown(); // Cut all power
+ *   set_fault_lamp();     // Alert operator
+ *   log_event();          // Record for diagnostics
+ * 
+ * Scenario 3: Over-temperature (Feedback Safety)
+ * -----------------------------------------------
+ * Temperature sensor reads 150°C (max scale)
+ * 
+ * PID sees: error = 75 - 150 = -75°C
+ * Output saturates at minimum (0% power)
+ * Heater turns OFF
+ * System automatically protects against overheating
+ * 
+ * (Could add separate over-temp fault monitor for redundancy)
+ * 
+ * Key Safety Features:
+ * - Closed-loop: Automatically adjusts to load changes
+ * - Verified: Commands are checked against feedback
+ * - Fault detection: Mismatches trigger immediate response
+ * - Anti-windup: Integral doesn't saturate
+ * - Clamped output: Can't exceed safe limits
+ * 
+ * ============================================================================ */

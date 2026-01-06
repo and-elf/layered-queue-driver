@@ -1,0 +1,166 @@
+# SPDX-License-Identifier: Apache-2.0
+# PID controller driver binding
+
+description: |
+  PID (Proportional-Integral-Derivative) controller for closed-loop control.
+  
+  Uses measured feedback from verified outputs to maintain a setpoint.
+  Calculates control output based on error between setpoint and measurement.
+  
+  PID equation:
+    output = Kp*error + Ki*integral(error) + Kd*derivative(error)
+  
+  Where:
+    error = setpoint - measurement
+    Kp = Proportional gain (immediate response to current error)
+    Ki = Integral gain (eliminates steady-state error)
+    Kd = Derivative gain (dampens oscillation, predicts future error)
+  
+  Common applications:
+  - Temperature control (heater power based on temp error)
+  - Motor speed control (throttle based on speed error)
+  - Position control (valve position based on position error)
+  - Pressure control (pump speed based on pressure error)
+  
+  Typical PID tuning:
+  - Start with Kp only, increase until oscillation
+  - Add Ki to eliminate offset, keep small to avoid overshoot
+  - Add Kd to dampen oscillation, use sparingly (sensitive to noise)
+  
+  Anti-windup:
+  - Integral term clamped to prevent runaway
+  - Important when output saturates (can't go higher/lower)
+
+compatible: "lq,pid-controller"
+
+properties:
+  setpoint-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID for desired setpoint (target value).
+      Example: Desired temperature = 75°C
+
+  measurement-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID for measured feedback (actual value).
+      Example: Actual temperature from sensor = 72°C
+      
+      Typically comes from verified-output or direct sensor.
+
+  output-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID for PID control output.
+      This value drives the actuator to reach setpoint.
+      Example: Heater power = 0-1000 (0-100%)
+
+  kp:
+    type: int
+    required: true
+    description: |
+      Proportional gain (scaled by 1000).
+      
+      Multiplies current error: output += Kp * error
+      - Higher Kp = faster response but more overshoot
+      - Too high = oscillation
+      
+      Fixed-point: kp=1000 means Kp=1.0, kp=500 means Kp=0.5
+      Example: kp=2000 (Kp=2.0)
+
+  ki:
+    type: int
+    required: false
+    description: |
+      Integral gain (scaled by 1000).
+      
+      Accumulates error over time: output += Ki * sum(error)
+      - Eliminates steady-state offset
+      - Too high = overshoot and slow settling
+      
+      Fixed-point: ki=100 means Ki=0.1
+      Default: 0 (integral disabled)
+
+  kd:
+    type: int
+    required: false
+    description: |
+      Derivative gain (scaled by 1000).
+      
+      Responds to rate of change: output += Kd * d(error)/dt
+      - Dampens oscillation
+      - Predicts future error
+      - Sensitive to measurement noise
+      
+      Fixed-point: kd=500 means Kd=0.5
+      Default: 0 (derivative disabled)
+
+  output-min:
+    type: int
+    required: true
+    description: |
+      Minimum PID output value (clamp floor).
+      Example: 0 for heater (can't cool)
+
+  output-max:
+    type: int
+    required: true
+    description: |
+      Maximum PID output value (clamp ceiling).
+      Example: 1000 for 100% power
+
+  integral-min:
+    type: int
+    required: false
+    description: |
+      Minimum integral accumulator (anti-windup floor).
+      Prevents integral from winding down excessively.
+      Default: -1000000
+
+  integral-max:
+    type: int
+    required: false
+    description: |
+      Maximum integral accumulator (anti-windup ceiling).
+      Prevents integral from winding up excessively.
+      Default: 1000000
+
+  deadband:
+    type: int
+    required: false
+    description: |
+      Error deadband for integral term.
+      
+      If |error| <= deadband, integral stops accumulating.
+      Prevents integral windup when close to setpoint.
+      
+      Example: deadband=10 means ±1°C around setpoint doesn't accumulate
+      Default: 0 (no deadband)
+
+  sample-time-us:
+    type: int
+    required: false
+    description: |
+      Fixed sample time for derivative and integral calculations (microseconds).
+      
+      If not specified, uses actual time delta (variable dt).
+      Fixed sample time can improve stability with variable timing.
+      
+      Default: 0 (use actual dt)
+
+  reset-on-setpoint-change:
+    type: boolean
+    description: |
+      Reset integral term when setpoint changes.
+      
+      true: Prevents integral from fighting new setpoint
+      false: Keeps integral history across setpoint changes
+      
+      Default: true
+
+  status:
+    type: string
+    description: "okay" to enable, "disabled" to disable
