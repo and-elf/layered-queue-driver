@@ -12,7 +12,7 @@
 
 /* Engine instance */
 struct lq_engine g_lq_engine = {
-    .num_signals = 0,  /* Initialized at runtime */
+    .num_signals = 11,
     .num_merges = 1,
     .num_fault_monitors = 0,
     .num_cyclic_outputs = 3,
@@ -24,6 +24,7 @@ struct lq_engine g_lq_engine = {
             .voting_method = LQ_VOTE_MEDIAN,
             .tolerance = 50,
             .stale_us = 10000,
+            .enabled = true,
         },
     },
     .cyclic_outputs = {
