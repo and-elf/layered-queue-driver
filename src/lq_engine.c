@@ -10,6 +10,7 @@
 #include "lq_mid_driver.h"
 #include "lq_platform.h"
 #include "lq_util.h"
+#include "lq_limp_home.h"
 #include <string.h>
 
 /* ============================================================================
@@ -272,17 +273,19 @@ void lq_engine_step(
      * 1. Ingest raw hardware events
      * 2. Check input staleness
      * 3. Apply remapping (hardware -> functions)
-     * 4. Apply scaling/normalization
-     * 5. Process merges/voting
-     * 6. Monitor for faults
-     * 7. Generate outputs
+     * 4. Process merges/voting
+     * 5. Monitor for faults
+     * 6. Apply limp-home mode (dynamic scale adjustment)
+     * 7. Apply scaling/normalization
+     * 8. Generate outputs
      */
     lq_ingest_events(engine, events, n_events);
     lq_apply_input_staleness(engine, now);
     lq_process_remaps(engine, engine->remaps, engine->num_remaps, now);
-    lq_process_scales(engine, engine->scales, engine->num_scales, now);
     lq_process_merges(engine, now);
     lq_process_fault_monitors(engine, now);
+    lq_process_limp_home(engine);
+    lq_process_scales(engine, engine->scales, engine->num_scales, now);
     lq_process_outputs(engine);
     lq_process_cyclic_outputs(engine, now);
 }

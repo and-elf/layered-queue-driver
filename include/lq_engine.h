@@ -17,6 +17,7 @@
 #include "lq_common.h"
 #include "lq_remap.h"
 #include "lq_scale.h"
+#include "lq_limp_home.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -55,6 +56,10 @@ extern "C" {
 
 #ifndef LQ_MAX_SCALES
 #define LQ_MAX_SCALES 16            /**< Maximum scale contexts */
+#endif
+
+#ifndef LQ_MAX_LIMP_HOMES
+#define LQ_MAX_LIMP_HOMES 8         /**< Maximum limp-home mode controllers */
 #endif
 
 /* ============================================================================
@@ -178,6 +183,10 @@ struct lq_engine {
     /* Scale contexts (linear transformations) */
     struct lq_scale_ctx scales[LQ_MAX_SCALES];
     uint8_t num_scales;
+    
+    /* Limp-home mode controllers (safety degradation) */
+    struct lq_limp_home_ctx limp_homes[LQ_MAX_LIMP_HOMES];
+    uint8_t num_limp_homes;
     
     /* Fault monitor contexts */
     struct lq_fault_monitor_ctx fault_monitors[LQ_MAX_FAULT_MONITORS];

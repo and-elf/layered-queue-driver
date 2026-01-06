@@ -1,0 +1,264 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Limp-Home Mode Safety Example
+ * 
+ * This example demonstrates safety degradation using the limp-home driver.
+ * A motor controller with temperature monitoring that automatically reduces
+ * power output when overheating is detected.
+ * 
+ * System Architecture:
+ * 1. Temperature sensor (ADC) monitors motor temperature
+ * 2. Fault monitor detects over-temperature condition
+ * 3. Limp-home controller reduces motor power when fault occurs
+ * 4. Throttle input goes through scale driver (modified in limp mode)
+ * 5. Output to motor controller via CAN
+ * 
+ * Operating Modes:
+ * - Normal: 0-100°C, full power (0-2000 = 0-200% throttle with boost)
+ * - Warning: 100-120°C, reduced power (0-1500 = 0-150% max)
+ * - Critical: 120°C+, limp mode (0-1000 = 0-100% max, no boost)
+ */
+
+/ {
+    /* ========================================================================
+     * Signal Definitions
+     * ======================================================================== */
+    
+    /* Hardware inputs */
+    #define SIGNAL_TEMP_ADC         0   /* Raw temperature ADC value */
+    #define SIGNAL_THROTTLE_ADC     1   /* Raw throttle pedal ADC */
+    
+    /* Processed signals */
+    #define SIGNAL_TEMP_CELSIUS     10  /* Temperature in °C */
+    #define SIGNAL_THROTTLE_PCT     11  /* Throttle percentage */
+    #define SIGNAL_MOTOR_CMD        20  /* Final motor command */
+    
+    /* Fault signals */
+    #define SIGNAL_TEMP_FAULT       30  /* 0=OK, 1=warning, 2=critical */
+    
+    /* ========================================================================
+     * Hardware Input Layer - ADC Sampling
+     * ======================================================================== */
+    
+    temp_adc: lq-adc@0 {
+        compatible = "lq,adc-source";
+        signal-id = <SIGNAL_TEMP_ADC>;
+        adc-channel = <0>;
+        sample-rate-hz = <10>;          /* 10 Hz temperature sampling */
+        staleness-us = <200000>;        /* 200ms timeout */
+    };
+    
+    throttle_adc: lq-adc@1 {
+        compatible = "lq,adc-source";
+        signal-id = <SIGNAL_THROTTLE_ADC>;
+        adc-channel = <1>;
+        sample-rate-hz = <100>;         /* 100 Hz throttle sampling */
+        staleness-us = <20000>;         /* 20ms timeout */
+    };
+    
+    /* ========================================================================
+     * Scaling Layer - Convert raw ADC to engineering units
+     * ======================================================================== */
+    
+    /* Convert temperature ADC (0-4095) to Celsius (0-150°C)
+     * Formula: temp_c = adc * 0.0366 = adc * 37 / 1000
+     * Result: 0 ADC = 0°C, 4095 ADC = 150°C
+     */
+    temp_scale: lq-scale@0 {
+        compatible = "lq,scale";
+        input-signal-id = <SIGNAL_TEMP_ADC>;
+        output-signal-id = <SIGNAL_TEMP_CELSIUS>;
+        scale-factor = <37>;            /* 37/1000 = 0.037 °C per ADC count */
+        offset = <0>;
+        clamp-min = <0>;                /* Min 0°C */
+        clamp-max = <150>;              /* Max 150°C */
+    };
+    
+    /* Convert throttle ADC (0-4095) to percentage with boost
+     * This scale driver will be MODIFIED by limp-home mode!
+     * 
+     * Normal mode: Output 0-2000 (0-200%, allows boost/overdrive)
+     * Warning mode: Output limited to 0-1500 (0-150%)
+     * Critical limp: Output limited to 0-1000 (0-100%, no boost)
+     */
+    throttle_scale: lq-scale@1 {
+        compatible = "lq,scale";
+        input-signal-id = <SIGNAL_THROTTLE_ADC>;
+        output-signal-id = <SIGNAL_THROTTLE_PCT>;
+        scale-factor = <488>;           /* 488/1000 * 4095 ≈ 2000 */
+        offset = <0>;
+        clamp-min = <0>;
+        clamp-max = <2000>;             /* 200% max in normal mode */
+    };
+    
+    /* ========================================================================
+     * Fault Monitoring - Detect over-temperature
+     * ======================================================================== */
+    
+    /* Warning level: 100-120°C
+     * Sets fault output to level 1
+     */
+    temp_fault_warning: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        input-signal-id = <SIGNAL_TEMP_CELSIUS>;
+        fault-output-signal-id = <SIGNAL_TEMP_FAULT>;
+        
+        check-range;
+        min-value = <0>;
+        max-value = <100>;              /* Fault if temp > 100°C */
+        
+        fault-level = <1>;              /* Warning level */
+        check-staleness;
+        stale-timeout-us = <500000>;    /* 500ms */
+    };
+    
+    /* Critical level: 120°C+
+     * Overrides to level 2 (higher priority)
+     */
+    temp_fault_critical: lq-fault-monitor@1 {
+        compatible = "lq,fault-monitor";
+        input-signal-id = <SIGNAL_TEMP_CELSIUS>;
+        fault-output-signal-id = <SIGNAL_TEMP_FAULT>;
+        
+        check-range;
+        min-value = <0>;
+        max-value = <120>;              /* Fault if temp > 120°C */
+        
+        fault-level = <2>;              /* Critical level */
+        check-staleness;
+        stale-timeout-us = <500000>;
+    };
+    
+    /* ========================================================================
+     * Limp-Home Safety Controllers
+     * ======================================================================== */
+    
+    /* Warning mode: 100-120°C
+     * Reduce boost capability to 150% max
+     */
+    limp_warning: lq-limp-home@0 {
+        compatible = "lq,limp-home";
+        
+        /* Monitor temperature fault signal */
+        fault-signal-id = <SIGNAL_TEMP_FAULT>;
+        fault-threshold = <1>;          /* Activate on warning level (1) */
+        
+        /* Modify throttle scale driver (index 1 in scales array) */
+        target-scale-id = <1>;
+        
+        /* Limp mode parameters - reduce max output */
+        /* scale-factor unchanged (still 488) */
+        limp-clamp-max = <1500>;        /* Limit to 150% */
+        /* limp-clamp-min unchanged (still 0) */
+        
+        /* Wait 5 seconds after temp drops before restoring full power */
+        restore-delay-ms = <5000>;
+    };
+    
+    /* Critical limp mode: 120°C+
+     * Severe power reduction - no boost allowed
+     */
+    limp_critical: lq-limp-home@1 {
+        compatible = "lq,limp-home";
+        
+        /* Monitor temperature fault signal */
+        fault-signal-id = <SIGNAL_TEMP_FAULT>;
+        fault-threshold = <2>;          /* Activate on critical level (2) */
+        
+        /* Modify same throttle scale driver */
+        target-scale-id = <1>;
+        
+        /* Severe limp mode - reduce both sensitivity and max */
+        limp-scale-factor = <244>;      /* Half sensitivity (244/1000) */
+        limp-clamp-max = <1000>;        /* Limit to 100% (no boost) */
+        
+        /* Wait 10 seconds after critical fault clears */
+        restore-delay-ms = <10000>;
+    };
+    
+    /* ========================================================================
+     * Output Layer - Send to motor controller
+     * ======================================================================== */
+    
+    /* Copy throttle to motor command signal */
+    motor_cmd_copy: lq-scale@2 {
+        compatible = "lq,scale";
+        input-signal-id = <SIGNAL_THROTTLE_PCT>;
+        output-signal-id = <SIGNAL_MOTOR_CMD>;
+        scale-factor = <1000>;          /* 1:1 copy */
+        offset = <0>;
+    };
+    
+    /* Transmit motor command via CAN */
+    motor_output: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-j1939";
+        signal-id = <SIGNAL_MOTOR_CMD>;
+        pgn = <0xCF00300>;              /* Motor control PGN */
+        period-us = <10000>;            /* 100 Hz (10ms period) */
+        priority = <3>;
+    };
+    
+    /* Transmit temperature for monitoring */
+    temp_output: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-j1939";
+        signal-id = <SIGNAL_TEMP_CELSIUS>;
+        pgn = <0xFEEE00>;               /* Engine temperature PGN */
+        period-us = <100000>;           /* 10 Hz (100ms period) */
+        priority = <6>;
+    };
+    
+    /* Transmit fault status */
+    fault_output: lq-cyclic-output@2 {
+        compatible = "lq,cyclic-j1939";
+        signal-id = <SIGNAL_TEMP_FAULT>;
+        pgn = <0xFECA00>;               /* Diagnostic message PGN */
+        period-us = <100000>;           /* 10 Hz */
+        priority = <6>;
+    };
+};
+
+/* ============================================================================
+ * Operational Behavior
+ * ============================================================================
+ * 
+ * Scenario 1: Normal Operation (Temp < 100°C)
+ * --------------------------------------------
+ * Temp sensor: 85°C
+ * Fault level: 0 (no fault)
+ * Throttle ADC: 4095 (full pedal)
+ * Throttle scale: factor=488, clamp=2000 → output=2000 (200%)
+ * Motor command: 2000 (full boost mode)
+ * CAN output: 2000 at 100Hz
+ * 
+ * Scenario 2: Warning Mode (100°C < Temp < 120°C)
+ * ------------------------------------------------
+ * Temp sensor: 110°C
+ * Fault level: 1 (warning)
+ * Limp controller: limp_warning activates
+ * Throttle scale MODIFIED: factor=488, clamp=1500
+ * Throttle ADC: 4095 (full pedal)
+ * Throttle output: 1500 (boost limited to 150%)
+ * Motor command: 1500
+ * After temp drops below 100°C: Wait 5 seconds, then restore clamp=2000
+ * 
+ * Scenario 3: Critical Limp Mode (Temp > 120°C)
+ * ----------------------------------------------
+ * Temp sensor: 125°C
+ * Fault level: 2 (critical)
+ * Limp controller: limp_critical activates (higher priority)
+ * Throttle scale MODIFIED: factor=244, clamp=1000
+ * Throttle ADC: 4095 (full pedal)
+ * Throttle intermediate: 4095 * 244 / 1000 = 999
+ * Throttle output: 1000 (clamped, 100% max, reduced sensitivity)
+ * Motor command: 1000 (safe limp mode)
+ * After temp drops below 120°C: Wait 10 seconds, then restore
+ * 
+ * Safety Features:
+ * - Automatic power reduction prevents damage
+ * - Multi-level degradation (warning → critical)
+ * - Hysteresis via restore delays prevents oscillation
+ * - System remains operational rather than shutting down
+ * - Transparent to application - scale parameters auto-adjusted
+ * - Fault status transmitted for operator awareness
+ * 
+ * ============================================================================ */

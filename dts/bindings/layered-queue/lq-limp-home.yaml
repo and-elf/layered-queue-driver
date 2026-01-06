@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+# Limp-home mode controller - safety degradation
+
+description: |
+  Safety controller that monitors fault signals and dynamically adjusts
+  scale driver parameters to limit system output when faults are detected.
+  
+  Limp-home mode is a critical safety feature where the system continues
+  operating in a degraded state rather than shutting down completely.
+  
+  This driver monitors one or more fault signals and when faults exceed
+  a threshold, it modifies scale driver parameters to:
+    - Reduce maximum output (lower clamp-max)
+    - Limit sensitivity (reduce scale-factor)
+    - Prevent dangerous outputs while maintaining basic functionality
+  
+  Common use cases:
+    - Reduce motor power on temperature faults
+    - Limit steering angle on sensor disagreement
+    - Cap throttle response when battery voltage is low
+    - Multi-level degradation (warning → error → critical)
+  
+  The driver modifies scale contexts in real-time, allowing normal
+  operation when healthy and automatic degradation on faults.
+  
+  Example: Temperature-based power limiting
+    Normal: scale-factor=1000, clamp-max=2000 (100% throttle, 200% boost)
+    Limp:   scale-factor=500,  clamp-max=1000 (50% throttle, 100% max)
+
+compatible: "lq,limp-home"
+
+properties:
+  fault-signal-id:
+    type: int
+    required: true
+    description: |
+      Signal ID to monitor for faults. This is typically the output
+      of a fault monitor. Non-zero values indicate fault condition.
+
+  fault-threshold:
+    type: int
+    required: false
+    description: |
+      Fault level that triggers limp-home mode. When fault signal
+      value >= threshold, limp mode activates.
+      Default: 1 (any fault triggers limp mode)
+
+  target-scale-id:
+    type: int
+    required: true
+    description: |
+      Index of the scale driver to modify (0-based index into
+      engine's scales array). This scale's parameters will be
+      overridden when limp mode is active.
+
+  limp-scale-factor:
+    type: int
+    required: false
+    description: |
+      Scale factor to use in limp mode (1000 = 1.0x).
+      If not specified, normal scale factor is unchanged.
+
+  limp-clamp-max:
+    type: int
+    required: false
+    description: |
+      Maximum output clamp in limp mode.
+      If not specified, normal clamp-max is unchanged.
+
+  limp-clamp-min:
+    type: int
+    required: false
+    description: |
+      Minimum output clamp in limp mode.
+      If not specified, normal clamp-min is unchanged.
+
+  restore-delay-ms:
+    type: int
+    required: false
+    description: |
+      Delay in milliseconds before restoring normal mode after fault
+      clears. Prevents oscillation between modes.
+      Default: 0 (immediate restore)
