@@ -48,6 +48,7 @@ add_library(layered_queue
     src/lq_remap.c
     src/lq_scale.c
     src/lq_verified_output.c
+    src/lq_dtc.c
     src/lq_pid.c
     ${PLATFORM_SOURCES}
 )
@@ -91,6 +92,7 @@ if(BUILD_TESTS)
     set(ALL_TESTS_SOURCES
         tests/queue_test.cpp
         tests/driver_test.cpp
+        tests/dtc_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
         src/lq_hil.c
