@@ -12,8 +12,9 @@
 
 /* Engine instance */
 struct lq_engine g_lq_engine = {
-    .num_signals = 32,  /* Max signals configured */
+    .num_signals = 0,  /* Initialized at runtime */
     .num_merges = 1,
+    .num_fault_monitors = 0,
     .num_cyclic_outputs = 3,
     .merges = {
         [0] = {
@@ -23,7 +24,6 @@ struct lq_engine g_lq_engine = {
             .voting_method = LQ_VOTE_MEDIAN,
             .tolerance = 50,
             .stale_us = 10000,
-            .enabled = true,
         },
     },
     .cyclic_outputs = {
@@ -79,13 +79,19 @@ void lq_adc_isr_oil_adc(uint16_t value) {
 
 /* Initialization */
 int lq_generated_init(void) {
-    /* Auto-detect HIL mode on native platform */
+    /* Auto-detect HIL mode on native platform (if not already initialized) */
     #ifdef LQ_PLATFORM_NATIVE
-    lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */
+    if (!lq_hil_is_active()) {
+        lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */
+    }
     #endif
     
+    /* Initialize engine */
+    int ret = lq_engine_init(&g_lq_engine);
+    if (ret != 0) return ret;
+    
     /* Hardware input layer */
-    int ret = lq_hw_input_init(64);
+    ret = lq_hw_input_init(64);
     if (ret != 0) return ret;
     
     /* Platform-specific peripheral init */

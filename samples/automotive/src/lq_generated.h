@@ -18,6 +18,12 @@ extern struct lq_engine g_lq_engine;
 /* Initialization function */
 int lq_generated_init(void);
 
+/* Hardware ISR handlers */
+void lq_adc_isr_rpm_adc(uint16_t value);
+void lq_spi_isr_rpm_spi(int32_t value);
+void lq_adc_isr_temp_adc(uint16_t value);
+void lq_adc_isr_oil_adc(uint16_t value);
+
 #ifdef __cplusplus
 }
 #endif

@@ -86,12 +86,15 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
-    # Combined test executable with all tests
+    # Combined test executable with all tests (unit + HIL)
     add_executable(all_tests
         tests/queue_test.cpp
         tests/driver_test.cpp
+        tests/hil_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
+        src/lq_hil.c
+        src/lq_j1939.c
     )
     
     target_link_libraries(all_tests PRIVATE
@@ -102,6 +105,9 @@ if(BUILD_TESTS)
     target_include_directories(all_tests PRIVATE
         samples/automotive/src
     )
+    
+    # HIL tests need the SUT binary to be available
+    add_dependencies(all_tests hil-sut-full)
     
     include(GoogleTest)
     gtest_discover_tests(all_tests)
@@ -156,6 +162,10 @@ if(BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hw_input.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_j1939.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_remap.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_scale.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_pid.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_verified_output.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/lq_platform_hil.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -I${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src
