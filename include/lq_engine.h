@@ -116,12 +116,22 @@ struct lq_merge_ctx {
 /**
  * @brief Fault monitor wake callback
  * 
- * Called immediately when a fault condition is detected.
- * User implements this to take safety action (shutdown, limp mode, etc.)
+ * Called IMMEDIATELY during event ingestion when a fault condition is
+ * detected on RAW hardware values (before any processing, merging, or scaling).
+ * This provides the fastest possible response time for safety-critical actions.
+ * 
+ * User implements this to take immediate safety action:
+ * - Emergency shutdown
+ * - Hardware disable (cut power, engage brake, etc.)
+ * - Safety state transitions
+ * 
+ * IMPORTANT: This is called from the engine processing context.
+ * Keep wake functions SHORT and FAST - just set flags or trigger
+ * hardware safety mechanisms. Do NOT perform complex processing.
  * 
  * @param monitor_id Index of the fault monitor that triggered
- * @param input_value Current value of monitored signal
- * @param fault_level Severity level of the fault (0=OK, 1+=fault levels)
+ * @param input_value RAW hardware value that triggered the fault (unscaled)
+ * @param fault_level Severity level of the fault (LQ_FAULT_LEVEL_1, 2, 3, etc.)
  */
 typedef void (*lq_fault_wake_fn)(uint8_t monitor_id, int32_t input_value, enum lq_fault_level fault_level);
 
@@ -134,7 +144,17 @@ typedef void (*lq_fault_wake_fn)(uint8_t monitor_id, int32_t input_value, enum l
  * - Range: Input value outside min/max bounds
  * - Merge failure: Voting/merge produced FAULT status
  * 
- * When a fault is detected, calls the wake function for immediate action.
+ * Two-phase fault detection:
+ * 1. IMMEDIATE wake (during ingestion): Raw hardware values checked for
+ *    range violations. Wake callback triggered immediately for fastest
+ *    safety response (e.g., emergency shutdown).
+ * 
+ * 2. FULL fault processing (after merging): All checks applied (staleness,
+ *    range, status) on processed signals. Sets fault output signal and
+ *    optionally triggers limp-home mode.
+ * 
+ * This dual approach provides both speed (raw wake) and robustness
+ * (processed fault signals with voting/filtering).
  */
 struct lq_fault_monitor_ctx {
     uint8_t input_signal;         /**< Signal to monitor */

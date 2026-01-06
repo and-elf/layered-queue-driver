@@ -58,6 +58,24 @@ void lq_ingest_events(
         sig->status = evt->status;
         sig->timestamp = evt->timestamp;
         sig->updated = value_changed;
+        
+        /* IMMEDIATE wake on raw values for fastest safety response */
+        /* Check all fault monitors that watch this signal */
+        for (uint8_t j = 0; j < e->num_fault_monitors; j++) {
+            struct lq_fault_monitor_ctx *mon = &e->fault_monitors[j];
+            
+            if (!mon->enabled || mon->input_signal != evt->source_id || !mon->wake) {
+                continue;
+            }
+            
+            /* Fast range check on raw value (before any processing) */
+            if (mon->check_range) {
+                if (evt->value < mon->min_value || evt->value > mon->max_value) {
+                    /* Immediate wake on RAW out-of-range value */
+                    mon->wake(j, evt->value, mon->fault_level);
+                }
+            }
+        }
     }
 }
 
@@ -222,10 +240,8 @@ void lq_process_fault_monitors(
         fault_out->timestamp = now;
         fault_out->updated = changed;
         
-        /* Call wake function on fault state change */
-        if (changed && mon->wake) {
-            mon->wake(i, input->value, level);
-        }
+        /* Note: Wake function already called during ingestion on raw values */
+        /* This provides fastest possible response to dangerous conditions */
         
         /* Process limp-home actions if configured */
         if (mon->has_limp_action && mon->limp_target_scale_id < e->num_scales) {

@@ -66,11 +66,29 @@ properties:
   wake-function:
     type: string
     description: |
-      Name of wake callback function to call when fault state changes.
-      User must implement: void function_name(uint8_t monitor_id, 
-                                               int32_t input_value, 
-                                               enum lq_fault_level level)
-      Use this for immediate safety actions (shutdown, limp mode, etc.)
+      Name of wake callback function for IMMEDIATE safety response.
+      
+      Called during event ingestion when range faults are detected on
+      RAW hardware values (before any processing, merging, or scaling).
+      This provides the fastest possible response for safety-critical
+      conditions.
+      
+      User must implement:
+        void function_name(uint8_t monitor_id, 
+                          int32_t raw_value,
+                          enum lq_fault_level level)
+      
+      Use for immediate hardware safety actions:
+      - Emergency shutdown
+      - Power cutoff
+      - Hardware brake engagement
+      - Safety state transitions
+      
+      KEEP WAKE FUNCTIONS SHORT AND FAST - just set flags or trigger
+      hardware. Complex processing belongs elsewhere.
+      
+      Note: Only range checks trigger immediate wake. Staleness and
+      status checks happen later during full fault processing.
 
   limp-target-scale-id:
     type: int
