@@ -40,6 +40,16 @@ static struct {
 } hil_state = {
     .mode = LQ_HIL_MODE_DISABLED,
     .initialized = false,
+    .sock_adc = -1,
+    .sock_spi = -1,
+    .sock_can = -1,
+    .sock_gpio = -1,
+    .sock_sync = -1,
+    .listen_adc = -1,
+    .listen_spi = -1,
+    .listen_can = -1,
+    .listen_gpio = -1,
+    .listen_sync = -1,
 };
 
 /* Helper: Create socket path */
@@ -83,13 +93,21 @@ static int create_unix_socket(const char *path, bool is_server)
         }
     } else {
         /* Client: connect with retry */
+        printf("[HIL-Client] Connecting to %s...\n", path);
         int retries = 50;  /* 5 seconds */
         while (retries-- > 0) {
-            if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+            int ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+            if (ret == 0 || (ret < 0 && errno == EISCONN)) {
+                printf("[HIL-Client] Connected to %s (sock=%d)\n", path, sock);
                 return sock;
+            }
+            if (ret < 0 && errno != EINPROGRESS && errno != EALREADY) {
+                printf("[HIL-Client] Connect to %s failed: errno=%d (%s)\n", 
+                       path, errno, strerror(errno));
             }
             usleep(100000);  /* 100ms */
         }
+        printf("[HIL-Client] Connect timeout for %s\n", path);
         close(sock);
         return -ETIMEDOUT;
     }
@@ -105,16 +123,21 @@ static int accept_connection(int listen_sock, int timeout_ms)
         .events = POLLIN,
     };
     
+    printf("[SUT-Accept] Polling listen socket %d (timeout=%d)...\n", listen_sock, timeout_ms);
     int ret = poll(&pfd, 1, timeout_ms);
+    printf("[SUT-Accept] Poll returned %d\n", ret);
     if (ret <= 0) {
         return -ETIMEDOUT;
     }
     
+    printf("[SUT-Accept] Calling accept on socket %d...\n", listen_sock);
     int client = accept(listen_sock, NULL, NULL);
     if (client < 0) {
+        printf("[SUT-Accept] Accept failed: errno=%d (%s)\n", errno, strerror(errno));
         return -errno;
     }
     
+    printf("[SUT-Accept] Accepted connection: client_fd=%d\n", client);
     return client;
 }
 
@@ -250,10 +273,13 @@ int lq_hil_sut_recv_adc(struct lq_hil_adc_msg *msg, int timeout_ms)
     
     /* Accept connection if not yet connected */
     if (hil_state.sock_adc < 0) {
+        printf("[SUT-RX] Accepting ADC connection...\n");
         hil_state.sock_adc = accept_connection(hil_state.listen_adc, timeout_ms);
         if (hil_state.sock_adc < 0) {
+            printf("[SUT-RX] ADC accept failed: %d\n", hil_state.sock_adc);
             return hil_state.sock_adc;
         }
+        printf("[SUT-RX] ADC connection accepted (fd=%d)\n", hil_state.sock_adc);
     }
     
     /* Receive message */
@@ -269,6 +295,7 @@ int lq_hil_sut_recv_adc(struct lq_hil_adc_msg *msg, int timeout_ms)
     
     ssize_t n = recv(hil_state.sock_adc, msg, sizeof(*msg), 0);
     if (n != sizeof(*msg)) {
+        printf("[SUT-RX] ADC recv failed: %zd (expected %zu)\n", n, sizeof(*msg));
         return -EIO;
     }
     
@@ -342,8 +369,12 @@ int lq_hil_sut_send_can(const struct lq_hil_can_msg *msg)
         return -EINVAL;
     }
     
+    /* Accept connection on first send if not yet connected */
     if (hil_state.sock_can < 0) {
-        return 0;  /* No tester - OK */
+        hil_state.sock_can = accept_connection(hil_state.listen_can, 100);
+        if (hil_state.sock_can < 0) {
+            return 0;  /* No tester connected - OK */
+        }
     }
     
     ssize_t n = send(hil_state.sock_can, msg, sizeof(*msg), MSG_NOSIGNAL);
@@ -373,10 +404,13 @@ int lq_hil_tester_inject_adc(uint8_t channel, uint32_t value)
         .value = value,
     };
     
+    printf("[HIL-Tester] Injecting ADC ch%d = %u\n", channel, value);
     ssize_t n = send(hil_state.sock_adc, &msg, sizeof(msg), 0);
     if (n != sizeof(msg)) {
+        printf("[HIL-Tester] ADC inject failed: %zd (errno=%d)\n", n, errno);
         return -EIO;
     }
+    printf("[HIL-Tester] ADC injected successfully\n");
     
     return 0;
 }

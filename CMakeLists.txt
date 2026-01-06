@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Options
 option(BUILD_TESTS "Build tests" ON)
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
+option(ENABLE_HIL_TESTS "Enable HIL tests (requires SUT binary)" ON)
 
 # Platform detection
 if(NOT DEFINED LQ_PLATFORM)
@@ -86,16 +87,23 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
-    # Combined test executable with all tests (unit + HIL)
-    add_executable(all_tests
+    # Source files for all_tests
+    set(ALL_TESTS_SOURCES
         tests/queue_test.cpp
         tests/driver_test.cpp
-        tests/hil_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
         src/lq_hil.c
         src/lq_j1939.c
     )
+    
+    # Add HIL tests if enabled
+    if(ENABLE_HIL_TESTS)
+        list(APPEND ALL_TESTS_SOURCES tests/hil_test.cpp)
+    endif()
+    
+    # Combined test executable with all tests (unit + HIL)
+    add_executable(all_tests ${ALL_TESTS_SOURCES})
     
     target_link_libraries(all_tests PRIVATE
         layered_queue
@@ -107,7 +115,9 @@ if(BUILD_TESTS)
     )
     
     # HIL tests need the SUT binary to be available
-    add_dependencies(all_tests hil-sut-full)
+    if(ENABLE_HIL_TESTS)
+        add_dependencies(all_tests hil-sut-full)
+    endif()
     
     include(GoogleTest)
     gtest_discover_tests(all_tests)
@@ -238,6 +248,9 @@ message(STATUS "Version: ${PROJECT_VERSION}")
 message(STATUS "Platform: ${LQ_PLATFORM}")
 message(STATUS "Build tests: ${BUILD_TESTS}")
 message(STATUS "Enable coverage: ${ENABLE_COVERAGE}")
+if(BUILD_TESTS)
+    message(STATUS "Enable HIL tests: ${ENABLE_HIL_TESTS}")
+endif()
 message(STATUS "C Compiler: ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
 message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 if(BUILD_TESTS)

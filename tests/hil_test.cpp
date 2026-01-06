@@ -55,7 +55,7 @@ protected:
         
         // Parent: wait for SUT to initialize
         std::cout << "[HIL] SUT started with PID " << sut_pid << std::endl;
-        sleep(1);  // Give SUT time to initialize
+        sleep(2);  // Give SUT time to initialize and start receiver thread
         
         // Initialize HIL in tester mode
         if (lq_hil_init(LQ_HIL_MODE_TESTER, sut_pid) != 0) {
@@ -130,9 +130,9 @@ TEST_F(HILTest, AllInputsNominal) {
     ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 200), 0) 
         << "CAN message timeout";
     
-    // Verify PGN (should be EEC1 - 61444 / 0xF004)
+    // Verify PGN (should be 0xFEF1 = 65265 from generated config)
     uint32_t received_pgn = (can_msg.can_id >> 8) & 0x3FFFF;
-    EXPECT_EQ(received_pgn, 61444) << "Expected EEC1 PGN 61444";
+    EXPECT_EQ(received_pgn, 65265) << "Expected PGN 65265 (0xFEF1)";
 }
 
 TEST_F(HILTest, VotingMerge) {
@@ -147,9 +147,9 @@ TEST_F(HILTest, VotingMerge) {
     ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 200), 0)
         << "CAN message timeout";
     
-    // Verify PGN
+    // Verify PGN (0xFEF1 = 65265)
     uint32_t received_pgn = (can_msg.can_id >> 8) & 0x3FFFF;
-    EXPECT_EQ(received_pgn, 61444);
+    EXPECT_EQ(received_pgn, 65265);
     
     // The voted value should be close to the median (2500)
     // Parse RPM from CAN data (assume first 2 bytes, little-endian)

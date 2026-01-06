@@ -33,7 +33,9 @@ static void *hil_receiver_thread(void *arg) {
         struct lq_hil_adc_msg adc_msg;
         
         /* Poll for ADC injections */
+        printf("[SUT-RX] Calling lq_hil_sut_recv_adc...\n");
         int ret = lq_hil_sut_recv_adc(&adc_msg, 1000);
+        printf("[SUT-RX] lq_hil_sut_recv_adc returned %d\n", ret);
         if (ret == 0) {
             printf("[SUT-RX] Received ADC ch%d = %u\n", adc_msg.hdr.channel, adc_msg.value);
             /* Call the appropriate ISR based on channel */
