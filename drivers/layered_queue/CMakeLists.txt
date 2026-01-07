@@ -4,9 +4,9 @@
 zephyr_library()
 
 # Core library (platform-independent)
-zephyr_library_sources(../../src/lq_queue_core.c)
-zephyr_library_sources(../../src/lq_util.c)
-zephyr_library_sources(../../src/lq_spi_source.c)
+zephyr_library_sources(../../src/drivers/lq_queue_core.c)
+zephyr_library_sources(../../src/drivers/lq_util.c)
+zephyr_library_sources(../../src/drivers/lq_spi_source.c)
 zephyr_library_sources(../../src/platform/lq_platform_zephyr.c)
 
 # Zephyr device tree wrappers

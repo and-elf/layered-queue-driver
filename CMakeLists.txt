@@ -38,18 +38,19 @@ endif()
 
 # Core library
 add_library(layered_queue
-    src/lq_queue_core.c
-    src/lq_util.c
-    src/lq_spi_source.c
-    src/lq_engine.c
-    src/lq_hw_input.c
-    src/lq_j1939.c
-    src/lq_hil.c
-    src/lq_remap.c
-    src/lq_scale.c
-    src/lq_verified_output.c
-    src/lq_dtc.c
-    src/lq_pid.c
+    src/drivers/lq_queue_core.c
+    src/drivers/lq_util.c
+    src/drivers/lq_spi_source.c
+    src/drivers/lq_engine.c
+    src/drivers/lq_hw_input.c
+    src/drivers/lq_j1939.c
+    src/drivers/lq_canopen.c
+    src/drivers/lq_hil.c
+    src/drivers/lq_remap.c
+    src/drivers/lq_scale.c
+    src/drivers/lq_verified_output.c
+    src/drivers/lq_dtc.c
+    src/drivers/lq_pid.c
     ${PLATFORM_SOURCES}
 )
 
@@ -95,8 +96,8 @@ if(BUILD_TESTS)
         tests/dtc_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
-        src/lq_hil.c
-        src/lq_j1939.c
+        src/drivers/lq_hil.c
+        src/drivers/lq_j1939.c
     )
     
     # Add HIL tests if enabled
@@ -138,7 +139,7 @@ if(BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -E echo "Building simple echo SUT..."
         COMMAND ${CMAKE_C_COMPILER} 
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/simple_sut.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -lpthread
             -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut_simple
@@ -150,7 +151,7 @@ if(BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -E echo "Building HIL platform demo..."
         COMMAND ${CMAKE_C_COMPILER} 
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/real_sut.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/lq_platform_hil.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -lpthread
@@ -167,17 +168,17 @@ if(BUILD_TESTS)
         COMMAND ${CMAKE_C_COMPILER} 
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/real_sut.c
             ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_queue_core.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_util.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_spi_source.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_engine.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hw_input.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_j1939.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_remap.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_scale.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_pid.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_verified_output.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_queue_core.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_util.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_spi_source.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_engine.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hw_input.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_j1939.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_remap.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_scale.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_pid.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_verified_output.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/lq_platform_hil.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -I${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src
@@ -200,8 +201,8 @@ if(BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -E echo "Compiling test runner..."
         COMMAND ${CMAKE_C_COMPILER}
             ${CMAKE_CURRENT_BINARY_DIR}/hil/test_runner.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_hil.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lq_j1939.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_j1939.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -lpthread
             -o ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner
