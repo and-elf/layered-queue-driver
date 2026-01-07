@@ -66,6 +66,7 @@
             compatible = "lq,protocol-j1939";
             node-address = <0x25>;  /* Engine Controller #1 */
             priority = <6>;
+            mtu = <8>;              /* Standard CAN (8 bytes) */
             
             /* Receive EEC1 from another ECU */
             eec1-rx {
@@ -118,6 +119,7 @@
         canopen_motor: canopen-protocol@0 {
             compatible = "lq,protocol-canopen";
             node-id = <5>;
+            mtu = <8>;              /* Standard CAN (8 bytes) */
             heartbeat-period-ms = <1000>;
             nmt-startup-state = "pre-operational";
             

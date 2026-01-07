@@ -21,22 +21,20 @@
 extern "C" {
 #endif
 
-/* Maximum Transmission Unit - configurable at compile time */
-#ifndef LQ_PROTOCOL_MTU
-#define LQ_PROTOCOL_MTU 256  /**< Default 256 bytes (supports most protocols) */
-#endif
-
 /**
  * @brief Protocol message structure
  * 
  * Generic container for protocol messages across any transport.
  * Can represent CAN frames, UART packets, SPI transfers, GPIO patterns, etc.
- * Uses fixed-size buffer to avoid dynamic allocation.
+ * 
+ * Buffer is externally allocated (typically static array sized from device tree).
+ * This allows per-instance MTU without dynamic allocation.
  */
 struct lq_protocol_msg {
     uint32_t address;             /**< Message address/ID (CAN ID, UART addr, etc) */
-    uint8_t data[LQ_PROTOCOL_MTU];/**< Message payload (fixed size, no malloc) */
+    uint8_t *data;                /**< Message payload buffer (externally allocated) */
     size_t len;                   /**< Actual payload length */
+    size_t capacity;              /**< Buffer capacity (MTU from device tree) */
     uint64_t timestamp;           /**< Reception/transmission timestamp */
     uint32_t flags;               /**< Protocol-specific flags */
 };

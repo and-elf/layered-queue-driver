@@ -189,21 +189,69 @@ lq_canopen_set_nmt_state(&canopen_proto, CANOPEN_NMT_OPERATIONAL);
 
 Users can implement custom protocols by providing the `lq_protocol_vtbl` interface.
 
-### Compile-Time Configuration
+### Message Buffer Management
 
-The protocol message buffer size is configurable at compile time:
+Protocol messages use **externally allocated buffers** to enable per-instance MTU configuration from device tree:
 
 ```c
-/* In your build configuration or before including lq_protocol.h */
-#define LQ_PROTOCOL_MTU 512  /* Increase for larger messages */
-#include "lq_protocol.h"
+/* Protocol message with external buffer */
+struct lq_protocol_msg {
+    uint32_t address;      /* Transport-specific address */
+    uint8_t *data;         /* Points to static buffer */
+    size_t len;            /* Actual data length */
+    size_t capacity;       /* Buffer size (from DT mtu property) */
+    uint64_t timestamp;
+    uint32_t flags;
+};
 ```
 
-Default MTU is 256 bytes. Common values:
-- **8 bytes**: CAN 2.0 only (minimal)
-- **64 bytes**: CAN FD short frames
-- **256 bytes**: Default (supports most protocols)
-- **512+ bytes**: UART, TCP/IP, large payloads
+**Device Tree MTU Configuration**:
+```dts
+j1939: j1939-protocol {
+    compatible = "lq,protocol-j1939";
+    mtu = <8>;    /* Standard CAN: 8 bytes */
+    /* ... */
+};
+
+canfd_proto: j1939-canfd {
+    compatible = "lq,protocol-j1939";
+    mtu = <64>;   /* CAN-FD: up to 64 bytes */
+    /* ... */
+};
+
+uart_proto: uart-protocol {
+    compatible = "my,uart-protocol";
+    mtu = <256>;  /* UART: larger frames */
+    /* ... */
+};
+```
+
+**Benefits**:
+- ✅ **Per-instance MTU**: Each protocol instance has optimal buffer size
+- ✅ **No dynamic allocation**: Buffers are static arrays generated from device tree
+- ✅ **Compile-time safety**: Buffer sizes known at build time
+- ✅ **Memory efficiency**: No global maximum, each protocol uses exactly what it needs
+
+**Implementation** (Zephyr code generator creates):
+```c
+/* Generated from device tree */
+static uint8_t j1939_rx_buf[8];      /* mtu=<8> */
+static uint8_t canfd_rx_buf[64];     /* mtu=<64> */
+static uint8_t uart_rx_buf[256];     /* mtu=<256> */
+
+/* Usage */
+struct lq_protocol_msg msg = {
+    .data = j1939_rx_buf,
+    .capacity = sizeof(j1939_rx_buf),
+    /* ... */
+};
+```
+
+Common MTU values:
+- **8 bytes**: CAN 2.0 (J1939, CANopen)
+- **64 bytes**: CAN FD
+- **256 bytes**: UART/serial protocols
+- **512+ bytes**: TCP/IP, large payloads
 
 ### Step 1: Define Protocol Context
 
@@ -653,18 +701,22 @@ static size_t uart_config_get_cyclic(struct lq_protocol_driver *proto,
         return 0;
     }
     
-    /* Build status message - no malloc, uses fixed MTU buffer */
-    int len = snprintf((char *)out_msgs[0].data, LQ_PROTOCOL_MTU, "#STATUS:");
+    /* Build status message - uses external buffer (capacity from DT mtu) */
+    if (!out_msgs[0].data || out_msgs[0].capacity == 0) {
+        return 0;
+    }
+    
+    int len = snprintf((char *)out_msgs[0].data, out_msgs[0].capacity, "#STATUS:");
     
     /* Add all cached signal values */
-    for (size_t i = 0; i < ctx->num_signals && len < LQ_PROTOCOL_MTU - 20; i++) {
-        len += snprintf((char *)out_msgs[0].data + len, LQ_PROTOCOL_MTU - len, 
+    for (size_t i = 0; i < ctx->num_signals && len < (int)out_msgs[0].capacity - 20; i++) {
+        len += snprintf((char *)out_msgs[0].data + len, out_msgs[0].capacity - len, 
                        "%u=%d,", 
                        ctx->signals[i].signal_id,
                        ctx->signals[i].value);
     }
     
-    len += snprintf((char *)out_msgs[0].data + len, LQ_PROTOCOL_MTU - len, "\r\n");
+    len += snprintf((char *)out_msgs[0].data + len, out_msgs[0].capacity - len, "\r\n");
     
     out_msgs[0].address = 0;  /* Broadcast on UART */
     out_msgs[0].len = len;

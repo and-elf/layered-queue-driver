@@ -33,6 +33,22 @@ properties:
       Default CAN priority for transmitted messages (0-7).
       0 = highest priority, 7 = lowest.
 
+  mtu:
+    type: int
+    default: 8
+    description: |
+      Maximum Transmission Unit in bytes.
+      J1939 uses 8 bytes (standard CAN).
+      For CAN-FD, can be 64 bytes.
+
+  mtu:
+    type: int
+    default: 8
+    description: |
+      Maximum Transmission Unit in bytes.
+      J1939 uses 8 bytes (standard CAN).
+      For CAN-FD, can be 64 bytes.
+
 child-binding:
   description: PGN decode/encode mappings
 
