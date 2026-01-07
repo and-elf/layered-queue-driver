@@ -12,11 +12,14 @@
 static int j1939_init(struct lq_protocol_driver *proto, 
                       const struct lq_protocol_config *config)
 {
-    struct lq_j1939_ctx *ctx = (struct lq_j1939_ctx *)proto->ctx;
-    
-    if (!ctx || !config) {
+    if (!proto || !proto->ctx || !config) {
         return -1;
     }
+    
+    struct lq_j1939_ctx *ctx = (struct lq_j1939_ctx *)proto->ctx;
+    
+    /* Store config in protocol driver */
+    proto->config = *config;
     
     memset(ctx, 0, sizeof(*ctx));
     ctx->node_address = config->node_address;

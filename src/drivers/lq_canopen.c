@@ -15,15 +15,18 @@
 static int canopen_init(struct lq_protocol_driver *proto,
                         const struct lq_protocol_config *config)
 {
-    struct lq_canopen_ctx *ctx = (struct lq_canopen_ctx *)proto->ctx;
-    
-    if (!ctx || !config) {
+    if (!proto || !proto->ctx || !config) {
         return -1;
     }
     
+    struct lq_canopen_ctx *ctx = (struct lq_canopen_ctx *)proto->ctx;
+    
+    /* Store config in protocol driver */
+    proto->config = *config;
+    
     memset(ctx, 0, sizeof(*ctx));
     ctx->node_id = config->node_address;
-    ctx->nmt_state = CANOPEN_NMT_PRE_OPERATIONAL;  /* Start in pre-operational */
+    ctx->nmt_state = CANOPEN_STATE_PRE_OPERATIONAL;  /* Start in pre-operational */
     ctx->heartbeat_period_ms = 1000;  /* Default 1s heartbeat */
     
     return 0;
@@ -59,13 +62,13 @@ static size_t canopen_decode(struct lq_protocol_driver *proto,
             if (target == ctx->node_id || target == 0) {
                 switch (cmd) {
                     case CANOPEN_NMT_START:
-                        ctx->nmt_state = CANOPEN_NMT_OPERATIONAL;
+                        ctx->nmt_state = CANOPEN_STATE_OPERATIONAL;
                         break;
                     case CANOPEN_NMT_STOP:
-                        ctx->nmt_state = CANOPEN_NMT_STOPPED;
+                        ctx->nmt_state = CANOPEN_STATE_STOPPED;
                         break;
                     case CANOPEN_NMT_PRE_OPERATIONAL:
-                        ctx->nmt_state = CANOPEN_NMT_PRE_OPERATIONAL;
+                        ctx->nmt_state = CANOPEN_STATE_PRE_OPERATIONAL;
                         break;
                 }
             }
@@ -156,7 +159,7 @@ static size_t canopen_get_cyclic(struct lq_protocol_driver *proto,
     size_t num_msgs = 0;
     
     /* Only transmit if in operational state */
-    if (ctx->nmt_state != CANOPEN_NMT_OPERATIONAL) {
+    if (ctx->nmt_state != CANOPEN_STATE_OPERATIONAL) {
         return 0;
     }
     

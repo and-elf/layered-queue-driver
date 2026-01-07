@@ -47,10 +47,10 @@ typedef enum {
 
 /* NMT States */
 typedef enum {
-    CANOPEN_NMT_BOOTUP = 0,
-    CANOPEN_NMT_STOPPED = 4,
-    CANOPEN_NMT_OPERATIONAL = 5,
-    CANOPEN_NMT_PRE_OPERATIONAL = 127,
+    CANOPEN_STATE_BOOTUP = 0,
+    CANOPEN_STATE_STOPPED = 4,
+    CANOPEN_STATE_OPERATIONAL = 5,
+    CANOPEN_STATE_PRE_OPERATIONAL = 127,
 } lq_canopen_nmt_state_t;
 
 /* PDO Transmission Types */

@@ -94,10 +94,13 @@ if(BUILD_TESTS)
         tests/queue_test.cpp
         tests/driver_test.cpp
         tests/dtc_test.cpp
+        tests/j1939_test.cpp
+        tests/canopen_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
         src/drivers/lq_hil.c
         src/drivers/lq_j1939.c
+        src/drivers/lq_canopen.c
     )
     
     # Add HIL tests if enabled
