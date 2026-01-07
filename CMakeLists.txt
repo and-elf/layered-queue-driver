@@ -46,6 +46,8 @@ add_library(layered_queue
     src/drivers/lq_j1939.c
     src/drivers/lq_canopen.c
     src/drivers/lq_uds.c
+    src/drivers/lq_isotp.c
+    src/drivers/lq_uds_can.c
     src/drivers/lq_hil.c
     src/drivers/lq_remap.c
     src/drivers/lq_scale.c
@@ -98,6 +100,7 @@ if(BUILD_TESTS)
         tests/j1939_test.cpp
         tests/canopen_test.cpp
         tests/uds_test.cpp
+        tests/isotp_test.cpp
         tests/engine_test.cpp
         tests/hw_input_test.cpp
         samples/automotive/src/lq_generated_test.cpp
@@ -106,6 +109,8 @@ if(BUILD_TESTS)
         src/drivers/lq_j1939.c
         src/drivers/lq_canopen.c
         src/drivers/lq_uds.c
+        src/drivers/lq_isotp.c
+        src/drivers/lq_uds_can.c
     )
     
     # Add HIL tests if enabled
