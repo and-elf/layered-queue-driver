@@ -96,6 +96,7 @@ if(BUILD_TESTS)
         tests/dtc_test.cpp
         tests/j1939_test.cpp
         tests/canopen_test.cpp
+        tests/engine_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
         src/drivers/lq_hil.c
