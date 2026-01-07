@@ -1,0 +1,253 @@
+/*
+ * Complete Protocol Integration Example
+ * Demonstrates J1939 and CANopen in a hybrid system
+ */
+
+/dts-v1/;
+
+/ {
+    model = "Dual Protocol CAN System";
+    compatible = "example,dual-protocol";
+    
+    /* ========================================
+     * Signal Definitions
+     * ======================================== */
+    
+    signals {
+        /* J1939 Engine Signals */
+        engine_rpm: signal@1000 {
+            signal-id = <1000>;
+            description = "Engine speed (RPM)";
+        };
+        
+        engine_torque: signal@1001 {
+            signal-id = <1001>;
+            description = "Engine torque (%)";
+        };
+        
+        engine_temp: signal@1002 {
+            signal-id = <1002>;
+            description = "Coolant temperature (°C)";
+        };
+        
+        dtc_status: signal@1010 {
+            signal-id = <1010>;
+            description = "DTC status bitmap";
+        };
+        
+        /* CANopen Motor Drive Signals */
+        motor_speed: signal@2000 {
+            signal-id = <2000>;
+            description = "Motor speed (RPM)";
+        };
+        
+        motor_position: signal@2001 {
+            signal-id = <2001>;
+            description = "Motor position (encoder counts)";
+        };
+        
+        motor_command: signal@2010 {
+            signal-id = <2010>;
+            description = "Motor command";
+        };
+        
+        motor_status: signal@2011 {
+            signal-id = <2011>;
+            description = "Motor status word";
+        };
+    };
+    
+    /* ========================================
+     * J1939 Protocol Configuration
+     * ======================================== */
+    
+    protocols {
+        j1939_engine: j1939-protocol@0 {
+            compatible = "lq,protocol-j1939";
+            node-address = <0x25>;  /* Engine Controller #1 */
+            priority = <6>;
+            
+            /* Receive EEC1 from another ECU */
+            eec1-rx {
+                pgn = <65265>;  /* EEC1 - Electronic Engine Controller 1 */
+                direction = "rx";
+                signal-ids = <&engine_rpm &engine_torque>;
+                timeout-ms = <100>;  /* Expect every 50ms, timeout at 100ms */
+            };
+            
+            /* Transmit our own engine data */
+            eec1-tx {
+                pgn = <65265>;
+                direction = "tx";
+                signal-ids = <&engine_rpm &engine_torque>;
+                period-ms = <50>;    /* 20 Hz cyclic (J1939 standard) */
+                on-change;           /* Also send on significant change */
+            };
+            
+            /* Receive temperature data */
+            et1-rx {
+                pgn = <65262>;  /* ET1 - Engine Temperature 1 */
+                direction = "rx";
+                signal-ids = <&engine_temp>;
+                timeout-ms = <1000>;
+            };
+            
+            /* Transmit temperature */
+            et1-tx {
+                pgn = <65262>;
+                direction = "tx";
+                signal-ids = <&engine_temp>;
+                period-ms = <1000>;  /* 1 Hz cyclic */
+            };
+            
+            /* Transmit diagnostic messages */
+            dm1-tx {
+                pgn = <65226>;  /* DM1 - Active Diagnostic Trouble Codes */
+                direction = "tx";
+                signal-ids = <&dtc_status>;
+                on-change;      /* Only when DTCs change */
+            };
+        };
+    };
+    
+    /* ========================================
+     * CANopen Protocol Configuration
+     * ======================================== */
+    
+    protocols {
+        canopen_motor: canopen-protocol@0 {
+            compatible = "lq,protocol-canopen";
+            node-id = <5>;
+            heartbeat-period-ms = <1000>;
+            nmt-startup-state = "pre-operational";
+            
+            /* TPDO1: Transmit motor speed and position */
+            tpdo1 {
+                pdo-type = "tpdo1";
+                cob-id = <0x185>;  /* 0x180 + node-id */
+                transmission-type = <254>;  /* Event-driven */
+                event-timer-ms = <100>;     /* Max 100ms between updates */
+                inhibit-time-100us = <10>;  /* Min 1ms between updates */
+                
+                mappings {
+                    speed-map {
+                        signal-id = <&motor_speed>;
+                        index = <0x6064>;    /* Velocity actual value */
+                        subindex = <0>;
+                        length = <16>;
+                    };
+                    
+                    position-map {
+                        signal-id = <&motor_position>;
+                        index = <0x6063>;    /* Position actual value */
+                        subindex = <0>;
+                        length = <32>;
+                    };
+                };
+            };
+            
+            /* TPDO2: Transmit motor status */
+            tpdo2 {
+                pdo-type = "tpdo2";
+                cob-id = <0x285>;
+                transmission-type = <1>;    /* Every SYNC */
+                
+                mappings {
+                    status-map {
+                        signal-id = <&motor_status>;
+                        index = <0x6041>;    /* Status word */
+                        subindex = <0>;
+                        length = <16>;
+                    };
+                };
+            };
+            
+            /* RPDO1: Receive motor commands */
+            rpdo1 {
+                pdo-type = "rpdo1";
+                cob-id = <0x205>;  /* 0x200 + node-id */
+                
+                mappings {
+                    command-map {
+                        signal-id = <&motor_command>;
+                        index = <0x6040>;    /* Control word */
+                        subindex = <0>;
+                        length = <16>;
+                    };
+                };
+            };
+        };
+    };
+    
+    /* ========================================
+     * Hardware Mapping
+     * ======================================== */
+    
+    /* CAN0: J1939 Heavy Vehicle Network */
+    &can0 {
+        status = "okay";
+        bitrate = <250000>;  /* 250 kbps (J1939 standard) */
+        
+        /* Link J1939 protocol */
+        protocol = <&j1939_engine>;
+    };
+    
+    /* CAN1: CANopen Industrial Network */
+    &can1 {
+        status = "okay";
+        bitrate = <1000000>;  /* 1 Mbps (CANopen high-speed) */
+        
+        /* Link CANopen protocol */
+        protocol = <&canopen_motor>;
+    };
+    
+    /* ========================================
+     * Processing Engine
+     * ======================================== */
+    
+    engine {
+        compatible = "lq,engine";
+        
+        /* Process signals from both protocols */
+        inputs = <&engine_rpm &engine_torque &engine_temp
+                  &motor_speed &motor_position &motor_command>;
+        
+        /* Cross-protocol logic example:
+         * Use J1939 engine speed to control CANopen motor
+         */
+        motor_speed_control: scale@0 {
+            compatible = "lq,scale";
+            input-signal-id = <&engine_rpm>;
+            output-signal-id = <&motor_command>;
+            multiplier = <2>;  /* Motor at 2x engine speed */
+            offset = <0>;
+        };
+    };
+};
+
+/* ========================================
+ * Usage Notes
+ * ======================================== 
+ *
+ * This example demonstrates:
+ * 
+ * 1. Dual protocol operation:
+ *    - J1939 on CAN0 for vehicle networks
+ *    - CANopen on CAN1 for industrial automation
+ * 
+ * 2. Bidirectional communication:
+ *    - Both RX (decode) and TX (encode) configured
+ *    - Separate hardware interfaces per protocol
+ * 
+ * 3. Cross-protocol integration:
+ *    - Engine data from J1939 can control CANopen motor
+ *    - All signals available to processing engine
+ * 
+ * 4. Timing requirements:
+ *    - J1939: Cyclic + on-change transmission
+ *    - CANopen: Event-driven + SYNC-based PDOs
+ * 
+ * 5. Extensibility:
+ *    - Users can add custom protocols following same pattern
+ *    - Protocol drivers are self-contained modules
+ */

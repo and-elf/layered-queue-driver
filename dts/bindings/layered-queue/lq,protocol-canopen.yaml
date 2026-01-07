@@ -1,0 +1,138 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  CANopen Protocol Driver - CANopen DS-301 protocol support
+  
+  Implements bidirectional CANopen protocol handling:
+  - Decode: Parses incoming PDOs, NMT, SDO to internal signals
+  - Encode: Formats internal signals to outgoing PDOs
+  
+  Supports PDO (Process Data Objects), SDO (Service Data Objects),
+  NMT (Network Management), SYNC, and Heartbeat.
+
+compatible: "lq,protocol-canopen"
+
+properties:
+  node-id:
+    type: int
+    required: true
+    description: |
+      CANopen node ID (1-127).
+      0 is reserved for NMT master.
+
+  heartbeat-period-ms:
+    type: int
+    default: 1000
+    description: |
+      Heartbeat transmission period in milliseconds.
+      0 = heartbeat disabled.
+      Typical: 1000ms for normal operation.
+
+  nmt-startup-state:
+    type: string
+    default: "pre-operational"
+    enum: ["pre-operational", "operational", "stopped"]
+    description: |
+      Initial NMT state on bootup.
+      - pre-operational: SDO only, no PDO transmission
+      - operational: Full operation with PDO
+      - stopped: No communication
+
+child-binding:
+  description: PDO (Process Data Object) configurations
+
+  properties:
+    pdo-type:
+      type: string
+      required: true
+      enum: ["tpdo1", "tpdo2", "tpdo3", "tpdo4", "rpdo1", "rpdo2", "rpdo3", "rpdo4"]
+      description: |
+        PDO type and number:
+        - tpdo: Transmit PDO (output from this node)
+        - rpdo: Receive PDO (input to this node)
+        Numbers 1-4 indicate PDO slot.
+
+    cob-id:
+      type: int
+      required: true
+      description: |
+        COB-ID for this PDO.
+        Default CANopen COB-IDs:
+        - TPDO1: 0x180 + node-id
+        - TPDO2: 0x280 + node-id
+        - TPDO3: 0x380 + node-id
+        - TPDO4: 0x480 + node-id
+        - RPDO1: 0x200 + node-id
+        - RPDO2: 0x300 + node-id
+        - RPDO3: 0x400 + node-id
+        - RPDO4: 0x500 + node-id
+
+    transmission-type:
+      type: int
+      default: 254
+      description: |
+        PDO transmission type:
+        - 0: Synchronous, acyclic
+        - 1-240: Synchronous, every Nth SYNC
+        - 254: Event-driven (manufacturer-specific)
+        - 255: Device profile specific
+
+    inhibit-time-100us:
+      type: int
+      default: 0
+      description: |
+        Minimum time between transmissions in 100us units.
+        Prevents bus flooding on rapid signal changes.
+        Example: 10 = 1ms minimum spacing.
+
+    event-timer-ms:
+      type: int
+      default: 0
+      description: |
+        Event timer period in milliseconds.
+        For event-driven PDOs, max time between transmissions.
+        0 = no event timer.
+
+    mappings:
+      type: array
+      required: true
+      description: |
+        Array of signal-to-PDO mappings.
+        Each mapping specifies:
+        - signal-id: Internal signal ID
+        - index: Object dictionary index (optional)
+        - subindex: Object dictionary subindex (optional)
+        - length: Data length in bits (8, 16, 32)
+        
+        Signals are packed sequentially into PDO data.
+
+  child-binding:
+    description: Individual PDO mapping entry
+
+    properties:
+      signal-id:
+        type: int
+        required: true
+        description: Internal signal ID for this mapping
+
+      index:
+        type: int
+        default: 0
+        description: Object dictionary index (informational)
+
+      subindex:
+        type: int
+        default: 0
+        description: Object dictionary subindex (informational)
+
+      length:
+        type: int
+        required: true
+        enum: [8, 16, 32]
+        description: |
+          Data length in bits.
+          Common sizes:
+          - 8: Boolean, byte values
+          - 16: Integers, status words
+          - 32: Integers, floats (as int32)

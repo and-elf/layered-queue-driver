@@ -1,0 +1,106 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  J1939 Protocol Driver - SAE J1939 CAN protocol support
+  
+  Implements bidirectional J1939 protocol handling:
+  - Decode: Parses incoming J1939 PGNs to internal signals
+  - Encode: Formats internal signals to outgoing J1939 messages
+  
+  Supports standard PGNs (EEC1, ET1, DM1, etc.) with configurable
+  cyclic transmission and on-change updates.
+
+compatible: "lq,protocol-j1939"
+
+properties:
+  node-address:
+    type: int
+    required: true
+    description: |
+      J1939 source address for this node (0-253).
+      Common ranges:
+      - 0-127: Preferred addresses
+      - 128-247: Self-configurable
+      - 248-253: Industry-specific
+      - 254: NULL address
+      - 255: Global/broadcast
+
+  priority:
+    type: int
+    default: 6
+    description: |
+      Default CAN priority for transmitted messages (0-7).
+      0 = highest priority, 7 = lowest.
+
+child-binding:
+  description: PGN decode/encode mappings
+
+  properties:
+    pgn:
+      type: int
+      required: true
+      description: |
+        J1939 Parameter Group Number (PGN).
+        Standard PGNs:
+        - 65265 (0xFEF1): EEC1 - Engine Controller
+        - 65262 (0xFEEE): ET1 - Engine Temperature
+        - 65226 (0xFECA): DM1 - Active DTCs
+        - 65227 (0xFECB): DM2 - Previously Active DTCs
+
+    direction:
+      type: string
+      required: true
+      enum: ["rx", "tx", "both"]
+      description: |
+        Message direction:
+        - rx: Receive only (decode to signals)
+        - tx: Transmit only (encode from signals)
+        - both: Bidirectional
+
+    signal-ids:
+      type: array
+      required: true
+      description: |
+        Array of signal IDs associated with this PGN.
+        Order matters - signals map to PGN byte layout.
+        
+        For EEC1 example:
+        - signal-ids[0] = Engine RPM
+        - signal-ids[1] = Engine Torque
+
+    period-ms:
+      type: int
+      default: 0
+      description: |
+        Cyclic transmission period in milliseconds (TX only).
+        0 = on-change transmission only.
+        Common periods:
+        - 10ms: Critical control signals
+        - 50ms: Normal engine data
+        - 100ms: Auxiliary data
+        - 1000ms: Diagnostic data
+
+    on-change:
+      type: boolean
+      default: false
+      description: |
+        Transmit message when signal values change (TX only).
+        Can be combined with cyclic transmission.
+
+    scaling:
+      type: array
+      description: |
+        Optional scaling factors for each signal.
+        Array of objects with:
+        - multiplier: float
+        - offset: int
+        Example: J1939 RPM = value * 0.125
+
+    timeout-ms:
+      type: int
+      default: 0
+      description: |
+        Reception timeout in milliseconds (RX only).
+        If no message received within timeout, signals marked stale.
+        0 = no timeout checking.

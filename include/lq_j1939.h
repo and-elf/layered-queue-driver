@@ -2,11 +2,13 @@
  * J1939 Protocol Support for Layered Queue Driver
  * 
  * Provides J1939 message formatting and diagnostic protocol support
+ * Implements the unified protocol driver interface (decode RX + encode TX)
  */
 
 #ifndef LQ_J1939_H_
 #define LQ_J1939_H_
 
+#include "lq_protocol.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -139,6 +141,86 @@ static inline uint8_t lq_j1939_get_oc(uint32_t dtc) { return (dtc >> 24) & 0x7F;
 #define J1939_SPN_FUEL_RATE             183
 #define J1939_SPN_VEHICLE_SPEED         84
 #define J1939_SPN_ACCEL_PEDAL_POS       91
+
+/* J1939 Protocol Driver Context */
+struct lq_j1939_ctx {
+    uint8_t node_address;         /* Our J1939 address on the bus */
+    
+    /* Cached signal values for TX */
+    struct {
+        uint32_t signal_id;
+        int32_t value;
+        uint64_t timestamp;
+    } signals[32];
+    size_t num_signals;
+    
+    /* Cyclic message tracking */
+    struct {
+        uint32_t pgn;
+        uint64_t last_tx_time;
+        uint32_t period_ms;
+    } cyclic_msgs[16];
+    size_t num_cyclic;
+    
+    /* Diagnostic state */
+    lq_j1939_dm1_t dm1;
+};
+
+/**
+ * @brief Create J1939 protocol driver instance
+ * 
+ * @param proto Protocol driver to initialize
+ * @param config Protocol configuration (node address, mappings, etc)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_j1939_protocol_create(struct lq_protocol_driver *proto,
+                              const struct lq_protocol_config *config);
+
+/**
+ * @brief J1939 Protocol Driver vtable
+ * 
+ * Exported for advanced users who want to customize behavior.
+ */
+extern const struct lq_protocol_vtbl lq_j1939_protocol_vtbl;
+
+/* Legacy utility functions for direct message formatting */
+
+/* Format DM1 message into 8-byte CAN frame */
+int lq_j1939_format_dm1(const lq_j1939_dm1_t *dm1, uint8_t *data, size_t data_len);
+
+/* Format DM0 (Broadcast of stop/warning lamps) */
+int lq_j1939_format_dm0(lq_j1939_lamp_t stop_lamp, lq_j1939_lamp_t warning_lamp, 
+                        uint8_t *data, size_t data_len);
+
+/**
+ * @brief Decode J1939 EEC1 message (Engine Controller 1)
+ * 
+ * @param data CAN message data (8 bytes)
+ * @param rpm Output: Engine speed in RPM
+ * @param torque Output: Engine torque (% of reference)
+ * @return 0 on success, -1 on error
+ */
+int lq_j1939_decode_eec1(const uint8_t *data, uint16_t *rpm, uint8_t *torque);
+
+/**
+ * @brief Encode J1939 EEC1 message
+ * 
+ * @param rpm Engine speed in RPM
+ * @param torque Engine torque (% of reference)
+ * @param data Output buffer (must be 8 bytes)
+ * @return 0 on success, -1 on error
+ */
+int lq_j1939_encode_eec1(uint16_t rpm, uint8_t torque, uint8_t *data);
+
+/**
+ * @brief Decode J1939 DM1 message
+ * 
+ * @param data CAN message data
+ * @param len Data length
+ * @param dm1 Output DM1 structure
+ * @return 0 on success, -1 on error
+ */
+int lq_j1939_decode_dm1(const uint8_t *data, size_t len, lq_j1939_dm1_t *dm1);
 
 #ifdef __cplusplus
 }
