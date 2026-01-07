@@ -43,8 +43,12 @@ static size_t j1939_decode(struct lq_protocol_driver *proto,
     }
     
     struct lq_j1939_ctx *ctx = (struct lq_j1939_ctx *)proto->ctx;
-    uint32_t pgn = lq_j1939_extract_pgn(msg->id);
+    uint32_t pgn = lq_j1939_extract_pgn(msg->address);
     size_t num_events = 0;
+    
+    if (!msg->data || msg->len < 8) {
+        return 0;  /* J1939 requires 8-byte CAN frames */
+    }
     
     /* Find decode mapping for this PGN */
     const struct lq_protocol_decode_map *map = NULL;
@@ -147,10 +151,17 @@ static size_t j1939_get_cyclic(struct lq_protocol_driver *proto,
             uint32_t pgn = ctx->cyclic_msgs[i].pgn;
             
             /* Build message based on PGN */
-            out_msgs[num_msgs].id = lq_j1939_build_id_from_pgn(pgn, 6, ctx->node_address);
+            uint8_t *msg_data = (uint8_t *)malloc(8);
+            if (!msg_data) {
+                continue;
+            }
+            
+            out_msgs[num_msgs].address = lq_j1939_build_id_from_pgn(pgn, 6, ctx->node_address);
+            out_msgs[num_msgs].data = msg_data;
             out_msgs[num_msgs].len = 8;
+            out_msgs[num_msgs].max_len = 8;
             out_msgs[num_msgs].timestamp = now;
-            memset(out_msgs[num_msgs].data, 0xFF, 8);  /* J1939 default */
+            memset(msg_data, 0xFF, 8);  /* J1939 default */
             
             switch (pgn) {
                 case J1939_PGN_EEC1: {
@@ -160,16 +171,16 @@ static size_t j1939_get_cyclic(struct lq_protocol_driver *proto,
                         uint16_t rpm = (uint16_t)(ctx->signals[0].value / 0.125);
                         int8_t torque = (int8_t)(ctx->signals[1].value + 125);
                         
-                        out_msgs[num_msgs].data[2] = (uint8_t)torque;
-                        out_msgs[num_msgs].data[3] = rpm & 0xFF;
-                        out_msgs[num_msgs].data[4] = (rpm >> 8) & 0xFF;
+                        msg_data[2] = (uint8_t)torque;
+                        msg_data[3] = rpm & 0xFF;
+                        msg_data[4] = (rpm >> 8) & 0xFF;
                     }
                     break;
                 }
                 
                 case J1939_PGN_DM1: {
                     /* Encode DM1 from diagnostic state */
-                    lq_j1939_format_dm1(&ctx->dm1, out_msgs[num_msgs].data, 8);
+                    lq_j1939_format_dm1(&ctx->dm1, msg_data, 8);
                     break;
                 }
             }

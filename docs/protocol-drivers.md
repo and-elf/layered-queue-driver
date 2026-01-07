@@ -2,21 +2,29 @@
 
 ## Overview
 
-Protocol drivers in the Layered Queue Driver provide unified bidirectional protocol support, combining:
-- **Decode (RX)**: Parse incoming network messages into internal signals (mid-level driver)
-- **Encode (TX)**: Format internal signals into outgoing network messages (output driver)
+Protocol drivers in the Layered Queue Driver provide unified bidirectional protocol support **across any transport** (CAN, UART, SPI, GPIO, etc.), combining:
+- **Decode (RX)**: Parse incoming messages into internal signals (mid-level driver)
+- **Encode (TX)**: Format internal signals into outgoing messages (output driver)
 - **Shared state**: Protocol context shared between RX and TX paths
 
-This design enables stateful protocols (J1939, CANopen, Modbus, etc.) where RX and TX need coordinated behavior.
+This design is **transport-agnostic** - the same pattern works for CAN networks, serial protocols, SPI devices, GPIO patterns, or custom transports.
 
 ## Architecture
 
 ```
-CAN RX ISR → Protocol.decode() → Events → Engine → Protocol.encode() → CAN TX
-             ↑ (mid-level)                         ↓ (output)
-             └─────────── Shared Protocol State ──────────┘
-                    (node address, sessions, counters)
+Transport RX → Protocol.decode() → Events → Engine → Protocol.encode() → Transport TX
+   (Any)        ↑ (mid-level)                        ↓ (output)             (Any)
+                └────────── Shared Protocol State ──────────┘
+                     (addressing, sessions, counters)
 ```
+
+### Supported Transports
+
+- **CAN**: J1939, CANopen, custom CAN protocols
+- **UART/Serial**: Modbus RTU, custom ASCII/binary protocols, configuration interfaces
+- **SPI**: Sensor protocols, peripheral communication
+- **GPIO**: PWM encoding, parallel data, bit-banged protocols
+- **Custom**: Any user-defined transport
 
 ### Data Flow
 
@@ -513,6 +521,235 @@ struct ctx {
 };
 
 /* Track requests in encode(), match in decode() */
+```
+
+## Example: UART Configuration Protocol
+
+Here's a complete example of a custom UART-based configuration protocol:
+
+### Protocol Specification
+
+```
+Message Format (ASCII):
+  #CMD:ADDR:DATA\r\n
+  
+Commands:
+  #GET:1000\r\n          -> Read signal 1000
+  #SET:1000:1234\r\n     -> Write signal 1000 = 1234
+  #CFG:RATE:50\r\n       -> Configure update rate (50ms)
+```
+
+### Implementation
+
+```c
+/* uart_config_protocol.h */
+#include "lq_protocol.h"
+
+#define UART_MSG_MAX_LEN 128
+
+struct uart_config_ctx {
+    uint8_t device_id;
+    uint32_t update_rate_ms;
+    
+    /* RX parsing state */
+    uint8_t rx_buffer[UART_MSG_MAX_LEN];
+    size_t rx_pos;
+    
+    /* TX state */
+    uint64_t last_update_time;
+    
+    /* Cached signals for periodic transmission */
+    struct {
+        uint32_t signal_id;
+        int32_t value;
+        uint64_t timestamp;
+    } signals[32];
+    size_t num_signals;
+};
+
+/* uart_config_protocol.c */
+static int uart_config_init(struct lq_protocol_driver *proto,
+                            const struct lq_protocol_config *config)
+{
+    struct uart_config_ctx *ctx = proto->ctx;
+    
+    ctx->device_id = config->node_address;
+    ctx->update_rate_ms = 100;  /* Default 100ms */
+    ctx->rx_pos = 0;
+    
+    return 0;
+}
+
+static size_t uart_config_decode(struct lq_protocol_driver *proto,
+                                  uint64_t now,
+                                  const struct lq_protocol_msg *msg,
+                                  struct lq_event *out_events,
+                                  size_t max_events)
+{
+    struct uart_config_ctx *ctx = proto->ctx;
+    
+    if (!msg->data || msg->len == 0) {
+        return 0;
+    }
+    
+    /* Parse ASCII command: #GET:1000\r\n or #SET:1000:1234\r\n */
+    char cmd[16] = {0};
+    uint32_t signal_id = 0;
+    int32_t value = 0;
+    
+    /* Simple ASCII parsing */
+    if (sscanf((char *)msg->data, "#%[^:]:%u:%d", cmd, &signal_id, &value) >= 2) {
+        
+        if (strcmp(cmd, "SET") == 0 && max_events > 0) {
+            /* Generate event for SET command */
+            out_events[0].source_id = signal_id;
+            out_events[0].value = value;
+            out_events[0].status = LQ_EVENT_OK;
+            out_events[0].timestamp = now;
+            return 1;
+        }
+        
+        if (strcmp(cmd, "CFG") == 0) {
+            /* Configuration command */
+            if (signal_id == 0) {  /* Update rate config */
+                ctx->update_rate_ms = value;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+static size_t uart_config_get_cyclic(struct lq_protocol_driver *proto,
+                                      uint64_t now,
+                                      struct lq_protocol_msg *out_msgs,
+                                      size_t max_msgs)
+{
+    struct uart_config_ctx *ctx = proto->ctx;
+    
+    if (max_msgs == 0) {
+        return 0;
+    }
+    
+    /* Check if update is due */
+    uint64_t elapsed_ms = (now - ctx->last_update_time) / 1000;
+    if (elapsed_ms < ctx->update_rate_ms) {
+        return 0;
+    }
+    
+    /* Build status message with all signals */
+    char *response = (char *)malloc(UART_MSG_MAX_LEN);
+    if (!response) {
+        return 0;
+    }
+    
+    int len = snprintf(response, UART_MSG_MAX_LEN, "#STATUS:");
+    
+    /* Add all cached signal values */
+    for (size_t i = 0; i < ctx->num_signals && len < UART_MSG_MAX_LEN - 20; i++) {
+        len += snprintf(response + len, UART_MSG_MAX_LEN - len, 
+                       "%u=%d,", 
+                       ctx->signals[i].signal_id,
+                       ctx->signals[i].value);
+    }
+    
+    len += snprintf(response + len, UART_MSG_MAX_LEN - len, "\r\n");
+    
+    out_msgs[0].address = 0;  /* Broadcast on UART */
+    out_msgs[0].data = (uint8_t *)response;
+    out_msgs[0].len = len;
+    out_msgs[0].max_len = UART_MSG_MAX_LEN;
+    out_msgs[0].timestamp = now;
+    
+    ctx->last_update_time = now;
+    
+    return 1;
+}
+
+static void uart_config_update_signal(struct lq_protocol_driver *proto,
+                                       uint32_t signal_id,
+                                       int32_t value,
+                                       uint64_t timestamp)
+{
+    struct uart_config_ctx *ctx = proto->ctx;
+    
+    /* Update or add signal */
+    for (size_t i = 0; i < ctx->num_signals; i++) {
+        if (ctx->signals[i].signal_id == signal_id) {
+            ctx->signals[i].value = value;
+            ctx->signals[i].timestamp = timestamp;
+            return;
+        }
+    }
+    
+    if (ctx->num_signals < 32) {
+        ctx->signals[ctx->num_signals].signal_id = signal_id;
+        ctx->signals[ctx->num_signals].value = value;
+        ctx->signals[ctx->num_signals].timestamp = timestamp;
+        ctx->num_signals++;
+    }
+}
+
+const struct lq_protocol_vtbl uart_config_vtbl = {
+    .init = uart_config_init,
+    .decode = uart_config_decode,
+    .encode = NULL,  /* Use get_cyclic instead */
+    .get_cyclic = uart_config_get_cyclic,
+    .update_signal = uart_config_update_signal,
+};
+
+/* Create UART config protocol */
+int uart_config_protocol_create(struct lq_protocol_driver *proto,
+                                 const struct lq_protocol_config *config)
+{
+    struct uart_config_ctx *ctx = malloc(sizeof(*ctx));
+    if (!ctx) return -1;
+    
+    proto->vtbl = &uart_config_vtbl;
+    proto->ctx = ctx;
+    
+    return proto->vtbl->init(proto, config);
+}
+```
+
+### Device Tree Configuration
+
+```dts
+uart_config: uart-config-protocol {
+    compatible = "custom,uart-config";
+    node-address = <1>;  /* Device ID */
+    
+    /* Signals to expose over UART */
+    monitored-signals {
+        signal-ids = <&motor_speed &motor_temp &battery_voltage>;
+    };
+    
+    /* Update rate configuration */
+    update-rate-ms = <100>;
+};
+
+&uart0 {
+    status = "okay";
+    baudrate = <115200>;
+    protocol = <&uart_config>;
+};
+```
+
+### Usage
+
+```bash
+# Read motor speed
+echo "#GET:2000" > /dev/ttyUSB0
+
+# Set motor command
+echo "#SET:2010:500" > /dev/ttyUSB0
+
+# Configure update rate to 50ms
+echo "#CFG:RATE:50" > /dev/ttyUSB0
+
+# Receive periodic status
+cat /dev/ttyUSB0
+#STATUS:2000=3000,2001=75,2002=48,
 ```
 
 ## See Also

@@ -42,11 +42,15 @@ static size_t canopen_decode(struct lq_protocol_driver *proto,
     struct lq_canopen_ctx *ctx = (struct lq_canopen_ctx *)proto->ctx;
     size_t num_events = 0;
     
-    uint16_t function_code = msg->id & 0x780;
-    uint8_t node_id = msg->id & 0x7F;
+    if (!msg->data) {
+        return 0;
+    }
+    
+    uint16_t function_code = msg->address & 0x780;
+    uint8_t node_id = msg->address & 0x7F;
     
     /* Handle NMT messages */
-    if (msg->id == CANOPEN_FC_NMT) {
+    if (msg->address == CANOPEN_FC_NMT) {
         if (msg->len == 2) {
             uint8_t cmd = msg->data[0];
             uint8_t target = msg->data[1];
@@ -70,14 +74,14 @@ static size_t canopen_decode(struct lq_protocol_driver *proto,
     }
     
     /* Handle SYNC */
-    if (msg->id == CANOPEN_FC_SYNC) {
+    if (msg->address == CANOPEN_FC_SYNC) {
         ctx->sync_counter++;
         return 0;
     }
     
     /* Handle RPDO (Receive PDO - incoming data) */
     for (int pdo_idx = 0; pdo_idx < 4; pdo_idx++) {
-        if (ctx->rpdo[pdo_idx].cob_id == msg->id) {
+        if (ctx->rpdo[pdo_idx].cob_id == msg->address) {
             /* Decode PDO based on mappings */
             size_t bit_offset = 0;
             
@@ -159,27 +163,37 @@ static size_t canopen_get_cyclic(struct lq_protocol_driver *proto,
     /* Send heartbeat if due */
     uint64_t elapsed_ms = (now - ctx->last_heartbeat_time) / 1000;
     if (elapsed_ms >= ctx->heartbeat_period_ms && num_msgs < max_msgs) {
-        out_msgs[num_msgs].id = lq_canopen_build_cob_id(CANOPEN_FC_HEARTBEAT, ctx->node_id);
-        out_msgs[num_msgs].len = 1;
-        out_msgs[num_msgs].data[0] = ctx->nmt_state;
-        out_msgs[num_msgs].timestamp = now;
-        
-        ctx->last_heartbeat_time = now;
-        num_msgs++;
+        uint8_t *hb_data = (uint8_t *)malloc(1);
+        if (hb_data) {
+            out_msgs[num_msgs].address = lq_canopen_build_cob_id(CANOPEN_FC_HEARTBEAT, ctx->node_id);
+            out_msgs[num_msgs].data = hb_data;
+            out_msgs[num_msgs].len = 1;
+            out_msgs[num_msgs].max_len = 1;
+            hb_data[0] = ctx->nmt_state;
+            out_msgs[num_msgs].timestamp = now;
+            
+            ctx->last_heartbeat_time = now;
+            num_msgs++;
+        }
     }
     
     /* Send emergency if pending */
     if (ctx->emcy_pending && num_msgs < max_msgs) {
-        out_msgs[num_msgs].id = lq_canopen_build_cob_id(CANOPEN_FC_EMCY, ctx->node_id);
-        out_msgs[num_msgs].len = 8;
-        out_msgs[num_msgs].data[0] = ctx->emcy_error_code & 0xFF;
-        out_msgs[num_msgs].data[1] = (ctx->emcy_error_code >> 8) & 0xFF;
-        out_msgs[num_msgs].data[2] = 0;  /* Error register */
-        memset(&out_msgs[num_msgs].data[3], 0, 5);  /* Manufacturer data */
-        out_msgs[num_msgs].timestamp = now;
-        
-        ctx->emcy_pending = false;
-        num_msgs++;
+        uint8_t *emcy_data = (uint8_t *)malloc(8);
+        if (emcy_data) {
+            out_msgs[num_msgs].address = lq_canopen_build_cob_id(CANOPEN_FC_EMCY, ctx->node_id);
+            out_msgs[num_msgs].data = emcy_data;
+            out_msgs[num_msgs].len = 8;
+            out_msgs[num_msgs].max_len = 8;
+            emcy_data[0] = ctx->emcy_error_code & 0xFF;
+            emcy_data[1] = (ctx->emcy_error_code >> 8) & 0xFF;
+            emcy_data[2] = 0;  /* Error register */
+            memset(&emcy_data[3], 0, 5);  /* Manufacturer data */
+            out_msgs[num_msgs].timestamp = now;
+            
+            ctx->emcy_pending = false;
+            num_msgs++;
+        }
     }
     
     /* Send TPDOs based on transmission type */
@@ -209,10 +223,17 @@ static size_t canopen_get_cyclic(struct lq_protocol_driver *proto,
         
         if (should_transmit) {
             /* Build PDO message from mapped signals */
-            out_msgs[num_msgs].id = pdo->cob_id;
+            uint8_t *pdo_data = (uint8_t *)malloc(8);
+            if (!pdo_data) {
+                continue;
+            }
+            
+            out_msgs[num_msgs].address = pdo->cob_id;
+            out_msgs[num_msgs].data = pdo_data;
             out_msgs[num_msgs].len = 8;
+            out_msgs[num_msgs].max_len = 8;
             out_msgs[num_msgs].timestamp = now;
-            memset(out_msgs[num_msgs].data, 0, 8);
+            memset(pdo_data, 0, 8);
             
             size_t bit_offset = 0;
             for (size_t i = 0; i < pdo->num_mappings; i++) {
@@ -232,21 +253,21 @@ static size_t canopen_get_cyclic(struct lq_protocol_driver *proto,
                 switch (map->length) {
                     case 8:
                         if (byte_idx < 8) {
-                            out_msgs[num_msgs].data[byte_idx] = (uint8_t)value;
+                            pdo_data[byte_idx] = (uint8_t)value;
                         }
                         break;
                     case 16:
                         if (byte_idx + 1 < 8) {
-                            out_msgs[num_msgs].data[byte_idx] = value & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 1] = (value >> 8) & 0xFF;
+                            pdo_data[byte_idx] = value & 0xFF;
+                            pdo_data[byte_idx + 1] = (value >> 8) & 0xFF;
                         }
                         break;
                     case 32:
                         if (byte_idx + 3 < 8) {
-                            out_msgs[num_msgs].data[byte_idx] = value & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 1] = (value >> 8) & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 2] = (value >> 16) & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 3] = (value >> 24) & 0xFF;
+                            pdo_data[byte_idx] = value & 0xFF;
+                            pdo_data[byte_idx + 1] = (value >> 8) & 0xFF;
+                            pdo_data[byte_idx + 2] = (value >> 16) & 0xFF;
+                            pdo_data[byte_idx + 3] = (value >> 24) & 0xFF;
                         }
                         break;
                 }

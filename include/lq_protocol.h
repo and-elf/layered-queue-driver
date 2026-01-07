@@ -24,51 +24,70 @@ extern "C" {
 /**
  * @brief Protocol message structure
  * 
- * Generic container for network messages (CAN frames, etc.)
+ * Generic container for protocol messages across any transport.
+ * Can represent CAN frames, UART packets, SPI transfers, GPIO patterns, etc.
  */
 struct lq_protocol_msg {
-    uint32_t id;                  /**< Message ID (CAN ID, COB-ID, etc) */
-    uint8_t data[8];              /**< Message payload */
-    uint8_t len;                  /**< Payload length */
-    uint64_t timestamp;           /**< Reception timestamp */
+    uint32_t address;             /**< Message address/ID (CAN ID, UART addr, etc) */
+    uint8_t *data;                /**< Message payload (protocol allocates) */
+    size_t len;                   /**< Payload length */
+    size_t max_len;               /**< Maximum payload capacity */
+    uint64_t timestamp;           /**< Reception/transmission timestamp */
     uint32_t flags;               /**< Protocol-specific flags */
 };
 
 /**
  * @brief Protocol decode mapping
  * 
- * Maps incoming protocol messages to signal IDs
+ * Maps incoming protocol messages to signal IDs.
+ * Generic for any transport - protocol_id meaning depends on protocol:
+ * - CAN: PGN (J1939) or COB-ID (CANopen)
+ * - UART: Command/message type byte
+ * - SPI: Register address
+ * - Custom: User-defined identifier
  */
 struct lq_protocol_decode_map {
-    uint32_t protocol_id;         /**< Protocol ID (PGN, COB-ID, etc) */
+    uint32_t protocol_id;         /**< Protocol-specific message identifier */
     uint32_t *signal_ids;         /**< Array of signal IDs extracted from this message */
     size_t num_signals;           /**< Number of signals */
+    void *user_data;              /**< Optional protocol-specific context */
 };
 
 /**
  * @brief Protocol encode mapping
  * 
- * Maps signal IDs to outgoing protocol messages
+ * Maps signal IDs to outgoing protocol messages.
+ * Generic transmission control for any transport.
  */
 struct lq_protocol_encode_map {
-    uint32_t protocol_id;         /**< Protocol ID (PGN, COB-ID, etc) */
+    uint32_t protocol_id;         /**< Protocol-specific message identifier */
     uint32_t *signal_ids;         /**< Array of signal IDs to encode in this message */
     size_t num_signals;           /**< Number of signals */
     uint32_t period_ms;           /**< Cyclic period (0 = on-change only) */
     bool on_change;               /**< Transmit on signal change */
+    void *user_data;              /**< Optional protocol-specific context */
 };
 
-/**
- * @brief Protocol driver configuration
+/* 
+ * Generic configuration for any protocol/transport.
  */
 struct lq_protocol_config {
-    uint8_t node_address;         /**< Node address on the bus */
+    uint8_t node_address;         /**< Node/device address (meaning varies by protocol) */
     
     /* Decode configuration */
     const struct lq_protocol_decode_map *decode_maps;
     size_t num_decode_maps;
     
     /* Encode configuration */
+    const struct lq_protocol_encode_map *encode_maps;
+    size_t num_encode_maps;
+    
+    /* Transport-specific settings */
+    struct {
+        uint32_t max_message_size;  /**< Maximum message size for this transport */
+        uint32_t baudrate;          /**< Baudrate/bitrate if applicable */
+        void *transport_ctx;        /**< Transport-specific context */
+    } transportn */
     const struct lq_protocol_encode_map *encode_maps;
     size_t num_encode_maps;
     
