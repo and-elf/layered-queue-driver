@@ -46,6 +46,18 @@ config LQ_DUAL_INVERTED
       Enable dual-inverted input driver for complementary
       safety signals.
 
+config LQ_PROTOCOL_J1939
+    bool "J1939 Protocol Driver"
+    help
+      Enable J1939 protocol driver for SAE J1939 CAN networks.
+      Supports PGN-based messaging with cyclic transmission.
+
+config LQ_PROTOCOL_CANOPEN
+    bool "CANopen Protocol Driver"
+    help
+      Enable CANopen protocol driver (DS-301).
+      Supports PDO, NMT, Heartbeat, and Emergency messages.
+
 config LQ_INIT_PRIORITY
     int "Layered Queue initialization priority"
     default 80
