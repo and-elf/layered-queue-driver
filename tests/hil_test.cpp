@@ -55,13 +55,22 @@ protected:
         
         // Parent: wait for SUT to initialize
         std::cout << "[HIL] SUT started with PID " << sut_pid << std::endl;
-        sleep(2);  // Give SUT time to initialize and start receiver thread
         
-        // Initialize HIL in tester mode
-        if (lq_hil_init(LQ_HIL_MODE_TESTER, sut_pid) != 0) {
+        // Wait for SUT sockets to be ready (with timeout)
+        // This is more reliable than fixed sleep, especially under load
+        int retries = 100;  // 10 seconds max
+        int init_result = -1;
+        while (retries-- > 0) {
+            usleep(100000);  // 100ms
+            lq_hil_cleanup();  // Reset state before retry
+            init_result = lq_hil_init(LQ_HIL_MODE_TESTER, sut_pid);
+            if (init_result == 0) break;
+        }
+        
+        if (init_result != 0) {
             kill(sut_pid, SIGTERM);
             waitpid(sut_pid, nullptr, 0);
-            FAIL() << "Failed to initialize HIL tester";
+            FAIL() << "Failed to initialize HIL tester after 10 seconds";
         }
         
         std::cout << "[HIL] HIL tester initialized" << std::endl;
