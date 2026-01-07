@@ -84,6 +84,28 @@ extern "C" {
 #define UDS_NRC_SUBFUNCTION_NOT_SUPPORTED_IN_SESSION 0x7E
 #define UDS_NRC_SERVICE_NOT_SUPPORTED_IN_SESSION     0x7F
 
+/* Negative NRC values for internal error handling (avoid -errno conflicts) */
+#define LQ_NRC_GENERAL_REJECT                       (-UDS_NRC_GENERAL_REJECT)
+#define LQ_NRC_SERVICE_NOT_SUPPORTED                (-UDS_NRC_SERVICE_NOT_SUPPORTED)
+#define LQ_NRC_SUBFUNCTION_NOT_SUPPORTED            (-UDS_NRC_SUBFUNCTION_NOT_SUPPORTED)
+#define LQ_NRC_INCORRECT_MESSAGE_LENGTH             (-UDS_NRC_INCORRECT_MESSAGE_LENGTH)
+#define LQ_NRC_RESPONSE_TOO_LONG                    (-UDS_NRC_RESPONSE_TOO_LONG)
+#define LQ_NRC_BUSY_REPEAT_REQUEST                  (-UDS_NRC_BUSY_REPEAT_REQUEST)
+#define LQ_NRC_CONDITIONS_NOT_CORRECT               (-UDS_NRC_CONDITIONS_NOT_CORRECT)
+#define LQ_NRC_REQUEST_SEQUENCE_ERROR               (-UDS_NRC_REQUEST_SEQUENCE_ERROR)
+#define LQ_NRC_REQUEST_OUT_OF_RANGE                 (-UDS_NRC_REQUEST_OUT_OF_RANGE)
+#define LQ_NRC_SECURITY_ACCESS_DENIED               (-UDS_NRC_SECURITY_ACCESS_DENIED)
+#define LQ_NRC_INVALID_KEY                          (-UDS_NRC_INVALID_KEY)
+#define LQ_NRC_EXCEED_NUMBER_OF_ATTEMPTS            (-UDS_NRC_EXCEED_NUMBER_OF_ATTEMPTS)
+#define LQ_NRC_REQUIRED_TIME_DELAY_NOT_EXPIRED      (-UDS_NRC_REQUIRED_TIME_DELAY_NOT_EXPIRED)
+#define LQ_NRC_UPLOAD_DOWNLOAD_NOT_ACCEPTED         (-UDS_NRC_UPLOAD_DOWNLOAD_NOT_ACCEPTED)
+#define LQ_NRC_TRANSFER_DATA_SUSPENDED              (-UDS_NRC_TRANSFER_DATA_SUSPENDED)
+#define LQ_NRC_GENERAL_PROGRAMMING_FAILURE          (-UDS_NRC_GENERAL_PROGRAMMING_FAILURE)
+#define LQ_NRC_WRONG_BLOCK_SEQUENCE_COUNTER         (-UDS_NRC_WRONG_BLOCK_SEQUENCE_COUNTER)
+#define LQ_NRC_RESPONSE_PENDING                     (-UDS_NRC_RESPONSE_PENDING)
+#define LQ_NRC_SUBFUNCTION_NOT_SUPPORTED_IN_SESSION (-UDS_NRC_SUBFUNCTION_NOT_SUPPORTED_IN_SESSION)
+#define LQ_NRC_SERVICE_NOT_SUPPORTED_IN_SESSION     (-UDS_NRC_SERVICE_NOT_SUPPORTED_IN_SESSION)
+
 /* ============================================================================
  * Diagnostic Session Types
  * ============================================================================ */
@@ -111,6 +133,11 @@ enum lq_uds_security_level {
  * ============================================================================ */
 
 enum lq_uds_routine_control_type {
+    LQ_UDS_ROUTINE_START                = 0x01,
+    LQ_UDS_ROUTINE_STOP                 = 0x02,
+    LQ_UDS_ROUTINE_REQUEST_RESULTS      = 0x03,
+    
+    /* Aliases */
     UDS_ROUTINE_START                   = 0x01,
     UDS_ROUTINE_STOP                    = 0x02,
     UDS_ROUTINE_REQUEST_RESULTS         = 0x03,
@@ -129,12 +156,22 @@ enum lq_uds_routine_control_type {
 #define UDS_DID_PROGRAMMING_DATE                0xF199
 
 /* Custom DIDs for layered queue configuration (0xF1A0-0xF1FF reserved) */
-#define UDS_DID_LQ_SIGNAL_VALUE                 0xF1A0  /* Read signal value */
-#define UDS_DID_LQ_SIGNAL_STATUS                0xF1A1  /* Read signal status */
-#define UDS_DID_LQ_REMAP_CONFIG                 0xF1A2  /* Read/Write remap config */
-#define UDS_DID_LQ_SCALE_CONFIG                 0xF1A3  /* Read/Write scale config */
-#define UDS_DID_LQ_FAULT_STATUS                 0xF1A4  /* Read fault status */
-#define UDS_DID_LQ_DTC_STATUS                   0xF1A5  /* Read DTC status */
+#define LQ_DID_SIGNAL_VALUE                     0xF1A0  /* Read signal value */
+#define LQ_DID_SIGNAL_STATUS                    0xF1A1  /* Read signal status */
+#define LQ_DID_REMAP_CONFIG                     0xF1A2  /* Read/Write remap config */
+#define LQ_DID_SCALE_CONFIG                     0xF1A3  /* Read/Write scale config */
+#define LQ_DID_FAULT_STATUS                     0xF1A4  /* Read fault status */
+#define LQ_DID_DTC_STATUS                       0xF1A5  /* Read DTC status */
+#define LQ_DID_CALIBRATION_MODE                 0xF1A6  /* Read calibration mode status */
+
+/* Aliases for backward compatibility */
+#define UDS_DID_LQ_SIGNAL_VALUE                 LQ_DID_SIGNAL_VALUE
+#define UDS_DID_LQ_SIGNAL_STATUS                LQ_DID_SIGNAL_STATUS
+#define UDS_DID_LQ_REMAP_CONFIG                 LQ_DID_REMAP_CONFIG
+#define UDS_DID_LQ_SCALE_CONFIG                 LQ_DID_SCALE_CONFIG
+#define UDS_DID_LQ_FAULT_STATUS                 LQ_DID_FAULT_STATUS
+#define UDS_DID_LQ_DTC_STATUS                   LQ_DID_DTC_STATUS
+#define UDS_DID_LQ_CALIBRATION_MODE             LQ_DID_CALIBRATION_MODE
 
 /* ============================================================================
  * Routine Identifiers (RIDs) - Application Specific
@@ -142,9 +179,14 @@ enum lq_uds_routine_control_type {
 
 #define UDS_RID_ERASE_MEMORY                    0xFF00
 #define UDS_RID_CHECK_PROGRAMMING_DEPENDENCIES  0xFF01
-#define UDS_RID_ENTER_CALIBRATION_MODE          0xF1A0  /* Enter safe config mode */
-#define UDS_RID_EXIT_CALIBRATION_MODE           0xF1A1  /* Exit and validate config */
-#define UDS_RID_RESET_TO_DEFAULTS               0xF1A2  /* Reset all config to defaults */
+#define LQ_RID_ENTER_CALIBRATION                0xF1A0  /* Enter safe config mode */
+#define LQ_RID_EXIT_CALIBRATION                 0xF1A1  /* Exit and validate config */
+#define LQ_RID_RESET_DEFAULTS                   0xF1A2  /* Reset all config to defaults */
+
+/* Aliases for backward compatibility */
+#define UDS_RID_ENTER_CALIBRATION_MODE          LQ_RID_ENTER_CALIBRATION
+#define UDS_RID_EXIT_CALIBRATION_MODE           LQ_RID_EXIT_CALIBRATION
+#define UDS_RID_RESET_TO_DEFAULTS               LQ_RID_RESET_DEFAULTS
 
 /* ============================================================================
  * Transport Layer Abstraction
