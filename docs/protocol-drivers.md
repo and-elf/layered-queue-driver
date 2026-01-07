@@ -189,6 +189,22 @@ lq_canopen_set_nmt_state(&canopen_proto, CANOPEN_NMT_OPERATIONAL);
 
 Users can implement custom protocols by providing the `lq_protocol_vtbl` interface.
 
+### Compile-Time Configuration
+
+The protocol message buffer size is configurable at compile time:
+
+```c
+/* In your build configuration or before including lq_protocol.h */
+#define LQ_PROTOCOL_MTU 512  /* Increase for larger messages */
+#include "lq_protocol.h"
+```
+
+Default MTU is 256 bytes. Common values:
+- **8 bytes**: CAN 2.0 only (minimal)
+- **64 bytes**: CAN FD short frames
+- **256 bytes**: Default (supports most protocols)
+- **512+ bytes**: UART, TCP/IP, large payloads
+
 ### Step 1: Define Protocol Context
 
 ```c
@@ -637,28 +653,21 @@ static size_t uart_config_get_cyclic(struct lq_protocol_driver *proto,
         return 0;
     }
     
-    /* Build status message with all signals */
-    char *response = (char *)malloc(UART_MSG_MAX_LEN);
-    if (!response) {
-        return 0;
-    }
-    
-    int len = snprintf(response, UART_MSG_MAX_LEN, "#STATUS:");
+    /* Build status message - no malloc, uses fixed MTU buffer */
+    int len = snprintf((char *)out_msgs[0].data, LQ_PROTOCOL_MTU, "#STATUS:");
     
     /* Add all cached signal values */
-    for (size_t i = 0; i < ctx->num_signals && len < UART_MSG_MAX_LEN - 20; i++) {
-        len += snprintf(response + len, UART_MSG_MAX_LEN - len, 
+    for (size_t i = 0; i < ctx->num_signals && len < LQ_PROTOCOL_MTU - 20; i++) {
+        len += snprintf((char *)out_msgs[0].data + len, LQ_PROTOCOL_MTU - len, 
                        "%u=%d,", 
                        ctx->signals[i].signal_id,
                        ctx->signals[i].value);
     }
     
-    len += snprintf(response + len, UART_MSG_MAX_LEN - len, "\r\n");
+    len += snprintf((char *)out_msgs[0].data + len, LQ_PROTOCOL_MTU - len, "\r\n");
     
     out_msgs[0].address = 0;  /* Broadcast on UART */
-    out_msgs[0].data = (uint8_t *)response;
     out_msgs[0].len = len;
-    out_msgs[0].max_len = UART_MSG_MAX_LEN;
     out_msgs[0].timestamp = now;
     
     ctx->last_update_time = now;

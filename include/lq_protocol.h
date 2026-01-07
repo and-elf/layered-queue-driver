@@ -21,17 +21,22 @@
 extern "C" {
 #endif
 
+/* Maximum Transmission Unit - configurable at compile time */
+#ifndef LQ_PROTOCOL_MTU
+#define LQ_PROTOCOL_MTU 256  /**< Default 256 bytes (supports most protocols) */
+#endif
+
 /**
  * @brief Protocol message structure
  * 
  * Generic container for protocol messages across any transport.
  * Can represent CAN frames, UART packets, SPI transfers, GPIO patterns, etc.
+ * Uses fixed-size buffer to avoid dynamic allocation.
  */
 struct lq_protocol_msg {
     uint32_t address;             /**< Message address/ID (CAN ID, UART addr, etc) */
-    uint8_t *data;                /**< Message payload (protocol allocates) */
-    size_t len;                   /**< Payload length */
-    size_t max_len;               /**< Maximum payload capacity */
+    uint8_t data[LQ_PROTOCOL_MTU];/**< Message payload (fixed size, no malloc) */
+    size_t len;                   /**< Actual payload length */
     uint64_t timestamp;           /**< Reception/transmission timestamp */
     uint32_t flags;               /**< Protocol-specific flags */
 };
@@ -84,12 +89,9 @@ struct lq_protocol_config {
     
     /* Transport-specific settings */
     struct {
-        uint32_t max_message_size;  /**< Maximum message size for this transport */
         uint32_t baudrate;          /**< Baudrate/bitrate if applicable */
         void *transport_ctx;        /**< Transport-specific context */
-    } transportn */
-    const struct lq_protocol_encode_map *encode_maps;
-    size_t num_encode_maps;
+    } transport_settings;
     
     /* Protocol-specific settings */
     void *protocol_settings;
