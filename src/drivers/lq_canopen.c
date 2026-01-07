@@ -82,6 +82,47 @@ static size_t canopen_decode(struct lq_protocol_driver *proto,
         return 0;
     }
     
+    /* Handle LSS messages (slave receives from master) */
+    if (msg->address == CANOPEN_LSS_MASTER_TX && msg->len >= 1) {
+        uint8_t cmd = msg->data[0];
+        
+        switch (cmd) {
+            case CANOPEN_LSS_SWITCH_GLOBAL:
+                if (msg->len >= 2) {
+                    ctx->lss_state = (msg->data[1] == 1) ? 
+                        CANOPEN_LSS_CONFIGURATION : CANOPEN_LSS_WAITING;
+                }
+                break;
+                
+            case CANOPEN_LSS_CONFIGURE_NODE_ID:
+                /* Slave receives node ID configuration */
+                if (msg->len >= 2 && ctx->lss_state == CANOPEN_LSS_CONFIGURATION) {
+                    uint8_t new_id = msg->data[1];
+                    if (new_id > 0 && (new_id <= 127 || new_id == 255)) {
+                        ctx->node_id = new_id;
+                    }
+                }
+                break;
+                
+            case CANOPEN_LSS_INQUIRE_NODE_ID:
+            case CANOPEN_LSS_INQUIRE_VENDOR_ID:
+            case CANOPEN_LSS_INQUIRE_PRODUCT_CODE:
+            case CANOPEN_LSS_INQUIRE_REVISION:
+            case CANOPEN_LSS_INQUIRE_SERIAL:
+                /* Slave should respond - handled by get_cyclic or separate response mechanism */
+                break;
+        }
+        return 0;
+    }
+    
+    /* Handle LSS responses (master receives from slave) */
+    if (msg->address == CANOPEN_LSS_SLAVE_TX && msg->len >= 5) {
+        /* LSS response from slave - decode based on command */
+        /* Response format: [CS] [data0] [data1] [data2] [data3] ... */
+        /* Could generate events for LSS responses if needed */
+        return 0;
+    }
+    
     /* Handle RPDO (Receive PDO - incoming data) */
     for (int pdo_idx = 0; pdo_idx < 4; pdo_idx++) {
         if (ctx->rpdo[pdo_idx].cob_id == msg->address) {
@@ -374,6 +415,102 @@ int lq_canopen_configure_rpdo(struct lq_protocol_driver *proto,
     
     struct lq_canopen_ctx *ctx = (struct lq_canopen_ctx *)proto->ctx;
     memcpy(&ctx->rpdo[pdo_num - 1], config, sizeof(*config));
+    
+    return 0;
+}
+
+/* ============================================================================
+ * LSS (Layer Setting Services) Implementation
+ * ============================================================================ */
+
+int lq_canopen_set_lss_identity(struct lq_protocol_driver *proto,
+                                 uint32_t vendor_id,
+                                 uint32_t product_code,
+                                 uint32_t revision_number,
+                                 uint32_t serial_number)
+{
+    if (!proto || !proto->ctx) {
+        return -1;
+    }
+    
+    struct lq_canopen_ctx *ctx = (struct lq_canopen_ctx *)proto->ctx;
+    ctx->vendor_id = vendor_id;
+    ctx->product_code = product_code;
+    ctx->revision_number = revision_number;
+    ctx->serial_number = serial_number;
+    
+    return 0;
+}
+
+int lq_canopen_lss_inquire_node_id(struct lq_protocol_driver *proto,
+                                    struct lq_protocol_msg *out_msg)
+{
+    if (!proto || !out_msg) {
+        return -1;
+    }
+    
+    /* Build LSS inquire node ID request */
+    out_msg->address = CANOPEN_LSS_MASTER_TX;
+    out_msg->len = 8;
+    out_msg->data[0] = CANOPEN_LSS_INQUIRE_NODE_ID;
+    out_msg->data[1] = 0;
+    out_msg->data[2] = 0;
+    out_msg->data[3] = 0;
+    out_msg->data[4] = 0;
+    out_msg->data[5] = 0;
+    out_msg->data[6] = 0;
+    out_msg->data[7] = 0;
+    
+    return 0;
+}
+
+int lq_canopen_lss_configure_node_id(struct lq_protocol_driver *proto,
+                                      uint8_t new_node_id,
+                                      struct lq_protocol_msg *out_msg)
+{
+    if (!proto || !out_msg) {
+        return -1;
+    }
+    
+    /* Validate node ID (1-127 valid, 255 = unconfigured) */
+    if (new_node_id == 0 || (new_node_id > 127 && new_node_id != 255)) {
+        return -1;
+    }
+    
+    /* Build LSS configure node ID command */
+    out_msg->address = CANOPEN_LSS_MASTER_TX;
+    out_msg->len = 8;
+    out_msg->data[0] = CANOPEN_LSS_CONFIGURE_NODE_ID;
+    out_msg->data[1] = new_node_id;
+    out_msg->data[2] = 0;
+    out_msg->data[3] = 0;
+    out_msg->data[4] = 0;
+    out_msg->data[5] = 0;
+    out_msg->data[6] = 0;
+    out_msg->data[7] = 0;
+    
+    return 0;
+}
+
+int lq_canopen_lss_switch_state_global(struct lq_protocol_driver *proto,
+                                        uint8_t mode,
+                                        struct lq_protocol_msg *out_msg)
+{
+    if (!proto || !out_msg) {
+        return -1;
+    }
+    
+    /* Build LSS switch state global command */
+    out_msg->address = CANOPEN_LSS_MASTER_TX;
+    out_msg->len = 8;
+    out_msg->data[0] = CANOPEN_LSS_SWITCH_GLOBAL;
+    out_msg->data[1] = mode;  /* 0 = waiting, 1 = configuration */
+    out_msg->data[2] = 0;
+    out_msg->data[3] = 0;
+    out_msg->data[4] = 0;
+    out_msg->data[5] = 0;
+    out_msg->data[6] = 0;
+    out_msg->data[7] = 0;
     
     return 0;
 }

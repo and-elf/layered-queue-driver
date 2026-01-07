@@ -36,6 +36,31 @@ extern "C" {
 #define CANOPEN_FC_RSDO         0x600   /* Receive SDO (request) */
 #define CANOPEN_FC_HEARTBEAT    0x700   /* Heartbeat */
 
+/* LSS (Layer Setting Services) COB-IDs */
+#define CANOPEN_LSS_MASTER_TX   0x7E5   /* LSS Master -> Slave */
+#define CANOPEN_LSS_SLAVE_TX    0x7E4   /* LSS Slave -> Master */
+
+/* LSS Command Specifiers */
+#define CANOPEN_LSS_SWITCH_GLOBAL       0x04  /* Switch state global */
+#define CANOPEN_LSS_SWITCH_SELECTIVE    0x40  /* Switch state selective */
+#define CANOPEN_LSS_CONFIGURE_NODE_ID   0x11  /* Configure node ID */
+#define CANOPEN_LSS_CONFIGURE_BIT_TIMING 0x13 /* Configure bit timing */
+#define CANOPEN_LSS_ACTIVATE_BIT_TIMING 0x15  /* Activate bit timing */
+#define CANOPEN_LSS_STORE_CONFIG        0x17  /* Store configuration */
+#define CANOPEN_LSS_INQUIRE_VENDOR_ID   0x5A  /* Inquire vendor ID */
+#define CANOPEN_LSS_INQUIRE_PRODUCT_CODE 0x5B /* Inquire product code */
+#define CANOPEN_LSS_INQUIRE_REVISION    0x5C  /* Inquire revision */
+#define CANOPEN_LSS_INQUIRE_SERIAL      0x5D  /* Inquire serial number */
+#define CANOPEN_LSS_INQUIRE_NODE_ID     0x5E  /* Inquire node ID */
+#define CANOPEN_LSS_IDENTIFY_REMOTE_SLAVE 0x46 /* Identify remote slave */
+#define CANOPEN_LSS_IDENTIFY_NON_CONFIGURED 0x50 /* Identify non-configured slaves */
+
+/* LSS States */
+typedef enum {
+    CANOPEN_LSS_WAITING = 0,            /* Waiting state */
+    CANOPEN_LSS_CONFIGURATION = 1,      /* Configuration state */
+} lq_canopen_lss_state_t;
+
 /* NMT Commands */
 typedef enum {
     CANOPEN_NMT_START = 1,              /* Start remote node */
@@ -101,6 +126,13 @@ struct lq_canopen_pdo_config {
 struct lq_canopen_ctx {
     uint8_t node_id;                    /* Our node ID (1-127) */
     lq_canopen_nmt_state_t nmt_state;   /* Current NMT state */
+    
+    /* LSS state and identity */
+    lq_canopen_lss_state_t lss_state;   /* LSS state */
+    uint32_t vendor_id;                 /* Vendor ID */
+    uint32_t product_code;              /* Product code */
+    uint32_t revision_number;           /* Revision number */
+    uint32_t serial_number;             /* Serial number */
     
     /* PDO configurations */
     struct lq_canopen_pdo_config tpdo[4];  /* Transmit PDOs */
@@ -188,6 +220,65 @@ int lq_canopen_configure_tpdo(struct lq_protocol_driver *proto,
 int lq_canopen_configure_rpdo(struct lq_protocol_driver *proto,
                                uint8_t pdo_num,
                                const struct lq_canopen_pdo_config *config);
+
+/**
+ * @brief Set LSS identity information
+ * 
+ * Used for LSS inquire commands and slave identification.
+ * 
+ * @param proto CANopen protocol driver
+ * @param vendor_id Vendor ID
+ * @param product_code Product code
+ * @param revision_number Revision number
+ * @param serial_number Serial number
+ * @return 0 on success, negative errno on failure
+ */
+int lq_canopen_set_lss_identity(struct lq_protocol_driver *proto,
+                                 uint32_t vendor_id,
+                                 uint32_t product_code,
+                                 uint32_t revision_number,
+                                 uint32_t serial_number);
+
+/**
+ * @brief Send LSS inquire node ID request (Master function)
+ * 
+ * Requests the current node ID from a slave in LSS configuration state.
+ * Response will be received via the protocol decode callback.
+ * 
+ * @param proto CANopen protocol driver
+ * @param out_msg Output message buffer
+ * @return 0 on success, negative errno on failure
+ */
+int lq_canopen_lss_inquire_node_id(struct lq_protocol_driver *proto,
+                                    struct lq_protocol_msg *out_msg);
+
+/**
+ * @brief Send LSS configure node ID command (Master function)
+ * 
+ * Configures the node ID of a slave in LSS configuration state.
+ * 
+ * @param proto CANopen protocol driver
+ * @param new_node_id New node ID (1-127, or 255 for unconfigured)
+ * @param out_msg Output message buffer
+ * @return 0 on success, negative errno on failure
+ */
+int lq_canopen_lss_configure_node_id(struct lq_protocol_driver *proto,
+                                      uint8_t new_node_id,
+                                      struct lq_protocol_msg *out_msg);
+
+/**
+ * @brief Send LSS switch state global command (Master function)
+ * 
+ * Switches all slaves between waiting and configuration state.
+ * 
+ * @param proto CANopen protocol driver
+ * @param mode 0 = waiting state, 1 = configuration state
+ * @param out_msg Output message buffer
+ * @return 0 on success, negative errno on failure
+ */
+int lq_canopen_lss_switch_state_global(struct lq_protocol_driver *proto,
+                                        uint8_t mode,
+                                        struct lq_protocol_msg *out_msg);
 
 /* Utility functions for COB-ID construction */
 static inline uint16_t lq_canopen_build_cob_id(uint16_t function_code, uint8_t node_id)
