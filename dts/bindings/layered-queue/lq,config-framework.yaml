@@ -1,0 +1,148 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Configuration Framework - Runtime parameter access via UDS
+  
+  Provides runtime configuration access to remap and scale driver
+  parameters through UDS Data Identifiers (DIDs).
+  
+  Features:
+  - Read/write remap configurations (signal mapping, inversion, deadzone)
+  - Read/write scale configurations (linear transform, clamping)
+  - Calibration mode for secure parameter modification
+  - Version tracking for change detection
+  - Signal value/status monitoring
+  
+  Integrated with UDS server for diagnostic protocol access.
+  Requires security level 2+ and calibration mode for writes.
+
+compatible: "lq,config-framework"
+
+properties:
+  uds-server:
+    type: phandle
+    required: true
+    description: |
+      Reference to UDS server node.
+      Config framework registers DID handlers with this server.
+
+  max-remaps:
+    type: int
+    default: 16
+    description: |
+      Maximum number of remap configurations.
+      Each remap consumes ~8 bytes of RAM.
+
+  max-scales:
+    type: int
+    default: 16
+    description: |
+      Maximum number of scale configurations.
+      Each scale consumes ~24 bytes of RAM.
+
+  calibration-mode-default:
+    type: boolean
+    default: false
+    description: |
+      Start in calibration mode (unlocked).
+      WARNING: Only for development! Production should be locked.
+
+  enable-runtime-add-remove:
+    type: boolean
+    default: false
+    description: |
+      Allow adding/removing configurations at runtime.
+      If false, only modification of existing configs is allowed.
+      This prevents dynamic allocation issues in safety-critical systems.
+
+  config-locked-default:
+    type: boolean
+    default: true
+    description: |
+      Lock configuration by default on startup.
+      Requires calibration mode routine to unlock.
+      Recommended for production.
+
+  version-tracking:
+    type: boolean
+    default: true
+    description: |
+      Enable configuration version tracking.
+      Version increments on each configuration change.
+      Useful for detecting parameter updates across sessions.
+
+child-binding:
+  description: |
+    Pre-configured remap or scale instances.
+    These are initialized at startup.
+
+  properties:
+    type:
+      type: string
+      enum:
+        - "remap"
+        - "scale"
+      required: true
+      description: |
+        Type of configuration instance.
+
+    input-signal:
+      type: int
+      required: true
+      description: |
+        Input signal ID (0-31).
+
+    output-signal:
+      type: int
+      required: true
+      description: |
+        Output signal ID (0-31).
+
+    # Remap-specific properties
+    invert:
+      type: boolean
+      default: false
+      description: |
+        Invert signal (remap only).
+        Output = -Input
+
+    deadzone:
+      type: int
+      default: 0
+      description: |
+        Deadzone threshold (remap only).
+        Changes smaller than this are ignored.
+
+    # Scale-specific properties
+    scale-factor:
+      type: int
+      default: 100
+      description: |
+        Scale factor (scale only).
+        Output = (Input * scale-factor) / 100 + offset
+        Example: 150 = 1.5x scaling
+
+    offset:
+      type: int
+      default: 0
+      description: |
+        Offset applied after scaling (scale only).
+
+    clamp-min:
+      type: int
+      description: |
+        Minimum output value (scale only).
+        If specified, output is clamped to this value.
+
+    clamp-max:
+      type: int
+      description: |
+        Maximum output value (scale only).
+        If specified, output is clamped to this value.
+
+    enabled:
+      type: boolean
+      default: true
+      description: |
+        Enable this configuration on startup.

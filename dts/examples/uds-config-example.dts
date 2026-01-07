@@ -1,0 +1,218 @@
+/dts-v1/;
+
+/ {
+    model = "UDS Diagnostic System with Configuration Framework";
+    
+    /* Engine */
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <8>;
+    };
+    
+    /* ========================================================================
+     * Transport Layer: ISO-TP over CAN
+     * ======================================================================== */
+    
+    isotp0: lq-isotp@0 {
+        compatible = "lq,protocol-isotp";
+        status = "okay";
+        
+        /* Standard diagnostic CAN IDs */
+        can-id-request = <0x7E0>;      /* Tester -> ECU */
+        can-id-response = <0x7E8>;     /* ECU -> Tester */
+        
+        /* Buffer sizes */
+        rx-buffer-size = <256>;
+        tx-buffer-size = <256>;
+        
+        /* Flow control */
+        block-size = <8>;              /* Request FC every 8 frames */
+        stmin-us = <1000>;             /* 1ms between consecutive frames */
+        
+        /* Timeouts (ISO 15765-2 standard) */
+        n-as-timeout-ms = <1000>;
+        n-ar-timeout-ms = <1000>;
+        n-bs-timeout-ms = <1000>;
+        n-cr-timeout-ms = <1000>;
+        
+        /* Options */
+        padding = <1>;                 /* Enable frame padding */
+        padding-byte = <0xCC>;
+    };
+    
+    /* ========================================================================
+     * Diagnostic Protocol: UDS Server
+     * ======================================================================== */
+    
+    uds0: lq-uds@0 {
+        compatible = "lq,protocol-uds";
+        status = "okay";
+        
+        /* Reference to transport */
+        isotp = <&isotp0>;
+        
+        /* Security */
+        max-security-level = <2>;      /* Level 2 for configuration */
+        security-lockout-enabled;
+        max-security-attempts = <3>;
+        security-lockout-time-ms = <60000>;
+        seed-key-algorithm = "custom"; /* Use secure algorithm */
+        
+        /* Session management */
+        default-session = <1>;
+        s3-timeout-ms = <5000>;        /* 5 second tester present timeout */
+        p2-timeout-ms = <50>;
+        p2-star-timeout-ms = <5000>;
+        
+        /* Service enables */
+        enable-routine-control;
+        enable-write-did;
+        enable-read-did;
+        
+        /* ====================================================================
+         * Data Identifiers (DIDs)
+         * ==================================================================== */
+        
+        /* Signal value read */
+        did-signal-value {
+            did = <0xF1A0>;
+            access = "read";
+            handler = "config-framework";
+        };
+        
+        /* Signal status read */
+        did-signal-status {
+            did = <0xF1A1>;
+            access = "read";
+            handler = "config-framework";
+        };
+        
+        /* Remap configuration */
+        did-remap-config {
+            did = <0xF1A2>;
+            access = "read-write";
+            security-level = <2>;
+            session-type = <3>;        /* Extended diagnostic */
+            handler = "config-framework";
+        };
+        
+        /* Scale configuration */
+        did-scale-config {
+            did = <0xF1A3>;
+            access = "read-write";
+            security-level = <2>;
+            session-type = <3>;
+            handler = "config-framework";
+        };
+        
+        /* Calibration mode status */
+        did-calibration-status {
+            did = <0xF1A6>;
+            access = "read";
+            handler = "config-framework";
+        };
+    };
+    
+    /* ========================================================================
+     * Configuration Framework
+     * ======================================================================== */
+    
+    config0: lq-config@0 {
+        compatible = "lq,config-framework";
+        status = "okay";
+        
+        /* Reference to UDS server */
+        uds-server = <&uds0>;
+        
+        /* Capacity */
+        max-remaps = <8>;
+        max-scales = <8>;
+        
+        /* Security */
+        calibration-mode-default = <0>;  /* Start locked */
+        config-locked-default = <1>;     /* Require unlock */
+        version-tracking;
+        
+        /* ====================================================================
+         * Initial Configurations
+         * ==================================================================== */
+        
+        /* Remap: Joystick X -> Steering command */
+        remap-joystick-x {
+            type = "remap";
+            input-signal = <0>;          /* Joystick X axis */
+            output-signal = <10>;        /* Steering command */
+            invert = <0>;
+            deadzone = <50>;             /* Ignore small movements */
+            enabled;
+        };
+        
+        /* Remap: Joystick Y -> Throttle (inverted) */
+        remap-joystick-y {
+            type = "remap";
+            input-signal = <1>;          /* Joystick Y axis */
+            output-signal = <11>;        /* Throttle command */
+            invert = <1>;                /* Up = accelerate */
+            deadzone = <30>;
+            enabled;
+        };
+        
+        /* Scale: Throttle command -> PWM duty cycle */
+        scale-throttle-pwm {
+            type = "scale";
+            input-signal = <11>;         /* Throttle command */
+            output-signal = <20>;        /* PWM output */
+            scale-factor = <150>;        /* 1.5x amplification */
+            offset = <0>;
+            clamp-min = <0>;
+            clamp-max = <10000>;         /* Max 100% duty */
+            enabled;
+        };
+        
+        /* Scale: RPM sensor -> Display value */
+        scale-rpm-display {
+            type = "scale";
+            input-signal = <5>;          /* Raw RPM sensor */
+            output-signal = <21>;        /* Display RPM */
+            scale-factor = <100>;        /* 1:1 scaling */
+            offset = <0>;
+            clamp-min = <0>;
+            clamp-max = <8000>;          /* Redline at 8000 RPM */
+            enabled;
+        };
+    };
+    
+    /* ========================================================================
+     * Hardware Inputs (for reference)
+     * ======================================================================== */
+    
+    joystick-x: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <0>;
+        adc-channel = <0>;
+        adc-device = <&adc0>;
+        stale-us = <10000>;
+    };
+    
+    joystick-y: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <1>;
+        adc-channel = <1>;
+        adc-device = <&adc0>;
+        stale-us = <10000>;
+    };
+    
+    rpm-sensor: lq-hw-spi-input@0 {
+        compatible = "lq,hw-spi-input";
+        status = "okay";
+        signal-id = <5>;
+        spi-device = <&spi0>;
+        data-ready-gpio = <&gpio0 5 0>;
+        num-bytes = <2>;
+        signed;
+        stale-us = <5000>;
+    };
+};

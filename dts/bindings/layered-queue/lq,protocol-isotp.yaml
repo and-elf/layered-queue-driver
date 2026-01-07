@@ -1,0 +1,134 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ISO-TP (ISO 15765-2) Transport Protocol Driver
+  
+  Implements ISO Transport Protocol for CAN, providing segmentation
+  and reassembly for messages longer than 8 bytes.
+  
+  Features:
+  - Single frame (SF): ≤7 bytes
+  - Multi-frame: First Frame (FF) + Consecutive Frames (CF)
+  - Flow Control (FC): CTS/WAIT/OVERFLOW
+  - Configurable timing parameters (N_As, N_Ar, N_Bs, N_Cr)
+  - Block size and STmin support
+  
+  Commonly used for UDS diagnostic protocols, firmware updates,
+  and other protocols requiring reliable message transfer.
+
+compatible: "lq,protocol-isotp"
+
+properties:
+  can-id-request:
+    type: int
+    required: true
+    description: |
+      CAN ID for incoming diagnostic requests (tester -> ECU).
+      Standard diagnostic IDs:
+      - 0x7DF: Functional (broadcast to all ECUs)
+      - 0x7E0-0x7E7: Physical (specific ECU)
+      - 0x18DA00F1: Extended J1939 diagnostic
+
+  can-id-response:
+    type: int
+    required: true
+    description: |
+      CAN ID for outgoing diagnostic responses (ECU -> tester).
+      Standard response IDs:
+      - 0x7E8-0x7EF: Physical response (request + 0x08)
+      - 0x18DAF100: Extended J1939 response
+
+  rx-buffer-size:
+    type: int
+    default: 256
+    description: |
+      Receive buffer size in bytes.
+      Must be large enough for longest expected message.
+      Typical sizes:
+      - 256: Standard UDS requests
+      - 4096: Firmware download
+
+  tx-buffer-size:
+    type: int
+    default: 256
+    description: |
+      Transmit buffer size in bytes.
+      Typical sizes:
+      - 256: Standard UDS responses
+      - 4096: Firmware upload
+
+  block-size:
+    type: int
+    default: 0
+    description: |
+      Flow control block size (0-255).
+      Number of consecutive frames before requiring FC.
+      0 = No blocking (send all CF without intermediate FC)
+
+  stmin-us:
+    type: int
+    default: 0
+    description: |
+      Minimum separation time between consecutive frames (µs).
+      Range:
+      - 0-127000: Microseconds (1ms steps for 0-127)
+      - 100-900: Microseconds (100µs steps for 0xF1-0xF9)
+
+  n-as-timeout-ms:
+    type: int
+    default: 1000
+    description: |
+      N_As timeout: Maximum time to wait for sender to start
+      transmitting after FC CTS (ms).
+
+  n-ar-timeout-ms:
+    type: int
+    default: 1000
+    description: |
+      N_Ar timeout: Maximum time to wait for receiver to send
+      Flow Control after First Frame (ms).
+
+  n-bs-timeout-ms:
+    type: int
+    default: 1000
+    description: |
+      N_Bs timeout: Maximum time between consecutive frames
+      within a block (ms).
+
+  n-cr-timeout-ms:
+    type: int
+    default: 1000
+    description: |
+      N_Cr timeout: Maximum time to wait for consecutive frame
+      after previous one (ms).
+
+  extended-addressing:
+    type: boolean
+    default: false
+    description: |
+      Enable ISO-TP extended addressing.
+      If true, first data byte is target address.
+
+  target-address:
+    type: int
+    description: |
+      Target address for extended addressing mode.
+      Required if extended-addressing is true.
+
+  padding:
+    type: boolean
+    default: false
+    description: |
+      Enable CAN frame padding to 8 bytes.
+      Recommended for some automotive networks.
+
+  padding-byte:
+    type: int
+    default: 0xCC
+    description: |
+      Byte value used for padding (if enabled).
+      Common values:
+      - 0x00: Zero padding
+      - 0xCC: ISO-TP standard
+      - 0xFF: Alternative padding
