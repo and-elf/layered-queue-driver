@@ -6,6 +6,7 @@
  */
 
 #include "lq_hil.h"
+#include "lq_hil_platform.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,15 +62,17 @@ static void make_socket_path(char *buf, size_t size, const char *fmt, int pid)
 /* Helper: Create Unix domain socket */
 static int create_unix_socket(const char *path, bool is_server)
 {
-    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    int sock = ops->socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) {
         return -errno;
     }
     
     /* Set non-blocking mode (portable approach for macOS/BSD compatibility) */
-    int flags = fcntl(sock, F_GETFL, 0);
-    if (flags < 0 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
-        close(sock);
+    int flags = ops->fcntl(sock, F_GETFL, 0);
+    if (flags < 0 || ops->fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+        ops->close(sock);
         return -errno;
     }
     
@@ -79,32 +82,32 @@ static int create_unix_socket(const char *path, bool is_server)
     
     if (is_server) {
         /* Remove existing socket file */
-        unlink(path);
+        ops->unlink(path);
         
-        if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-            close(sock);
+        if (ops->bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            ops->close(sock);
             return -errno;
         }
         
-        if (listen(sock, 1) < 0) {
-            close(sock);
-            unlink(path);
+        if (ops->listen(sock, 1) < 0) {
+            ops->close(sock);
+            ops->unlink(path);
             return -errno;
         }
     } else {
         /* Client: connect with retry */
         int retries = 50;  /* 5 seconds */
         while (retries-- > 0) {
-            int ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+            int ret = ops->connect(sock, (struct sockaddr *)&addr, sizeof(addr));
             if (ret == 0 || (ret < 0 && errno == EISCONN)) {
                 return sock;
             }
             if (ret < 0 && errno != EINPROGRESS && errno != EALREADY) {
                 break;  /* Unrecoverable error */
             }
-            usleep(100000);  /* 100ms */
+            ops->usleep_fn(100000);  /* 100ms */
         }
-        close(sock);
+        ops->close(sock);
         return -ETIMEDOUT;
     }
     
@@ -114,17 +117,19 @@ static int create_unix_socket(const char *path, bool is_server)
 /* Helper: Accept connection on listening socket */
 static int accept_connection(int listen_sock, int timeout_ms)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     struct pollfd pfd = {
         .fd = listen_sock,
         .events = POLLIN,
     };
     
-    int ret = poll(&pfd, 1, timeout_ms);
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
     if (ret <= 0) {
         return -ETIMEDOUT;
     }
     
-    int client = accept(listen_sock, NULL, NULL);
+    int client = ops->accept(listen_sock, NULL, NULL);
     if (client < 0) {
         return -errno;
     }
@@ -134,13 +139,15 @@ static int accept_connection(int listen_sock, int timeout_ms)
 
 int lq_hil_init(enum lq_hil_mode mode, int pid)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     if (hil_state.initialized) {
         return -EALREADY;
     }
     
     /* Auto-detect mode from environment if not specified */
     if (mode == LQ_HIL_MODE_DISABLED) {
-        const char *env_mode = getenv("LQ_HIL_MODE");
+        const char *env_mode = ops->getenv("LQ_HIL_MODE");
         if (env_mode) {
             if (strcmp(env_mode, "sut") == 0) {
                 mode = LQ_HIL_MODE_SUT;
@@ -151,7 +158,7 @@ int lq_hil_init(enum lq_hil_mode mode, int pid)
     }
     
     hil_state.mode = mode;
-    hil_state.pid = (pid == 0) ? getpid() : pid;
+    hil_state.pid = (pid == 0) ? ops->getpid() : pid;
     
     if (mode == LQ_HIL_MODE_DISABLED) {
         hil_state.initialized = true;
@@ -205,36 +212,38 @@ int lq_hil_init(enum lq_hil_mode mode, int pid)
 
 void lq_hil_cleanup(void)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     if (!hil_state.initialized) {
         return;
     }
     
     if (hil_state.mode == LQ_HIL_MODE_SUT) {
-        if (hil_state.listen_adc >= 0) close(hil_state.listen_adc);
-        if (hil_state.listen_spi >= 0) close(hil_state.listen_spi);
-        if (hil_state.listen_can >= 0) close(hil_state.listen_can);
-        if (hil_state.listen_gpio >= 0) close(hil_state.listen_gpio);
-        if (hil_state.listen_sync >= 0) close(hil_state.listen_sync);
+        if (hil_state.listen_adc >= 0) ops->close(hil_state.listen_adc);
+        if (hil_state.listen_spi >= 0) ops->close(hil_state.listen_spi);
+        if (hil_state.listen_can >= 0) ops->close(hil_state.listen_can);
+        if (hil_state.listen_gpio >= 0) ops->close(hil_state.listen_gpio);
+        if (hil_state.listen_sync >= 0) ops->close(hil_state.listen_sync);
         
         /* Remove socket files */
         char path[256];
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_ADC, hil_state.pid);
-        unlink(path);
+        ops->unlink(path);
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SPI, hil_state.pid);
-        unlink(path);
+        ops->unlink(path);
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_CAN, hil_state.pid);
-        unlink(path);
+        ops->unlink(path);
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_GPIO, hil_state.pid);
-        unlink(path);
+        ops->unlink(path);
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SYNC, hil_state.pid);
-        unlink(path);
+        ops->unlink(path);
         
     } else if (hil_state.mode == LQ_HIL_MODE_TESTER) {
-        if (hil_state.sock_adc >= 0) close(hil_state.sock_adc);
-        if (hil_state.sock_spi >= 0) close(hil_state.sock_spi);
-        if (hil_state.sock_can >= 0) close(hil_state.sock_can);
-        if (hil_state.sock_gpio >= 0) close(hil_state.sock_gpio);
-        if (hil_state.sock_sync >= 0) close(hil_state.sock_sync);
+        if (hil_state.sock_adc >= 0) ops->close(hil_state.sock_adc);
+        if (hil_state.sock_spi >= 0) ops->close(hil_state.sock_spi);
+        if (hil_state.sock_can >= 0) ops->close(hil_state.sock_can);
+        if (hil_state.sock_gpio >= 0) ops->close(hil_state.sock_gpio);
+        if (hil_state.sock_sync >= 0) ops->close(hil_state.sock_sync);
     }
     
     memset(&hil_state, 0, sizeof(hil_state));
@@ -271,17 +280,19 @@ int lq_hil_sut_recv_adc(struct lq_hil_adc_msg *msg, int timeout_ms)
     }
     
     /* Receive message */
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     struct pollfd pfd = {
         .fd = hil_state.sock_adc,
         .events = POLLIN,
     };
     
-    int ret = poll(&pfd, 1, timeout_ms);
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
     if (ret <= 0) {
         return -EAGAIN;
     }
     
-    ssize_t n = recv(hil_state.sock_adc, msg, sizeof(*msg), 0);
+    ssize_t n = ops->recv(hil_state.sock_adc, msg, sizeof(*msg), 0);
     if (n != sizeof(*msg)) {
         return -EIO;
     }
@@ -302,17 +313,19 @@ int lq_hil_sut_recv_can(struct lq_hil_can_msg *msg, int timeout_ms)
         }
     }
     
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     struct pollfd pfd = {
         .fd = hil_state.sock_can,
         .events = POLLIN,
     };
     
-    int ret = poll(&pfd, 1, timeout_ms);
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
     if (ret <= 0) {
         return -EAGAIN;
     }
     
-    ssize_t n = recv(hil_state.sock_can, msg, sizeof(*msg), 0);
+    ssize_t n = ops->recv(hil_state.sock_can, msg, sizeof(*msg), 0);
     if (n != sizeof(*msg)) {
         return -EIO;
     }
@@ -342,7 +355,9 @@ int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state)
         .state = state,
     };
     
-    ssize_t n = send(hil_state.sock_gpio, &msg, sizeof(msg), MSG_NOSIGNAL);
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    ssize_t n = ops->send(hil_state.sock_gpio, &msg, sizeof(msg), MSG_NOSIGNAL);
     if (n != sizeof(msg)) {
         return -EIO;
     }
@@ -364,7 +379,9 @@ int lq_hil_sut_send_can(const struct lq_hil_can_msg *msg)
         }
     }
     
-    ssize_t n = send(hil_state.sock_can, msg, sizeof(*msg), MSG_NOSIGNAL);
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    ssize_t n = ops->send(hil_state.sock_can, msg, sizeof(*msg), MSG_NOSIGNAL);
     if (n != sizeof(*msg)) {
         return -EIO;
     }
@@ -391,7 +408,9 @@ int lq_hil_tester_inject_adc(uint8_t channel, uint32_t value)
         .value = value,
     };
     
-    ssize_t n = send(hil_state.sock_adc, &msg, sizeof(msg), 0);
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    ssize_t n = ops->send(hil_state.sock_adc, &msg, sizeof(msg), 0);
     if (n != sizeof(msg)) {
         return -EIO;
     }
@@ -421,7 +440,9 @@ int lq_hil_tester_inject_can(uint32_t can_id, bool is_extended,
     }
     memcpy(msg.data, data, dlc);
     
-    ssize_t n = send(hil_state.sock_can, &msg, sizeof(msg), 0);
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    ssize_t n = ops->send(hil_state.sock_can, &msg, sizeof(msg), 0);
     if (n != sizeof(msg)) {
         return -EIO;
     }
@@ -435,18 +456,20 @@ int lq_hil_tester_wait_gpio(uint8_t pin, uint8_t expected_state, int timeout_ms)
         return -EINVAL;
     }
     
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     struct pollfd pfd = {
         .fd = hil_state.sock_gpio,
         .events = POLLIN,
     };
     
-    int ret = poll(&pfd, 1, timeout_ms);
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
     if (ret <= 0) {
         return -ETIMEDOUT;
     }
     
     struct lq_hil_gpio_msg msg;
-    ssize_t n = recv(hil_state.sock_gpio, &msg, sizeof(msg), 0);
+    ssize_t n = ops->recv(hil_state.sock_gpio, &msg, sizeof(msg), 0);
     if (n != sizeof(msg)) {
         return -EIO;
     }
@@ -464,17 +487,19 @@ int lq_hil_tester_wait_can(struct lq_hil_can_msg *msg, int timeout_ms)
         return -EINVAL;
     }
     
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     struct pollfd pfd = {
         .fd = hil_state.sock_can,
         .events = POLLIN,
     };
     
-    int ret = poll(&pfd, 1, timeout_ms);
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
     if (ret <= 0) {
         return -ETIMEDOUT;
     }
     
-    ssize_t n = recv(hil_state.sock_can, msg, sizeof(*msg), 0);
+    ssize_t n = ops->recv(hil_state.sock_can, msg, sizeof(*msg), 0);
     if (n != sizeof(*msg)) {
         return -EIO;
     }

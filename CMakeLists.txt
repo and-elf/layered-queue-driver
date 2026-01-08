@@ -50,6 +50,7 @@ add_library(layered_queue
     src/drivers/lq_uds_can.c
     src/drivers/lq_config.c
     src/drivers/lq_hil.c
+    src/drivers/lq_hil_platform.c
     src/drivers/lq_remap.c
     src/drivers/lq_scale.c
     src/drivers/lq_verified_output.c
@@ -105,9 +106,11 @@ if(BUILD_TESTS)
         tests/config_test.cpp
         tests/engine_test.cpp
         tests/hw_input_test.cpp
+        tests/hil_platform_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
         src/drivers/lq_hil.c
+        src/drivers/lq_hil_platform.c
         src/drivers/lq_j1939.c
         src/drivers/lq_canopen.c
         src/drivers/lq_uds.c
@@ -191,6 +194,7 @@ if(BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hw_input.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_j1939.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil_platform.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_remap.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_scale.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_pid.c
@@ -218,6 +222,7 @@ if(BUILD_TESTS)
         COMMAND ${CMAKE_C_COMPILER}
             ${CMAKE_CURRENT_BINARY_DIR}/hil/test_runner.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil_platform.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_j1939.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -lpthread
