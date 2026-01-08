@@ -1,0 +1,167 @@
+/dts-v1/;
+
+/ {
+    model = "Multi-Output Example - GPIO, SPI, PWM, I2C, DAC, Modbus";
+    
+    /* ========================================================================
+     * ENGINE: Root configuration
+     * ======================================================================== */
+    
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <4>;
+        max-cyclic-outputs = <16>;
+    };
+    
+    /* ========================================================================
+     * HARDWARE INPUTS
+     * ======================================================================== */
+    
+    /* Temperature sensor via I2C */
+    temp_sensor: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <0>;
+        adc-channel = <0>;
+        adc-device = <&adc0>;
+        isr-priority = <3>;
+        stale-us = <50000>;  /* 50ms */
+    };
+    
+    /* Speed sensor */
+    speed_sensor: lq-hw-adc-input@1 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <1>;
+        adc-channel = <1>;
+        adc-device = <&adc0>;
+        isr-priority = <3>;
+        stale-us = <20000>;  /* 20ms */
+    };
+    
+    /* Pressure sensor */
+    pressure_sensor: lq-hw-adc-input@2 {
+        compatible = "lq,hw-adc-input";
+        status = "okay";
+        signal-id = <2>;
+        adc-channel = <2>;
+        adc-device = <&adc0>;
+        isr-priority = <4>;
+        stale-us = <100000>;  /* 100ms */
+    };
+    
+    /* ========================================================================
+     * CYCLIC OUTPUTS: Demonstrating all output types
+     * ======================================================================== */
+    
+    /* GPIO Output: Status LED (on/off based on temperature) */
+    status_led: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <0>;       /* Temperature */
+        output-type = "gpio";
+        target-id = <5>;              /* GPIO pin 5 */
+        period-us = <100000>;         /* Update every 100ms */
+        priority = <7>;
+    };
+    
+    /* PWM Output: Cooling fan speed control */
+    fan_pwm: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <0>;       /* Temperature */
+        output-type = "pwm";
+        target-id = <2>;              /* PWM channel 2 */
+        period-us = <50000>;          /* Update every 50ms */
+        priority = <6>;
+    };
+    
+    /* DAC Output: Analog gauge display */
+    analog_gauge: lq-cyclic-output@2 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <1>;       /* Speed */
+        output-type = "dac";
+        target-id = <0>;              /* DAC channel 0 */
+        period-us = <20000>;          /* Update every 20ms */
+        priority = <5>;
+    };
+    
+    /* SPI Output: Send data to external display controller */
+    spi_display: lq-cyclic-output@3 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <1>;       /* Speed */
+        output-type = "spi";
+        target-id = <1>;              /* SPI device 1 (CS1) */
+        period-us = <100000>;         /* Update every 100ms */
+        priority = <7>;
+    };
+    
+    /* I2C Output: Send to I2C EEPROM or external controller */
+    /* target-id encoding: bits[15:8]=I2C address, bits[7:0]=register */
+    i2c_output: lq-cyclic-output@4 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <2>;       /* Pressure */
+        output-type = "i2c";
+        target-id = <0x5010>;         /* I2C addr 0x50, register 0x10 */
+        period-us = <200000>;         /* Update every 200ms */
+        priority = <8>;
+    };
+    
+    /* UART Output: Send diagnostics over serial */
+    uart_diag: lq-cyclic-output@5 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <0>;       /* Temperature */
+        output-type = "uart";
+        target-id = <0>;              /* UART port 0 */
+        period-us = <1000000>;        /* Update every 1 second */
+        priority = <9>;
+    };
+    
+    /* Modbus Output: Send to industrial PLC/SCADA */
+    /* target-id encoding: bits[23:16]=slave ID, bits[15:0]=register address */
+    modbus_output: lq-cyclic-output@6 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <2>;       /* Pressure */
+        output-type = "modbus";
+        target-id = <0x010100>;       /* Slave 1, register 0x0100 */
+        period-us = <500000>;         /* Update every 500ms */
+        priority = <8>;
+    };
+    
+    /* J1939 Output: Standard CAN automotive protocol */
+    j1939_rpm: lq-cyclic-output@7 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <1>;       /* Speed (treated as RPM) */
+        output-type = "j1939";
+        target-id = <0xF004>;         /* PGN for engine speed */
+        period-us = <100000>;         /* 10 Hz */
+        priority = <3>;
+    };
+    
+    /* CANopen Output: Industrial CAN protocol */
+    canopen_tpdo: lq-cyclic-output@8 {
+        compatible = "lq,cyclic-output";
+        status = "okay";
+        
+        source-signal-id = <0>;       /* Temperature */
+        output-type = "canopen";
+        target-id = <0x180>;          /* TPDO1 base (COB-ID) */
+        period-us = <200000>;         /* 5 Hz */
+        priority = <5>;
+    };
+};

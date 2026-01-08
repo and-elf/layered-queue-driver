@@ -133,7 +133,13 @@ extern "C" {
      DT_STRING_TOKEN(node_id, output_type) == j1939 ? LQ_OUTPUT_J1939 : \
      DT_STRING_TOKEN(node_id, output_type) == canopen ? LQ_OUTPUT_CANOPEN : \
      DT_STRING_TOKEN(node_id, output_type) == gpio ? LQ_OUTPUT_GPIO : \
-     LQ_OUTPUT_UART)
+     DT_STRING_TOKEN(node_id, output_type) == uart ? LQ_OUTPUT_UART : \
+     DT_STRING_TOKEN(node_id, output_type) == spi ? LQ_OUTPUT_SPI : \
+     DT_STRING_TOKEN(node_id, output_type) == i2c ? LQ_OUTPUT_I2C : \
+     DT_STRING_TOKEN(node_id, output_type) == pwm ? LQ_OUTPUT_PWM : \
+     DT_STRING_TOKEN(node_id, output_type) == dac ? LQ_OUTPUT_DAC : \
+     DT_STRING_TOKEN(node_id, output_type) == modbus ? LQ_OUTPUT_MODBUS : \
+     LQ_OUTPUT_CAN)
 
 /**
  * @brief Generate lq_cyclic_ctx initializer from DTS node

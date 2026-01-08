@@ -307,6 +307,58 @@ int lq_gpio_set(uint8_t pin, bool value);
  */
 int lq_gpio_get(uint8_t pin, bool *value);
 
+/**
+ * @brief Send data over UART
+ * @param data Data buffer to send
+ * @param len Number of bytes to send
+ * @return 0 on success, negative errno on failure
+ */
+int lq_uart_send(const uint8_t *data, size_t len);
+
+/**
+ * @brief Send data over SPI
+ * @param device SPI device/chip select number
+ * @param data Data buffer to send
+ * @param len Number of bytes to send
+ * @return 0 on success, negative errno on failure
+ */
+int lq_spi_send(uint8_t device, const uint8_t *data, size_t len);
+
+/**
+ * @brief Write data to I2C device
+ * @param addr I2C slave address
+ * @param reg Register address
+ * @param data Data buffer to write
+ * @param len Number of bytes to write
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, size_t len);
+
+/**
+ * @brief Set PWM duty cycle
+ * @param channel PWM channel number
+ * @param duty_cycle Duty cycle value (format depends on platform)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_pwm_set(uint8_t channel, uint32_t duty_cycle);
+
+/**
+ * @brief Write value to DAC
+ * @param channel DAC channel number
+ * @param value DAC value (typically 0-4095 for 12-bit)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_dac_write(uint8_t channel, uint16_t value);
+
+/**
+ * @brief Write Modbus register
+ * @param slave_id Modbus slave ID
+ * @param reg Register address
+ * @param value Value to write
+ * @return 0 on success, negative errno on failure
+ */
+int lq_modbus_write(uint8_t slave_id, uint16_t reg, uint16_t value);
+
 /* ============================================================================
  * Error codes (POSIX-compatible)
  * ============================================================================ */

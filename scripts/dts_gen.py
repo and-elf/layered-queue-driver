@@ -145,6 +145,9 @@ extern struct lq_engine g_lq_engine;
 /* Initialization function */
 int lq_generated_init(void);
 
+/* Output event dispatcher */
+void lq_generated_dispatch_outputs(void);
+
 """)
         
         # Add ISR handler declarations
@@ -223,6 +226,12 @@ def generate_source(nodes, output_path):
     
     num_signals = max_signal_id + 1  # +1 because IDs are 0-indexed
     
+    # Determine which output types are used for conditional includes
+    output_types_used = set()
+    for node in cyclic_outputs:
+        output_type = node.properties.get('output_type', 'can')
+        output_types_used.add(output_type)
+    
     with open(output_path, 'w') as f:
         f.write("""/*
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -234,10 +243,69 @@ def generate_source(nodes, output_path):
 #include "lq_common.h"
 #include "lq_event.h"
 #include "lq_hil.h"
-#include <stdlib.h>
-#include <string.h>
-
 """)
+        
+        # Add protocol-specific includes based on what's used
+        if 'j1939' in output_types_used:
+            f.write("#include \"lq_j1939.h\"\n")
+        if 'canopen' in output_types_used:
+            f.write("#include \"lq_canopen.h\"\n")
+        
+        # Add platform includes if any CAN-based output is used
+        if any(t in output_types_used for t in ['j1939', 'canopen', 'can']):
+            f.write("#include \"lq_platform.h\"  /* For lq_can_send */\n")
+        if 'gpio' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_gpio_set */\n")
+        if 'uart' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_uart_send */\n")
+        if 'spi' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_spi_send */\n")
+        if 'i2c' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_i2c_write */\n")
+        if 'pwm' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_pwm_set */\n")
+        if 'dac' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_dac_write */\n")
+        if 'modbus' in output_types_used:
+            f.write("#include \"lq_platform.h\"  /* For lq_modbus_write */\n")
+        
+        f.write("#include <stdlib.h>\n")
+        f.write("#include <string.h>\n")
+        f.write("\n")
+        
+        # Platform function declarations (portable approach)
+        # Note: Implementations can be provided by:
+        # 1. User's platform-specific code
+        # 2. Linking with lq_platform_stubs.c (provides default no-op implementations)
+        # 3. Weak symbols on GNU toolchains (see lq_platform_stubs.c)
+        f.write("/* Platform function declarations - implement these in your platform code\n")
+        f.write(" * or link with lq_platform_stubs.c for default no-op implementations */\n")
+        
+        if any(t in output_types_used for t in ['j1939', 'canopen', 'can']):
+            f.write("extern int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);\n")
+        
+        if 'gpio' in output_types_used:
+            f.write("extern int lq_gpio_set(uint8_t pin, bool state);\n")
+        
+        if 'uart' in output_types_used:
+            f.write("extern int lq_uart_send(const uint8_t *data, size_t len);\n")
+        
+        if 'spi' in output_types_used:
+            f.write("extern int lq_spi_send(uint8_t device, const uint8_t *data, size_t len);\n")
+        
+        if 'i2c' in output_types_used:
+            f.write("extern int lq_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, size_t len);\n")
+        
+        if 'pwm' in output_types_used:
+            f.write("extern int lq_pwm_set(uint8_t channel, uint32_t duty_cycle);\n")
+        
+        if 'dac' in output_types_used:
+            f.write("extern int lq_dac_write(uint8_t channel, uint16_t value);\n")
+        
+        if 'modbus' in output_types_used:
+            f.write("extern int lq_modbus_write(uint8_t slave_id, uint16_t reg, uint16_t value);\n")
+        
+        f.write("\n")
         
         # Generate engine instance with inline array initialization
         f.write("/* Engine instance */\n")
@@ -402,7 +470,139 @@ def generate_source(nodes, output_path):
         f.write("    #endif\n")
         f.write("    \n")
         f.write("    return 0;\n")
+        f.write("}\n\n")
+        
+        # Generate output dispatch function
+        f.write("/* Output event dispatcher */\n")
+        f.write("void lq_generated_dispatch_outputs(void) {\n")
+        f.write("    /* Dispatch output events to appropriate protocol drivers/hardware */\n")
+        f.write("    for (size_t i = 0; i < g_lq_engine.out_event_count; i++) {\n")
+        f.write("        struct lq_output_event *evt = &g_lq_engine.out_events[i];\n")
+        f.write("        \n")
+        f.write("        switch (evt->type) {\n")
+        
+        # Determine which output types are actually used
+        output_types_used = set()
+        for node in cyclic_outputs:
+            output_type = node.properties.get('output_type', 'can')
+            output_types_used.add(output_type)
+        
+        # Generate dispatch cases for each used output type
+        if 'j1939' in output_types_used:
+            f.write("            case LQ_OUTPUT_J1939: {\n")
+            f.write("                /* J1939 output: encode value and send via CAN */\n")
+            f.write("                uint8_t data[8] = {0};\n")
+            f.write("                data[0] = (uint8_t)(evt->value & 0xFF);\n")
+            f.write("                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);\n")
+            f.write("                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);\n")
+            f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
+            f.write("                \n")
+            f.write("                /* Build CAN ID from PGN (target_id) */\n")
+            f.write("                uint32_t can_id = lq_j1939_build_id_from_pgn(evt->target_id, 6, 0);\n")
+            f.write("                lq_can_send(can_id, true, data, 8);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'canopen' in output_types_used:
+            f.write("            case LQ_OUTPUT_CANOPEN: {\n")
+            f.write("                /* CANopen output: encode PDO and send */\n")
+            f.write("                uint8_t data[8] = {0};\n")
+        if 'spi' in output_types_used:
+            f.write("            case LQ_OUTPUT_SPI: {\n")
+            f.write("                /* SPI output: target_id is device/CS, value is data */\n")
+            f.write("                uint8_t data[4];\n")
+            f.write("                data[0] = (uint8_t)(evt->value & 0xFF);\n")
+            f.write("                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);\n")
+            f.write("                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);\n")
+            f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
+            f.write("                lq_spi_send((uint8_t)evt->target_id, data, 4);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'i2c' in output_types_used:
+            f.write("            case LQ_OUTPUT_I2C: {\n")
+            f.write("                /* I2C output: target_id bits[15:8]=addr, bits[7:0]=register */\n")
+            f.write("                uint8_t addr = (uint8_t)((evt->target_id >> 8) & 0xFF);\n")
+            f.write("                uint8_t reg = (uint8_t)(evt->target_id & 0xFF);\n")
+            f.write("                uint8_t data[4];\n")
+            f.write("                data[0] = (uint8_t)(evt->value & 0xFF);\n")
+            f.write("                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);\n")
+            f.write("                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);\n")
+            f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
+            f.write("                lq_i2c_write(addr, reg, data, 4);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'pwm' in output_types_used:
+            f.write("            case LQ_OUTPUT_PWM: {\n")
+            f.write("                /* PWM output: target_id is channel, value is duty cycle */\n")
+            f.write("                lq_pwm_set((uint8_t)evt->target_id, (uint32_t)evt->value);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'dac' in output_types_used:
+            f.write("            case LQ_OUTPUT_DAC: {\n")
+            f.write("                /* DAC output: target_id is channel, value is analog level */\n")
+            f.write("                lq_dac_write((uint8_t)evt->target_id, (uint16_t)evt->value);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'modbus' in output_types_used:
+            f.write("            case LQ_OUTPUT_MODBUS: {\n")
+            f.write("                /* Modbus output: target_id bits[23:16]=slave, bits[15:0]=register */\n")
+            f.write("                uint8_t slave = (uint8_t)((evt->target_id >> 16) & 0xFF);\n")
+            f.write("                uint16_t reg = (uint16_t)(evt->target_id & 0xFFFF);\n")
+            f.write("                lq_modbus_write(slave, reg, (uint16_t)evt->value);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+            f.write("                data[0] = (uint8_t)(evt->value & 0xFF);\n")
+            f.write("                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);\n")
+            f.write("                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);\n")
+            f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
+            f.write("                \n")
+            f.write("                /* target_id is COB-ID */\n")
+            f.write("                lq_can_send(evt->target_id, false, data, 4);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'can' in output_types_used:
+            f.write("            case LQ_OUTPUT_CAN: {\n")
+            f.write("                /* Raw CAN output */\n")
+            f.write("                uint8_t data[8] = {0};\n")
+            f.write("                data[0] = (uint8_t)(evt->value & 0xFF);\n")
+            f.write("                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);\n")
+            f.write("                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);\n")
+            f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
+            f.write("                \n")
+            f.write("                bool extended = (evt->flags & 1) != 0;\n")
+            f.write("                lq_can_send(evt->target_id, extended, data, 8);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'gpio' in output_types_used:
+            f.write("            case LQ_OUTPUT_GPIO: {\n")
+            f.write("                /* GPIO output: target_id is pin number */\n")
+            f.write("                lq_gpio_set(evt->target_id, evt->value != 0);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        if 'uart' in output_types_used:
+            f.write("            case LQ_OUTPUT_UART: {\n")
+            f.write("                /* UART output: send as ASCII string */\n")
+            f.write("                char buf[32];\n")
+            f.write("                int len = snprintf(buf, sizeof(buf), \"%d\\n\", evt->value);\n")
+            f.write("                lq_uart_send((uint8_t*)buf, len);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
+        f.write("            default:\n")
+        f.write("                /* Unknown output type - ignore */\n")
+        f.write("                break;\n")
+        f.write("        }\n")
+        f.write("    }\n")
         f.write("}\n")
+
 
 def generate_hil_tests(nodes, output_path):
     """Auto-generate HIL tests from system definition"""

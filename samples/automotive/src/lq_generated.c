@@ -8,8 +8,14 @@
 #include "lq_common.h"
 #include "lq_event.h"
 #include "lq_hil.h"
+#include "lq_j1939.h"
+#include "lq_platform.h"  /* For lq_can_send */
 #include <stdlib.h>
 #include <string.h>
+
+/* Platform function declarations - implement these in your platform code
+ * or link with lq_platform_stubs.c for default no-op implementations */
+extern int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);
 
 /* Engine instance */
 struct lq_engine g_lq_engine = {
@@ -102,4 +108,31 @@ int lq_generated_init(void) {
     #endif
     
     return 0;
+}
+
+/* Output event dispatcher */
+void lq_generated_dispatch_outputs(void) {
+    /* Dispatch output events to appropriate protocol drivers/hardware */
+    for (size_t i = 0; i < g_lq_engine.out_event_count; i++) {
+        struct lq_output_event *evt = &g_lq_engine.out_events[i];
+        
+        switch (evt->type) {
+            case LQ_OUTPUT_J1939: {
+                /* J1939 output: encode value and send via CAN */
+                uint8_t data[8] = {0};
+                data[0] = (uint8_t)(evt->value & 0xFF);
+                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);
+                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);
+                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);
+                
+                /* Build CAN ID from PGN (target_id) */
+                uint32_t can_id = lq_j1939_build_id_from_pgn(evt->target_id, 6, 0);
+                lq_can_send(can_id, true, data, 8);
+                break;
+            }
+            default:
+                /* Unknown output type - ignore */
+                break;
+        }
+    }
 }

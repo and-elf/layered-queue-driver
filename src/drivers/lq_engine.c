@@ -308,9 +308,17 @@ void lq_process_fault_monitors(
 
 void lq_process_outputs(struct lq_engine *e)
 {
-    /* On-change outputs would be implemented here */
-    /* For now, this is a placeholder for future on-change logic */
-    (void)e;
+    /* Scan signals with updated==true and generate on-change output events */
+    /* On-change outputs are generated when a signal value changes */
+    /* Similar to cyclic outputs but triggered by change rather than time */
+    
+    /* TODO: Implement on-change output logic:
+     * - Check each signal's updated flag
+     * - If signal is source for an on-change output, add to out_events[]
+     * - This would require adding on-change output contexts to engine struct
+     */
+    
+    (void)e;  /* Not yet implemented - only cyclic outputs currently supported */
 }
 
 /* ============================================================================
@@ -404,11 +412,24 @@ static void *engine_thread_func(void *arg)
         /* Run engine step */
         lq_engine_step(&g_engine, now, events, num_events);
         
-        /* Transmit output events */
-        for (uint8_t i = 0; i < g_engine.out_event_count; i++) {
-            /* Platform-specific transmission would go here */
-            /* For now, just a placeholder */
-        }
+        /* Transmit output events to protocol drivers */
+        /* TODO: Dispatch to registered protocol drivers based on evt->type
+         * For now, applications must handle this in their own code.
+         * Future: Register protocol drivers with engine and dispatch automatically.
+         * 
+         * Example dispatch logic needed:
+         *   for (uint8_t i = 0; i < g_engine.out_event_count; i++) {
+         *       struct lq_output_event *evt = &g_engine.out_events[i];
+         *       switch (evt->type) {
+         *           case LQ_OUTPUT_J1939:
+         *               j1939_driver->update_signal(evt->target_id, evt->value, evt->timestamp);
+         *               break;
+         *           case LQ_OUTPUT_CANOPEN:
+         *               canopen_driver->update_signal(evt->target_id, evt->value, evt->timestamp);
+         *               break;
+         *       }
+         *   }
+         */
         
         /* Sleep for cycle time */
         usleep(100); /* 100us = 10kHz */
@@ -510,10 +531,24 @@ static void engine_thread_entry(void *p1, void *p2, void *p3)
         /* Run engine step */
         lq_engine_step(&g_engine, now, events, num_events);
         
-        /* Transmit output events */
-        for (uint8_t i = 0; i < g_engine.out_event_count; i++) {
-            /* Platform-specific transmission would go here */
-        }
+        /* Transmit output events to protocol drivers */
+        /* TODO: Dispatch to registered protocol drivers based on evt->type
+         * For now, applications must handle this in their own code.
+         * Future: Register protocol drivers with engine and dispatch automatically.
+         * 
+         * Example dispatch logic needed:
+         *   for (uint8_t i = 0; i < g_engine.out_event_count; i++) {
+         *       struct lq_output_event *evt = &g_engine.out_events[i];
+         *       switch (evt->type) {
+         *           case LQ_OUTPUT_J1939:
+         *               j1939_driver->update_signal(evt->target_id, evt->value, evt->timestamp);
+         *               break;
+         *           case LQ_OUTPUT_CANOPEN:
+         *               canopen_driver->update_signal(evt->target_id, evt->value, evt->timestamp);
+         *               break;
+         *       }
+         *   }
+         */
         
         /* Sleep for cycle time */
         k_usleep(CONFIG_LQ_ENGINE_CYCLE_TIME_US);

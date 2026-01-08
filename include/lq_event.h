@@ -30,6 +30,11 @@ enum lq_output_type {
     LQ_OUTPUT_CANOPEN,          /**< CANopen protocol */
     LQ_OUTPUT_GPIO,             /**< GPIO output */
     LQ_OUTPUT_UART,             /**< UART/Serial output */
+    LQ_OUTPUT_SPI,              /**< SPI bus output */
+    LQ_OUTPUT_I2C,              /**< I2C bus output */
+    LQ_OUTPUT_PWM,              /**< PWM output */
+    LQ_OUTPUT_DAC,              /**< DAC (analog output) */
+    LQ_OUTPUT_MODBUS,           /**< Modbus RTU/TCP */
 };
 
 /**

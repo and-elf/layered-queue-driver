@@ -16,6 +16,7 @@ A declarative, device-tree-driven framework for building robust data pipelines i
 - **Fault Detection**: Dual-inverted inputs, tolerance checking, timeout detection
 - **Safety-Critical Ready**: Thread-safe queues, deterministic behavior, error propagation
 - **Statistics**: Built-in monitoring for drops, peak usage, throughput
+- **Multiple Output Types**: GPIO, PWM, DAC, SPI, I2C, UART, CAN, J1939, CANopen, Modbus
 
 ## Architecture
 
@@ -47,7 +48,8 @@ The Layered Queue Driver uses a clean layered architecture separating hardware c
                   │ events
 ┌─────────────────▼───────────────────────────┐
 │          Output Drivers                     │ ← Hardware adapters
-│  • CAN  • GPIO  • UART                      │
+│  • CAN • J1939 • CANopen • GPIO             │
+│  • PWM • DAC • SPI • I2C • UART • Modbus    │
 └─────────────────┬───────────────────────────┘
                   │
 ┌─────────────────▼───────────────────────────┐
