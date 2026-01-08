@@ -354,15 +354,10 @@ const struct lq_protocol_vtbl lq_canopen_protocol_vtbl = {
 };
 
 int lq_canopen_protocol_create(struct lq_protocol_driver *proto,
+                                struct lq_canopen_ctx *ctx,
                                 const struct lq_protocol_config *config)
 {
-    if (!proto) {
-        return -1;
-    }
-    
-    /* Allocate context */
-    struct lq_canopen_ctx *ctx = (struct lq_canopen_ctx *)malloc(sizeof(struct lq_canopen_ctx));
-    if (!ctx) {
+    if (!proto || !ctx || !config) {
         return -1;
     }
     

@@ -5,7 +5,6 @@
 
 #include "lq_j1939.h"
 #include <string.h>
-#include <stdlib.h>
 
 /* J1939 Protocol Driver Implementation */
 
@@ -227,15 +226,10 @@ const struct lq_protocol_vtbl lq_j1939_protocol_vtbl = {
 };
 
 int lq_j1939_protocol_create(struct lq_protocol_driver *proto,
+                              struct lq_j1939_ctx *ctx,
                               const struct lq_protocol_config *config)
 {
-    if (!proto) {
-        return -1;
-    }
-    
-    /* Allocate context */
-    struct lq_j1939_ctx *ctx = (struct lq_j1939_ctx *)malloc(sizeof(struct lq_j1939_ctx));
-    if (!ctx) {
+    if (!proto || !ctx || !config) {
         return -1;
     }
     

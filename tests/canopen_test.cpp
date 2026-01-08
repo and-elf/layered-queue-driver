@@ -998,3 +998,125 @@ TEST_F(CANopenTest, LssConfigureInvalidNodeId) {
     }
 }
 
+// ============================================================================
+// Protocol Create Function Tests
+// ============================================================================
+
+TEST_F(CANopenTest, ProtocolCreateBasic) {
+    struct lq_canopen_ctx new_ctx;
+    struct lq_protocol_driver new_proto;
+    
+    int ret = lq_canopen_protocol_create(&new_proto, &new_ctx, &config);
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(new_proto.vtbl, &lq_canopen_protocol_vtbl);
+    EXPECT_EQ(new_proto.ctx, &new_ctx);
+    EXPECT_EQ(((struct lq_canopen_ctx*)new_proto.ctx)->node_id, 0x10);
+}
+
+TEST_F(CANopenTest, ProtocolCreateNullProto) {
+    struct lq_canopen_ctx new_ctx;
+    int ret = lq_canopen_protocol_create(nullptr, &new_ctx, &config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ProtocolCreateNullContext) {
+    struct lq_protocol_driver new_proto;
+    int ret = lq_canopen_protocol_create(&new_proto, nullptr, &config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ProtocolCreateNullConfig) {
+    struct lq_canopen_ctx new_ctx;
+    struct lq_protocol_driver new_proto;
+    int ret = lq_canopen_protocol_create(&new_proto, &new_ctx, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+// ============================================================================
+// Additional Error Handling Tests
+// ============================================================================
+
+TEST_F(CANopenTest, SetNmtStateNullProto) {
+    lq_canopen_set_nmt_state(nullptr, CANOPEN_STATE_OPERATIONAL);
+    // Should not crash
+}
+
+TEST_F(CANopenTest, SetNmtStateNullContext) {
+    proto.ctx = nullptr;
+    lq_canopen_set_nmt_state(&proto, CANOPEN_STATE_OPERATIONAL);
+    // Should not crash
+}
+
+TEST_F(CANopenTest, SendEmergencyNullProto) {
+    lq_canopen_send_emergency(nullptr, 0x1000, 0x01, nullptr);
+    // Should not crash
+}
+
+TEST_F(CANopenTest, SendEmergencyNullContext) {
+    proto.ctx = nullptr;
+    lq_canopen_send_emergency(&proto, 0x1000, 0x01, nullptr);
+    // Should not crash
+}
+
+TEST_F(CANopenTest, ConfigureTpdoInvalidPdoNum) {
+    proto.vtbl->init(&proto, &config);
+    
+    struct lq_canopen_pdo_config pdo_config;
+    memset(&pdo_config, 0, sizeof(pdo_config));
+    
+    // PDO number 0 (invalid)
+    int ret = lq_canopen_configure_tpdo(&proto, 0, &pdo_config);
+    EXPECT_EQ(ret, -1);
+    
+    // PDO number 5 (invalid)
+    ret = lq_canopen_configure_tpdo(&proto, 5, &pdo_config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ConfigureTpdoNullProto) {
+    struct lq_canopen_pdo_config pdo_config = {};
+    int ret = lq_canopen_configure_tpdo(nullptr, 1, &pdo_config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ConfigureTpdoNullConfig) {
+    proto.vtbl->init(&proto, &config);
+    int ret = lq_canopen_configure_tpdo(&proto, 1, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ConfigureRpdoInvalidPdoNum) {
+    proto.vtbl->init(&proto, &config);
+    
+    struct lq_canopen_pdo_config pdo_config;
+    memset(&pdo_config, 0, sizeof(pdo_config));
+    
+    int ret = lq_canopen_configure_rpdo(&proto, 0, &pdo_config);
+    EXPECT_EQ(ret, -1);
+    
+    ret = lq_canopen_configure_rpdo(&proto, 5, &pdo_config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ConfigureRpdoNullProto) {
+    struct lq_canopen_pdo_config pdo_config = {};
+    int ret = lq_canopen_configure_rpdo(nullptr, 1, &pdo_config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, ConfigureRpdoNullConfig) {
+    proto.vtbl->init(&proto, &config);
+    int ret = lq_canopen_configure_rpdo(&proto, 1, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, SetLssIdentityNullProto) {
+    int ret = lq_canopen_set_lss_identity(nullptr, 1, 2, 3, 4);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(CANopenTest, SetLssIdentityNullContext) {
+    proto.ctx = nullptr;
+    int ret = lq_canopen_set_lss_identity(&proto, 1, 2, 3, 4);
+    EXPECT_EQ(ret, -1);
+}

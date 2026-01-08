@@ -162,10 +162,12 @@ struct lq_canopen_ctx {
  * @brief Create CANopen protocol driver instance
  * 
  * @param proto Protocol driver to initialize
+ * @param ctx CANopen context (caller-provided, no malloc)
  * @param config Protocol configuration (node ID, PDO mappings, etc)
  * @return 0 on success, negative errno on failure
  */
 int lq_canopen_protocol_create(struct lq_protocol_driver *proto,
+                                struct lq_canopen_ctx *ctx,
                                 const struct lq_protocol_config *config);
 
 /**

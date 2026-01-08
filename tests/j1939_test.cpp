@@ -789,8 +789,183 @@ TEST_F(J1939Test, VtableCompleteness) {
 }
 
 // ============================================================================
-// Main
+// NULL Pointer and Edge Case Tests
 // ============================================================================
+
+TEST_F(J1939Test, ProtocolCreateNullProto) {
+    int ret = lq_j1939_protocol_create(nullptr, &ctx, &config);
+    EXPECT_EQ(ret, -1);
+}
+
+
+TEST_F(J1939Test, ProtocolCreateNullContext) {
+    int ret = lq_j1939_protocol_create(&proto, nullptr, &config);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, ProtocolCreateNullConfig) {
+    int ret = lq_j1939_protocol_create(&proto, &ctx, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, FormatDM1NullDm1) {
+}
+
+TEST_F(J1939Test, FormatDM1NullData) {
+    lq_j1939_dm1_t dm1 = {};
+    int ret = lq_j1939_format_dm1(&dm1, nullptr, 8);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, FormatDM1InsufficientBuffer) {
+    lq_j1939_dm1_t dm1 = {};
+    uint8_t data[4];
+    int ret = lq_j1939_format_dm1(&dm1, data, 4);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, FormatDM0NullData) {
+    int ret = lq_j1939_format_dm0(J1939_LAMP_OFF, J1939_LAMP_OFF, nullptr, 8);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, FormatDM0InsufficientBuffer) {
+    uint8_t data[4];
+    int ret = lq_j1939_format_dm0(J1939_LAMP_OFF, J1939_LAMP_OFF, data, 4);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, DecodeEEC1NullData) {
+    uint16_t rpm;
+    uint8_t torque;
+    int ret = lq_j1939_decode_eec1(nullptr, &rpm, &torque);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, DecodeEEC1NullRpm) {
+    uint8_t data[8] = {0};
+    uint8_t torque;
+    int ret = lq_j1939_decode_eec1(data, nullptr, &torque);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, DecodeEEC1NullTorque) {
+    uint8_t data[8] = {0};
+    uint16_t rpm;
+    int ret = lq_j1939_decode_eec1(data, &rpm, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, EncodeEEC1NullData) {
+    int ret = lq_j1939_encode_eec1(1000, 50, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, DecodeDM1NullData) {
+    lq_j1939_dm1_t dm1;
+    int ret = lq_j1939_decode_dm1(nullptr, 8, &dm1);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, DecodeDM1NullOutput) {
+    uint8_t data[8] = {0};
+    int ret = lq_j1939_decode_dm1(data, 8, nullptr);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, DecodeDM1InsufficientLength) {
+    uint8_t data[4] = {0};
+    lq_j1939_dm1_t dm1;
+    int ret = lq_j1939_decode_dm1(data, 4, &dm1);
+    EXPECT_EQ(ret, -1);
+}
+
+TEST_F(J1939Test, CreateDTCBoundaryValues) {
+    // Test maximum SPN (19 bits = 0x7FFFF)
+    uint32_t dtc = lq_j1939_create_dtc(0x7FFFF, 31, 127);
+    EXPECT_EQ(lq_j1939_get_spn(dtc), 0x7FFFF);
+    EXPECT_EQ(lq_j1939_get_fmi(dtc), 31);
+    EXPECT_EQ(lq_j1939_get_oc(dtc), 127);
+}
+
+TEST_F(J1939Test, CreateDTCZeroValues) {
+    uint32_t dtc = lq_j1939_create_dtc(0, 0, 0);
+    EXPECT_EQ(lq_j1939_get_spn(dtc), 0);
+    EXPECT_EQ(lq_j1939_get_fmi(dtc), 0);
+    EXPECT_EQ(lq_j1939_get_oc(dtc), 0);
+}
+
+TEST_F(J1939Test, FormatDM0AllLampStates) {
+    uint8_t data[8];
+    
+    // Test all lamp combinations
+    int ret = lq_j1939_format_dm0(J1939_LAMP_ON, J1939_LAMP_FAST_FLASH, data, 8);
+    EXPECT_EQ(ret, 0);
+    
+    ret = lq_j1939_format_dm0(J1939_LAMP_SLOW_FLASH, J1939_LAMP_OFF, data, 8);
+    EXPECT_EQ(ret, 0);
+}
+
+TEST_F(J1939Test, EncodeDecodeEEC1RoundTrip) {
+    uint8_t data[8];
+    uint16_t rpm_in = 1500, rpm_out;
+    uint8_t torque_in = 75, torque_out;
+    
+    int ret = lq_j1939_encode_eec1(rpm_in, torque_in, data);
+    EXPECT_EQ(ret, 0);
+    
+    ret = lq_j1939_decode_eec1(data, &rpm_out, &torque_out);
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(rpm_out, rpm_in);
+    EXPECT_EQ(torque_out, torque_in);
+}
+
+TEST_F(J1939Test, EncodeEEC1BoundaryRPM) {
+    uint8_t data[8];
+    
+    // Test RPM = 0
+    int ret = lq_j1939_encode_eec1(0, 50, data);
+    EXPECT_EQ(ret, 0);
+    
+    // Test max RPM (65535)
+    ret = lq_j1939_encode_eec1(65535, 50, data);
+    EXPECT_EQ(ret, 0);
+}
+
+TEST_F(J1939Test, EncodeEEC1BoundaryTorque) {
+    uint8_t data[8];
+    
+    // Test torque = 0
+    int ret = lq_j1939_encode_eec1(1000, 0, data);
+    EXPECT_EQ(ret, 0);
+    
+    // Test max torque (255)
+    ret = lq_j1939_encode_eec1(1000, 255, data);
+    EXPECT_EQ(ret, 0);
+}
+
+TEST_F(J1939Test, DecodeDM1MaxDTCs) {
+    proto.vtbl->init(&proto, &config);
+    
+    // Create DM1 with max DTCs in single frame
+    uint8_t data[8];
+    data[0] = 0x00;  // Lamps off
+    data[1] = 0x00;
+    data[2] = 0xFF;  // Flash bits
+    data[3] = 0xFF;
+    
+    // First DTC: 4 bytes
+    data[4] = 0x01;
+    data[5] = 0x02;
+    data[6] = 0x03;
+    data[7] = 0x04;
+    
+    lq_j1939_dm1_t dm1;
+    int ret = lq_j1939_decode_dm1(data, 8, &dm1);
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(dm1.dtc_count, 1);
+}
+
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);

@@ -547,3 +547,220 @@ TEST_F(ConfigTest, UdsRoutineResetDefaults) {
     EXPECT_EQ(ret, 0);
     EXPECT_EQ(registry.num_remaps, 0);
 }
+
+// ============================================================================
+// NULL Pointer and Edge Case Tests
+// ============================================================================
+
+TEST_F(ConfigTest, InitNullRegistry) {
+    int ret = lq_config_init(nullptr, &engine, remaps, MAX_REMAPS, scales, MAX_SCALES);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, InitNullEngine) {
+    lq_config_registry reg;
+    int ret = lq_config_init(&reg, nullptr, remaps, MAX_REMAPS, scales, MAX_SCALES);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadSignalNullRegistry) {
+    int32_t value;
+    uint8_t status;
+    int ret = lq_config_read_signal(nullptr, 0, &value, &status);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadSignalNullValue) {
+    uint8_t status;
+    int ret = lq_config_read_signal(&registry, 0, nullptr, &status);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadSignalNullStatus) {
+    int32_t value;
+    int ret = lq_config_read_signal(&registry, 0, &value, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadRemapNullRegistry) {
+    lq_remap_ctx remap;
+    int ret = lq_config_read_remap(nullptr, 0, &remap);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadRemapNullOutput) {
+    int ret = lq_config_read_remap(&registry, 0, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadRemapInvalidIndex) {
+    lq_remap_ctx remap;
+    int ret = lq_config_read_remap(&registry, MAX_REMAPS, &remap);
+    EXPECT_EQ(ret, -ENOENT);
+}
+
+TEST_F(ConfigTest, WriteRemapNullRegistry) {
+    lq_remap_ctx remap = { .input_signal = 1, .output_signal = 2, .invert = false, .deadzone = 0, .enabled = true };
+    int ret = lq_config_write_remap(nullptr, 0, &remap);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, WriteRemapNullRemap) {
+    int ret = lq_config_write_remap(&registry, 0, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, WriteRemapInvalidIndex) {
+    lq_remap_ctx remap = { .input_signal = 1, .output_signal = 2, .invert = false, .deadzone = 0, .enabled = true };
+    int ret = lq_config_write_remap(&registry, MAX_REMAPS, &remap);
+    EXPECT_EQ(ret, -ENOENT);
+}
+
+TEST_F(ConfigTest, WriteRemapConfigLocked) {
+    lq_remap_ctx remap1 = { .input_signal = 1, .output_signal = 2, .invert = false, .deadzone = 0, .enabled = true };
+    uint8_t index;
+    lq_config_add_remap(&registry, &remap1, &index);
+    
+    registry.config_locked = true;
+    
+    lq_remap_ctx remap2 = { .input_signal = 3, .output_signal = 4, .invert = true, .deadzone = 100, .enabled = false };
+    int ret = lq_config_write_remap(&registry, 0, &remap2);
+    EXPECT_EQ(ret, -LQ_NRC_SECURITY_ACCESS_DENIED);
+}
+
+TEST_F(ConfigTest, ReadScaleNullRegistry) {
+    lq_scale_ctx scale;
+    int ret = lq_config_read_scale(nullptr, 0, &scale);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadScaleNullOutput) {
+    int ret = lq_config_read_scale(&registry, 0, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ReadScaleInvalidIndex) {
+    lq_scale_ctx scale;
+    int ret = lq_config_read_scale(&registry, MAX_SCALES, &scale);
+    EXPECT_EQ(ret, -ENOENT);
+}
+
+TEST_F(ConfigTest, WriteScaleNullRegistry) {
+    lq_scale_ctx scale = { .input_signal = 1, .output_signal = 2, .scale_factor = 100, .offset = 0, .enabled = true };
+    int ret = lq_config_write_scale(nullptr, 0, &scale);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, WriteScaleNullScale) {
+    int ret = lq_config_write_scale(&registry, 0, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, WriteScaleInvalidIndex) {
+    lq_scale_ctx scale = { .input_signal = 1, .output_signal = 2, .scale_factor = 100, .offset = 0, .enabled = true };
+    int ret = lq_config_write_scale(&registry, MAX_SCALES, &scale);
+    EXPECT_EQ(ret, -ENOENT);
+}
+
+TEST_F(ConfigTest, WriteScaleConfigLocked) {
+    lq_scale_ctx scale1 = { .input_signal = 1, .output_signal = 2, .scale_factor = 100, .offset = 0, .enabled = true };
+    uint8_t index;
+    lq_config_add_scale(&registry, &scale1, &index);
+    
+    registry.config_locked = true;
+    
+    lq_scale_ctx scale2 = { .input_signal = 3, .output_signal = 4, .scale_factor = 200, .offset = 50, .enabled = false };
+    int ret = lq_config_write_scale(&registry, 0, &scale2);
+    EXPECT_EQ(ret, -LQ_NRC_SECURITY_ACCESS_DENIED);
+}
+
+TEST_F(ConfigTest, AddRemapNullRegistry) {
+    lq_remap_ctx remap = { .input_signal = 1, .output_signal = 2, .invert = false, .deadzone = 0, .enabled = true };
+    uint8_t index;
+    int ret = lq_config_add_remap(nullptr, &remap, &index);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, AddRemapNullRemap) {
+    uint8_t index;
+    int ret = lq_config_add_remap(&registry, nullptr, &index);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, AddRemapNullIndex) {
+    lq_remap_ctx remap = { .input_signal = 1, .output_signal = 2, .invert = false, .deadzone = 0, .enabled = true };
+    int ret = lq_config_add_remap(&registry, &remap, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, AddScaleNullRegistry) {
+    lq_scale_ctx scale = { .input_signal = 1, .output_signal = 2, .scale_factor = 100, .offset = 0, .enabled = true };
+    uint8_t index;
+    int ret = lq_config_add_scale(nullptr, &scale, &index);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, AddScaleNullScale) {
+    uint8_t index;
+    int ret = lq_config_add_scale(&registry, nullptr, &index);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, AddScaleNullIndex) {
+    lq_scale_ctx scale = { .input_signal = 1, .output_signal = 2, .scale_factor = 100, .offset = 0, .enabled = true };
+    int ret = lq_config_add_scale(&registry, &scale, nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, RemoveRemapNullRegistry) {
+    int ret = lq_config_remove_remap(nullptr, 0);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, RemoveRemapInvalidIndex) {
+    int ret = lq_config_remove_remap(&registry, MAX_REMAPS);
+    EXPECT_EQ(ret, -ENOENT);
+}
+
+TEST_F(ConfigTest, RemoveScaleNullRegistry) {
+    int ret = lq_config_remove_scale(nullptr, 0);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, RemoveScaleInvalidIndex) {
+    int ret = lq_config_remove_scale(&registry, MAX_SCALES);
+    EXPECT_EQ(ret, -ENOENT);
+}
+
+TEST_F(ConfigTest, EnterCalibrationModeNullRegistry) {
+    int ret = lq_config_enter_calibration_mode(nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ExitCalibrationModeNullRegistry) {
+    int ret = lq_config_exit_calibration_mode(nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, ResetDefaultsNullRegistry) {
+    int ret = lq_config_reset_to_defaults(nullptr);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(ConfigTest, CalibrationModeAlreadyActive) {
+    lq_config_enter_calibration_mode(&registry);
+    EXPECT_TRUE(registry.calibration_mode);
+    
+    int ret = lq_config_enter_calibration_mode(&registry);
+    EXPECT_EQ(ret, 0);  // Should succeed but no change
+    EXPECT_TRUE(registry.calibration_mode);
+}
+
+TEST_F(ConfigTest, ExitCalibrationModeNotActive) {
+    EXPECT_FALSE(registry.calibration_mode);
+    
+    int ret = lq_config_exit_calibration_mode(&registry);
+    EXPECT_EQ(ret, 0);  // Succeeds even if not in calibration mode
+    EXPECT_FALSE(registry.calibration_mode);
+    EXPECT_TRUE(registry.config_locked);
+}

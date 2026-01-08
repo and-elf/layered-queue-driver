@@ -44,6 +44,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         -Wdouble-promotion           # Warn about float to double promotions
         -Wformat=2                   # Extra format string checks
         -Wimplicit-fallthrough       # Warn about switch fallthrough
+        -Wnarrowing                  # Warn about narrowing conversions
     )
     
     # C-specific warnings

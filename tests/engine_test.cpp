@@ -634,3 +634,136 @@ TEST_F(EngineTest, MultipleFaultMonitorsOnSameSignal) {
     // Second monitor: FAULT (exceeds -50 to 50 range)
     EXPECT_EQ(engine.signals[21].value, (int32_t)LQ_FAULT_LEVEL_2);
 }
+
+// ============================================================================
+// Edge Case and Boundary Tests
+// ============================================================================
+
+TEST_F(EngineTest, IngestEventsEmptyArray) {
+    struct lq_event evt = make_event(0, 100);
+    lq_ingest_events(&engine, &evt, 0);
+    // Should not process any events
+    EXPECT_FALSE(engine.signals[0].updated);
+}
+
+TEST_F(EngineTest, IngestEventsMaxSignalId) {
+    // Test with max valid signal ID
+    struct lq_event evt = make_event(LQ_MAX_SIGNALS - 1, 999);
+    lq_ingest_events(&engine, &evt, 1);
+    
+    EXPECT_EQ(engine.signals[LQ_MAX_SIGNALS - 1].value, 999);
+    EXPECT_TRUE(engine.signals[LQ_MAX_SIGNALS - 1].updated);
+}
+
+TEST_F(EngineTest, IngestEventsOutOfRangeSignalId) {
+    // Signal ID beyond array bounds should be ignored
+    struct lq_event evt = make_event(LQ_MAX_SIGNALS + 5, 1234);
+    lq_ingest_events(&engine, &evt, 1);
+    // Should not crash - just ignore the event
+}
+
+TEST_F(EngineTest, ApplyInputStalenessNoTimeout) {
+    // Signal with stale_us = 0 should never timeout
+    struct lq_event evt = make_event(5, 100, LQ_EVENT_OK, 1000);
+    lq_ingest_events(&engine, &evt, 1);
+    
+    engine.signals[5].stale_us = 0;  // No staleness check
+    lq_apply_input_staleness(&engine, 9999999999ULL);  // Very late time
+    
+    EXPECT_EQ(engine.signals[5].status, LQ_EVENT_OK);  // Should not timeout
+}
+
+TEST_F(EngineTest, ApplyInputStalenessJustExpired) {
+    struct lq_event evt = make_event(5, 100, LQ_EVENT_OK, 1000000);
+    lq_ingest_events(&engine, &evt, 1);
+    
+    engine.signals[5].stale_us = 500000;  // 500ms timeout
+    lq_apply_input_staleness(&engine, 1500001);  // Just past deadline
+    
+    EXPECT_EQ(engine.signals[5].status, LQ_EVENT_TIMEOUT);
+}
+
+TEST_F(EngineTest, ProcessMergesAllInputsInvalid) {
+    // Merge with all inputs in error state
+    engine.num_merges = 1;
+    engine.merges[0].input_signals[0] = 0;
+    engine.merges[0].input_signals[1] = 1;
+    engine.merges[0].num_inputs = 2;
+    engine.merges[0].output_signal = 10;
+    engine.merges[0].voting_method = LQ_VOTE_MEDIAN;
+    engine.merges[0].enabled = true;
+    
+    // Set all inputs to ERROR status
+    struct lq_event events[2];
+    events[0] = make_event(0, 100, LQ_EVENT_ERROR);
+    events[1] = make_event(1, 200, LQ_EVENT_ERROR);
+    
+    lq_ingest_events(&engine, events, 2);
+    lq_process_merges(&engine, 1000000);
+    
+    // Output should be in error state (no valid inputs)
+    EXPECT_EQ(engine.signals[10].status, LQ_EVENT_ERROR);
+}
+
+TEST_F(EngineTest, ProcessMergesDisabled) {
+    // Disabled merge should not process
+    engine.num_merges = 1;
+    engine.merges[0].input_signals[0] = 0;
+    engine.merges[0].input_signals[1] = 1;
+    engine.merges[0].num_inputs = 2;
+    engine.merges[0].output_signal = 10;
+    engine.merges[0].voting_method = LQ_VOTE_MEDIAN;
+    engine.merges[0].enabled = false;  // Disabled
+    
+    struct lq_event events[2];
+    events[0] = make_event(0, 100);
+    events[1] = make_event(1, 200);
+    
+    lq_ingest_events(&engine, events, 2);
+    lq_process_merges(&engine, 1000000);
+    
+    // Output should not be updated
+    EXPECT_EQ(engine.signals[10].value, 0);
+}
+
+TEST_F(EngineTest, ProcessFaultMonitorsDisabled) {
+    // Disabled monitor should not trigger
+    engine.num_fault_monitors = 1;
+    engine.fault_monitors[0].input_signal = 5;
+    engine.fault_monitors[0].fault_output_signal = 20;
+    engine.fault_monitors[0].check_range = true;
+    engine.fault_monitors[0].min_value = 0;
+    engine.fault_monitors[0].max_value = 100;
+    engine.fault_monitors[0].fault_level = LQ_FAULT_LEVEL_1;
+    engine.fault_monitors[0].enabled = false;  // Disabled
+    
+    struct lq_event evt = make_event(5, 500);  // Out of range
+    lq_ingest_events(&engine, &evt, 1);
+    lq_process_fault_monitors(&engine, 1000000);
+    
+    // Should not detect fault
+    EXPECT_EQ(engine.signals[20].value, 0);
+}
+
+TEST_F(EngineTest, EngineStepFullPipeline) {
+    // Test full engine step with event processing
+    struct lq_event evt = make_event(0, 1234);
+    
+    lq_engine_step(&engine, 1000000, &evt, 1);
+    
+    EXPECT_EQ(engine.signals[0].value, 1234);
+    EXPECT_TRUE(engine.signals[0].updated);
+}
+
+TEST_F(EngineTest, EngineStepMultipleEvents) {
+    struct lq_event events[3];
+    events[0] = make_event(0, 100);
+    events[1] = make_event(1, 200);
+    events[2] = make_event(2, 300);
+    
+    lq_engine_step(&engine, 1000000, events, 3);
+    
+    EXPECT_EQ(engine.signals[0].value, 100);
+    EXPECT_EQ(engine.signals[1].value, 200);
+    EXPECT_EQ(engine.signals[2].value, 300);
+}

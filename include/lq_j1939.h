@@ -170,10 +170,12 @@ struct lq_j1939_ctx {
  * @brief Create J1939 protocol driver instance
  * 
  * @param proto Protocol driver to initialize
+ * @param ctx J1939 context (caller-provided, no dynamic allocation)
  * @param config Protocol configuration (node address, mappings, etc)
  * @return 0 on success, negative errno on failure
  */
 int lq_j1939_protocol_create(struct lq_protocol_driver *proto,
+                              struct lq_j1939_ctx *ctx,
                               const struct lq_protocol_config *config);
 
 /**
