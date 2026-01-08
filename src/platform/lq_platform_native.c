@@ -42,10 +42,16 @@ uint32_t lq_platform_uptime_get(void)
     struct timeval now;
     gettimeofday(&now, NULL);
     
-    uint32_t seconds = (uint32_t)(now.tv_sec - start_time.tv_sec);
-    uint32_t useconds = (uint32_t)(now.tv_usec - start_time.tv_usec);
+    int64_t seconds = (int64_t)(now.tv_sec - start_time.tv_sec);
+    int64_t useconds = (int64_t)(now.tv_usec - start_time.tv_usec);
     
-    return seconds * 1000 + useconds / 1000;
+    /* Handle microseconds underflow */
+    if (useconds < 0) {
+        seconds--;
+        useconds += 1000000;
+    }
+    
+    return (uint32_t)(seconds * 1000 + useconds / 1000);
 }
 
 uint64_t lq_platform_get_time_us(void)
@@ -55,10 +61,16 @@ uint64_t lq_platform_get_time_us(void)
     struct timeval now;
     gettimeofday(&now, NULL);
     
-    uint64_t seconds = (uint64_t)(now.tv_sec - start_time.tv_sec);
-    uint64_t useconds = (uint64_t)(now.tv_usec - start_time.tv_usec);
+    int64_t seconds = (int64_t)(now.tv_sec - start_time.tv_sec);
+    int64_t useconds = (int64_t)(now.tv_usec - start_time.tv_usec);
     
-    return seconds * 1000000ULL + useconds;
+    /* Handle microseconds underflow */
+    if (useconds < 0) {
+        seconds--;
+        useconds += 1000000;
+    }
+    
+    return (uint64_t)(seconds * 1000000LL + useconds);
 }
 
 void lq_platform_sleep_ms(uint32_t ms)
