@@ -1,9 +1,7 @@
 # Layered Queue Driver for Zephyr RTOS
 
-[![Build and Test](https://github.com/USERNAME/layered-queue-driver/actions/workflows/test.yml/badge.svg)](https://github.com/USERNAME/layered-queue-driver/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/USERNAME/layered-queue-driver/main/.github/badges/coverage.json)](https://github.com/USERNAME/layered-queue-driver/actions/workflows/coverage-badge.yml)
-
-> **Note**: Replace `USERNAME` with your GitHub username in the badge URLs above.
+[![Build and Test](https://github.com/and-elf/layered-queue-driver/actions/workflows/test.yml/badge.svg)](https://github.com/and-elf/layered-queue-driver/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/and-elf/layered-queue-driver/main/.github/badges/coverage.json)](https://github.com/and-elf/layered-queue-driver/actions/workflows/coverage-badge.yml)
 
 A declarative, device-tree-driven framework for building robust data pipelines in safety-critical embedded systems. The Layered Queue Driver enables hardware sensor abstraction, range validation, redundancy management, and fault detection—all configured through device tree.
 
@@ -91,44 +89,50 @@ void spi_poll_task(void)
 
 ### 2. Device Tree Configuration
 
-Define the complete pipeline in device tree:
+Define the complete pipeline in device tree (see [samples/automotive/app.dts](samples/automotive/app.dts) for complete example):
 
 ```dts
 / {
-    /* Hardware inputs */
-    inputs {
-        adc0: lq-adc@0 {
-            compatible = "lq,adc";
-            channel = <0>;
-            min-raw = <0>;
-            max-raw = <4095>;
-            stale-us = <5000>;
-        };
-        
-        spi0: lq-spi@0 {
-            compatible = "lq,spi";
-            channel = <0>;
-            stale-us = <5000>;
-        };
+    /* Engine configuration */
+    engine: lq-engine {
+        compatible = "lq,engine";
+        max-signals = <32>;
+        max-merges = <8>;
+        max-cyclic-outputs = <16>;
     };
     
-    /* Mid-level processing */
-    merges {
-        engine_sensor: lq-merge@0 {
-            inputs = <&adc0 &spi0>;
-            tolerance = <50>;
-            voting-method = "median";
-        };
+    /* Hardware inputs - ISRs auto-generated */
+    rpm_adc: lq-hw-adc-input@0 {
+        compatible = "lq,hw-adc-input";
+        signal-id = <0>;
+        adc-channel = <0>;
+        stale-us = <5000>;
     };
     
-    /* Output adapters */
-    outputs {
-        can_speed: lq-output@0 {
-            compatible = "lq,can-output";
-            source = <&engine_sensor>;
-            pgn = <0xFEF1>;
-            period-us = <100000>;  /* 10Hz */
-        };
+    rpm_spi: lq-hw-spi-input@0 {
+        compatible = "lq,hw-spi-input";
+        signal-id = <1>;
+        spi-device = <&spi0>;
+        stale-us = <5000>;
+    };
+    
+    /* Redundancy management */
+    rpm_merge: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        output-signal-id = <10>;
+        input-signal-ids = <0 1>;
+        voting-method = "median";
+        tolerance = <50>;
+    };
+    
+    /* Cyclic outputs - dispatch auto-generated */
+    rpm_output: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        source-signal-id = <10>;
+        output-type = "j1939";
+        target-id = <0xFEF1>;  /* J1939 PGN */
+        period-us = <100000>;  /* 10Hz */
+    };
         
         gpio_warning: lq-output@1 {
             compatible = "lq,gpio-output";
@@ -148,173 +152,193 @@ Define the complete pipeline in device tree:
 };
 ```
 
-### 3. Engine Processing
+### 3. Code Generation and Main Loop
 
-The engine step runs periodically to process all pending samples:
+Generate C code from device tree:
+
+```bash
+python3 scripts/dts_gen.py app.dts src/
+# Generates: src/lq_generated.h, src/lq_generated.c
+```
+
+The main application loop is simple:
 
 ```c
-#include "lq_engine.h"
-#include "lq_hw_input.h"
-#include "lq_mid_driver.h"
+#include "lq_generated.h"
 #include "lq_platform.h"
 
-void engine_task(void)
+int main(void)
 {
-    struct lq_engine *engine = get_engine_instance();
-    struct lq_event events[MAX_EVENTS];
+    // Initialize generated engine configuration
+    lq_generated_init();
     
+    // Main processing loop
     while (1) {
-        uint64_t now = lq_platform_uptime_get() * 1000; // Convert to μs
-        size_t num_events = 0;
+        uint64_t now_us = lq_platform_get_time_us();
         
-        // Collect events from all pending hardware samples
-        struct lq_hw_sample sample;
-        while (lq_hw_pop(&sample) == 0 && num_events < MAX_EVENTS) {
-            struct lq_mid_driver *drv = find_driver_for_source(sample.src);
-            num_events += lq_mid_process(drv, now, &sample,
-                                        &events[num_events],
-                                        MAX_EVENTS - num_events);
-        }
+        // Process all inputs, run voting/merging, generate outputs
+        lq_engine_step(&g_lq_engine, now_us);
         
-        // Single deterministic processing step
-        lq_engine_step(engine, now, events, num_events);
+        // Dispatch outputs to hardware (auto-generated based on DTS)
+        lq_generated_dispatch_outputs();
         
-        // Transmit all output events
-        for (size_t i = 0; i < engine->out_event_count; i++) {
-            transmit_output_event(&engine->out_events[i]);
-        }
-        
-        k_sleep(K_USEC(100));  // 10kHz processing rate
+        lq_platform_sleep_ms(10);  // 100Hz processing rate
     }
 }
 ```
 
-The engine step internally:
-1. Ingests events into canonical signals
-2. Applies staleness detection
-3. Processes merge/voter logic
-4. Generates on-change outputs
-5. Processes cyclic deadline-scheduled outputs
+**What happens inside `lq_engine_step()`:**
+1. Pops pending hardware samples from ISR ringbuffer
+2. Updates signal values with staleness checking
+3. Runs merge/voting algorithms on redundant inputs
+4. Generates cyclic output events based on deadlines
+5. Generates on-change output events for threshold triggers
 
-This replaces the old queue-based approach with a cleaner, more testable design.
+**What happens inside `lq_generated_dispatch_outputs()`:**
+1. Iterates through output events buffer
+2. Routes each event to appropriate protocol driver
+3. Encodes values (J1939 PGN, CANopen COB-ID, etc.)
+4. Calls platform functions (lq_can_send, lq_gpio_set, etc.)
 
-## Driver Types
+Both functions are **pure processing** - no RTOS dependencies, easily testable.
 
-### Queue (`zephyr,lq-queue`)
+## Device Tree Node Types
 
-Buffered FIFO queue for data items with configurable capacity and drop policies.
+### Hardware Input Nodes
 
-**Properties:**
-- `capacity`: Maximum items
-- `drop-policy`: `drop-oldest`, `drop-newest`, or `block`
-- `priority`: Scheduling priority
+**`lq,hw-adc-input`** - ADC sensor input with ISR callback
+- `signal-id`: Target signal array index
+- `adc-channel`: ADC hardware channel
+- `adc-device`: Device reference (Zephyr only)
+- `isr-priority`: Interrupt priority
+- `stale-us`: Staleness timeout in microseconds
 
-### ADC Source (`zephyr,lq-adc-source`)
+**`lq,hw-spi-input`** - SPI sensor input with data-ready GPIO
+- `signal-id`: Target signal array index
+- `spi-device`: SPI bus reference
+- `data-ready-gpio`: GPIO for data ready interrupt
+- `num-bytes`: Number of bytes to read
+- `signed`: true if value is signed
+- `stale-us`: Staleness timeout
 
-Polls ADC channels and validates against expected ranges.
+**`lq,hw-gpio-input`** - Digital input monitoring
+- `signal-id`: Target signal array index
+- `gpio-pin`: GPIO pin reference
+- `debounce-us`: Debounce time
+- `stale-us`: Staleness timeout
 
-**Properties:**
-- `adc`: ADC device reference
-- `channel`: ADC channel number
-- `output-queue`: Destination queue
-- `poll-interval-ms`: Polling rate
-- `averaging`: Number of samples to average
-- Child nodes: Range definitions with `min`, `max`, `status`
+### Mid-Level Processing Nodes
 
-### SPI Source (`zephyr,lq-spi-source`)
+**`lq,mid-merge`** - Redundant input voting/merging
+- `output-signal-id`: Merged result signal ID
+- `input-signal-ids`: Array of input signal IDs
+- `voting-method`: `median`, `average`, `min`, `max`
+- `tolerance`: Maximum deviation between inputs
+- `stale-us`: Staleness timeout
 
-Reads SPI devices and validates against expected discrete values.
+**`lq,mid-remap`** - Value remapping/lookup table
+- `input-signal-id`: Source signal
+- `output-signal-id`: Destination signal
+- `map`: Array of [input, output] pairs
 
-**Properties:**
-- `spi`: SPI bus reference
-- `reg`: Device register/CS
-- `output-queue`: Destination queue
-- `poll-interval-ms`: Polling rate
-- Child nodes: Expected values with `value`, `status`
+**`lq,mid-scale`** - Linear scaling transformation
+- `input-signal-id`: Source signal
+- `output-signal-id`: Destination signal  
+- `scale`: Multiplication factor (Q16.16 fixed point)
+- `offset`: Addition offset
 
-### Merge/Voter (`zephyr,lq-merge-voter`)
+### Output Nodes
 
-Combines multiple redundant inputs using configurable voting algorithms.
+**`lq,cyclic-output`** - Periodic output transmission
+- `source-signal-id`: Source signal to transmit
+- `output-type`: Protocol type (see Output Types below)
+- `target-id`: Protocol-specific address (PGN, COB-ID, pin, etc.)
+- `period-us`: Transmission period in microseconds
+- `priority`: Scheduling priority (lower = higher priority)
 
-**Properties:**
-- `input-queues`: Array of input queue references
-- `output-queue`: Destination queue
-- `voting-method`: `median`, `average`, `min`, `max`, `majority`
-- `tolerance`: Maximum allowed deviation between inputs
-- `timeout-ms`: Timeout for stale data
-- Child nodes: Output range validation
+**Output Types:** `can`, `j1939`, `canopen`, `gpio`, `uart`, `spi`, `i2c`, `pwm`, `dac`, `modbus`
 
-### Dual-Inverted (`zephyr,lq-dual-inverted`)
+See [docs/output-types-reference.md](docs/output-types-reference.md) for complete output type documentation.
 
-Monitors complementary GPIO signals for fault detection.
+## Signal Status Codes
 
-**Properties:**
-- `gpio-normal`: Normal signal GPIO
-- `gpio-inverted`: Inverted signal GPIO
-- `output-queue`: Destination queue
-- `debounce-ms`: Debounce time
-- `error-on-both-high`: Error when both signals high
-- `error-on-both-low`: Error when both signals low
-
-## Status Codes
+Every signal value has an associated status indicating data quality:
 
 ```c
-enum lq_status {
-    LQ_OK = 0,              // Normal operation
-    LQ_DEGRADED = 1,        // Degraded but functional
-    LQ_OUT_OF_RANGE = 2,    // Out of acceptable range
-    LQ_ERROR = 3,           // Hardware/communication error
-    LQ_TIMEOUT = 4,         // Data timeout
-    LQ_INCONSISTENT = 5,    // Redundant sources disagree
+enum lq_event_status {
+    LQ_EVENT_OK = 0,              // Normal operation
+    LQ_EVENT_DEGRADED = 1,        // Degraded but functional
+    LQ_EVENT_OUT_OF_RANGE = 2,    // Out of acceptable range
+    LQ_EVENT_ERROR = 3,           // Hardware/communication error
+    LQ_EVENT_TIMEOUT = 4,         // Data staleness timeout
+    LQ_EVENT_INCONSISTENT = 5,    // Redundant inputs disagree (exceeds tolerance)
 };
 ```
+
+**Status Propagation:**
+- Hardware inputs start with `LQ_EVENT_OK`
+- Timeout detection upgrades to `LQ_EVENT_TIMEOUT` when stale
+- Merge nodes upgrade to `LQ_EVENT_INCONSISTENT` when inputs disagree
+- Range checkers upgrade to `LQ_EVENT_OUT_OF_RANGE` when out of bounds
+- Status flows through to output events for monitoring
 
 ## Directory Structure
 
 ```
 layered-queue-driver/
-├── Kconfig                        # KConfig configuration options
-├── dts/
-│   ├── bindings/layered-queue/     # Device tree bindings
-│   │   ├── lq,adc.yaml
-│   │   ├── lq,spi.yaml
-│   │   ├── lq,merge-voter.yaml
-│   │   ├── lq,can-output.yaml
-│   │   ├── lq,gpio-output.yaml
-│   │   └── lq,sync-group.yaml
-│   └── examples/                   # Example device trees
-│       ├── layered-architecture-example.dts
-│       ├── layered-queue-example.dts (legacy)
-│       └── automotive-brake-example.dts (legacy)
-├── include/
+├── CMakeLists.txt                 # Build configuration
+├── Kconfig                        # KConfig options (Zephyr integration)
+├── west.yml                       # Zephyr west manifest
+├── scripts/
+│   ├── dts_gen.py                 # Device tree → C code generator
+│   ├── hil_test_gen.py            # HIL test generator
+│   └── platform_adaptors.py      # Platform adapter generator
+├── include/                       # Public API headers
+│   ├── lq_engine.h                # Engine core API
+│   ├── lq_event.h                 # Event types and output drivers
 │   ├── lq_hw_input.h              # Hardware input layer (ISR-safe)
-│   ├── lq_mid_driver.h            # Mid-level driver interface (pure)
-│   ├── lq_event.h                 # Event and output driver system
-│   ├── lq_engine.h                # Engine core (pure processing)
-│   ├── lq_sync_group.h            # Synchronized output groups
 │   ├── lq_platform.h              # Platform abstraction
-│   ├── lq_util.h                  # Utility functions
-│   ├── layered_queue_core.h       # Legacy core API
-│   └── zephyr/drivers/
-│       └── layered_queue.h        # Legacy public API
-├── src/
-│   ├── lq_hw_input.c              # Hardware input implementation
-│   ├── lq_engine.c                # Pure engine step
-│   ├── lq_queue_core.c            # Legacy queue implementation
-│   ├── lq_util.c                  # Utility functions
+│   ├── lq_j1939.h                 # J1939 protocol support
+│   ├── lq_canopen.h               # CANopen protocol support
+│   ├── lq_pid.h                   # PID controller
+│   ├── lq_dtc.h                   # Diagnostic Trouble Codes
+│   └── layered_queue_core.h       # Core queue utilities
+├── src/drivers/                   # Core driver implementations
+│   ├── lq_engine.c                # Pure engine processing
+│   ├── lq_hw_input.c              # Hardware input aggregator
+│   ├── lq_j1939.c                 # J1939 implementation
+│   ├── lq_canopen.c               # CANopen implementation
+│   ├── lq_pid.c                   # PID controller
+│   ├── lq_dtc.c                   # DTC management
 │   └── platform/
 │       ├── lq_platform_native.c   # Native/POSIX platform
-│       └── lq_platform_zephyr.c   # Zephyr RTOS platform
-├── drivers/layered_queue/          # Zephyr driver implementations
-│   ├── lq_adc_input.c             # ADC input driver
-│   ├── lq_spi_input.c             # SPI input driver
-│   ├── lq_merge_voter.c           # Merge/voter mid-level driver
-│   ├── lq_can_output.c            # CAN output driver
-│   ├── lq_gpio_output.c           # GPIO output driver
-│   ├── lq_sync_group.c            # Sync group implementation
-│   ├── Kconfig
-│   └── CMakeLists.txt
-├── samples/
+│       ├── lq_platform_stubs.c    # Default platform stubs
+│       └── lq_platform_freertos.c # FreeRTOS platform
+├── samples/                       # Example applications
+│   ├── automotive/                # Automotive example (engine monitor)
+│   │   ├── app.dts                # Device tree configuration
+│   │   └── src/
+│   │       ├── lq_generated.h     # Auto-generated header
+│   │       └── lq_generated.c     # Auto-generated implementation
+│   ├── multi-output-example.dts   # All 10 output types demo
+│   ├── basic/                     # Basic examples
+│   ├── freertos/                  # FreeRTOS integration
+│   └── stm32/                     # STM32 HAL integration
+├── tests/                         # Unit and integration tests
+│   ├── engine_test.cpp            # Engine tests
+│   ├── queue_test.cpp             # Queue tests
+│   ├── hil_test.cpp               # Hardware-in-loop tests
+│   └── hil/                       # HIL test infrastructure
+├── docs/                          # Documentation
+│   ├── architecture.md            # Architecture overview
+│   ├── output-types-reference.md  # Output types API reference
+│   ├── platform-portability.md    # Cross-compiler guide
+│   ├── devicetree-guide.md        # DTS configuration guide
+│   └── HIL_TESTING.md             # HIL testing guide
+└── dts/                           # Device tree bindings
+    ├── bindings/                  # YAML binding definitions
+    └── examples/                  # Example DTS files
+```
 │   ├── basic/                     # Legacy basic example
 │   └── layered/                   # New layered architecture example
 ├── tests/
@@ -329,39 +353,83 @@ layered-queue-driver/
 
 ## Examples
 
-### Example 1: Layered Architecture - Engine Monitoring
+### Example 1: Automotive System with Multiple Output Types
 
-Complete example showing the new layered design with inputs, mid-level processing, outputs, and sync groups:
+Complete example showing all 10 output types (CAN, J1939, CANopen, GPIO, UART, SPI, I2C, PWM, DAC, Modbus):
 
-[See dts/examples/layered-architecture-example.dts](dts/examples/layered-architecture-example.dts)
+[See samples/multi-output-example.dts](samples/multi-output-example.dts)
 
-### Example 2: Basic ADC Monitoring (Legacy)
+### Example 2: Automotive Engine Monitor
 
-[See dts/examples/layered-queue-example.dts](dts/examples/layered-queue-example.dts)
+Real-world example with dual-redundant RPM sensors, median voting, and J1939 CAN outputs:
 
-### Example 3: Automotive Brake System (Legacy)
+[See samples/automotive/app.dts](samples/automotive/app.dts)
 
-Dual redundant ADC sensors with median voting and strict tolerance:
+### Example 3: Redundant Sensor Merge
 
-[See dts/examples/automotive-brake-example.dts](dts/examples/automotive-brake-example.dts)
-
-### Example 3: Safety-Critical Merged Inputs
+Device tree snippet showing redundancy management:
 
 ```dts
-merged_critical: lq-merge@0 {
-    compatible = "zephyr,lq-merge-voter";
-    input-queues = <&q_adc &q_spi>;
-    output-queue = <&q_merged>;
-    tolerance = <50>;
+/* Two ADC sensors reading same parameter */
+sensor_a: lq-hw-adc-input@0 {
+    compatible = "lq,hw-adc-input";
+    signal-id = <0>;
+    adc-channel = <0>;
+    stale-us = <5000>;
+};
+
+sensor_b: lq-hw-adc-input@1 {
+    compatible = "lq,hw-adc-input";
+    signal-id = <1>;
+    adc-channel = <1>;
+    stale-us = <5000>;
+};
+
+/* Median voting with tolerance check */
+merged: lq-mid-merge@0 {
+    compatible = "lq,mid-merge";
+    output-signal-id = <10>;
+    input-signal-ids = <0 1>;
     voting-method = "median";
-    
-    expected-range {
-        min = <1100>;
-        max = <2900>;
-        status-if-violation = <2>;  /* LQ_OUT_OF_RANGE */
-    };
+    tolerance = <50>;  /* Flag if sensors disagree by >50 */
+    stale-us = <10000>;
+};
+
+/* Output merged value over J1939 */
+can_output: lq-cyclic-output@0 {
+    compatible = "lq,cyclic-output";
+    source-signal-id = <10>;
+    output-type = "j1939";
+    target-id = <0xFEF1>;  /* Engine speed PGN */
+    period-us = <100000>;  /* 10 Hz */
 };
 ```
+
+## Code Generation
+
+The framework uses Python scripts to generate C code from device tree:
+
+```bash
+# Generate code
+python3 scripts/dts_gen.py input.dts output_dir/
+
+# Generates:
+# - lq_generated.h  (declarations)
+# - lq_generated.c  (engine config, ISRs, dispatch function)
+# - lq_generated_test.dts (HIL test configuration)
+```
+
+**Platform-specific generation:**
+
+```bash
+# Generate with STM32 HAL integration
+python3 scripts/dts_gen.py app.dts src/ --platform=stm32
+
+# Generate with ESP32 integration  
+python3 scripts/dts_gen.py app.dts src/ --platform=esp32
+```
+
+See [docs/platform-portability.md](docs/platform-portability.md) for cross-compiler support.
 
 ## Configuration
 
@@ -446,38 +514,55 @@ genhtml coverage_filtered.info --output-directory coverage_html
 
 ## Use Cases
 
-- **Automotive**: Brake pressure monitoring, throttle position sensing
-- **Industrial**: Temperature control, motor current monitoring
-- **Aerospace**: Attitude sensors, redundant IMUs
-- **Medical**: Vital sign monitoring with fault detection
-- **Robotics**: Multi-sensor fusion with outlier rejection
+- **Automotive**: Engine monitoring, brake systems, transmission control, body control modules
+- **Industrial**: PLCs, motor controllers, process monitoring, SCADA integration
+- **Aerospace**: Flight control computers, redundant sensor fusion, avionics
+- **Medical**: Patient monitors, infusion pumps, diagnostic equipment
+- **Robotics**: Multi-sensor fusion, motor control, safety monitoring
 
 ## Performance
 
-- Queue operations: O(1) push/pop with mutex protection
-- Voting algorithms: O(n log n) for median, O(n) for average/min/max
-- Memory: Static allocation, no runtime malloc
-- Polling overhead: Configurable per source (typical 10-1000ms)
+- **Engine step**: O(n) where n = number of signals + merges + cyclic outputs
+- **Voting algorithms**: O(n log n) for median, O(n) for average/min/max
+- **Memory**: 100% static allocation, zero runtime malloc
+- **Latency**: Deterministic processing time, configurable cycle period (1-100ms typical)
+- **Throughput**: Tested up to 10kHz ISR input rate, 1kHz engine processing rate
 
 ## Safety Features
 
-- Thread-safe queue operations
-- Deterministic behavior (no dynamic allocation)
-- Error propagation through status codes
-- Range validation at source level
-- Timeout detection for stale data
-- Consistency checking for redundant inputs
-- Statistics for monitoring and diagnostics
+- **Deterministic**: Fixed execution time, no dynamic allocation
+- **Thread-safe**: ISR-safe hardware ringbuffer
+- **Pure processing**: Engine step has no RTOS dependencies
+- **Status tracking**: Every value has quality indicator
+- **Redundancy**: Built-in voting for multiple sensors
+- **Timeout detection**: Automatic staleness flagging
+- **Consistency checking**: Tolerance-based disagreement detection
+- **Testable**: Pure functions enable comprehensive unit testing
+
+## Platform Support
+
+**Operating Systems:**
+- Native (Linux, macOS, Windows) - for development and testing
+- Zephyr RTOS - production embedded systems
+- FreeRTOS - via platform adapters
+
+**Toolchains:**
+- GCC (Linux, embedded ARM)
+- Clang (macOS, embedded)
+- IAR Embedded Workbench
+- ARM Compiler (ARMCC)
+- MSVC (Windows, testing only)
+
+See [docs/platform-portability.md](docs/platform-portability.md) for toolchain details.
 
 ## Future Enhancements
 
-- [ ] CAN bus source driver
-- [ ] I2C source driver
-- [ ] Filter nodes (moving average, Kalman)
-- [ ] Timestamp synchronization for multi-source merge
-- [ ] DMA support for high-speed ADC
-- [ ] Runtime configuration API
-- [ ] Diagnostic shell commands
+- [ ] Additional input sources (I2C, UART, Modbus RTU)
+- [ ] Digital filter nodes (moving average, median filter, Kalman)
+- [ ] On-change outputs with hysteresis
+- [ ] Runtime configuration via UDS/XCP
+- [ ] Diagnostic freeze-frame capture
+- [ ] Flash-based configuration storage
 
 ## License
 
@@ -486,7 +571,8 @@ Apache-2.0
 ## Contributing
 
 Contributions welcome! Please ensure:
-- Device tree bindings follow Zephyr conventions
-- Code passes unit tests
-- Documentation updated for new features
-- Examples provided for new driver types
+- Code follows existing architecture patterns
+- All tests pass (`./all_tests`)
+- Coverage maintained or improved
+- Documentation updated
+- Device tree examples provided for new features
