@@ -8,6 +8,7 @@
 #include "lq_common.h"
 #include "lq_event.h"
 #include "lq_hil.h"
+#include <stdlib.h>
 #include <string.h>
 
 /* Engine instance */
@@ -80,7 +81,7 @@ void lq_adc_isr_oil_adc(uint16_t value) {
 int lq_generated_init(void) {
     /* Auto-detect HIL mode on native platform */
     #ifdef LQ_PLATFORM_NATIVE
-    lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */
+    lq_hil_init(LQ_HIL_MODE_DISABLED, getenv("LQ_HIL_MODE"), 0);
     #endif
     
     /* Hardware input layer */

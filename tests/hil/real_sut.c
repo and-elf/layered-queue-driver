@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -80,7 +81,7 @@ int main(void) {
 #endif
     
     /* Initialize HIL - auto-detects from LQ_HIL_MODE env */
-    if (lq_hil_init(LQ_HIL_MODE_DISABLED, 0) != 0) {
+    if (lq_hil_init(LQ_HIL_MODE_DISABLED, getenv("LQ_HIL_MODE"), 0) != 0) {
         fprintf(stderr, "[SUT] HIL init failed\n");
         return 1;
     }

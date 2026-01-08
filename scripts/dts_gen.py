@@ -234,6 +234,7 @@ def generate_source(nodes, output_path):
 #include "lq_common.h"
 #include "lq_event.h"
 #include "lq_hil.h"
+#include <stdlib.h>
 #include <string.h>
 
 """)
@@ -383,7 +384,7 @@ def generate_source(nodes, output_path):
         f.write("    /* Auto-detect HIL mode on native platform (if not already initialized) */\n")
         f.write("    #ifdef LQ_PLATFORM_NATIVE\n")
         f.write("    if (!lq_hil_is_active()) {\n")
-        f.write("        lq_hil_init(LQ_HIL_MODE_DISABLED, 0);  /* Auto-detects from env */\n")
+        f.write("        lq_hil_init(LQ_HIL_MODE_DISABLED, getenv(\"LQ_HIL_MODE\"), 0);\n")
         f.write("    }\n")
         f.write("    #endif\n")
         f.write("    \n")

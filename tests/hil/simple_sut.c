@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
@@ -22,7 +23,7 @@ int main(void) {
     printf("[SUT] Starting in HIL mode (PID: %d)\n", getpid());
     
     /* Initialize HIL - auto-detects from LQ_HIL_MODE env */
-    if (lq_hil_init(LQ_HIL_MODE_DISABLED, 0) != 0) {
+    if (lq_hil_init(LQ_HIL_MODE_DISABLED, getenv("LQ_HIL_MODE"), 0) != 0) {
         fprintf(stderr, "[SUT] HIL init failed\n");
         return 1;
     }

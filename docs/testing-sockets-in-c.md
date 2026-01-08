@@ -141,13 +141,13 @@ protected:
 };
 
 TEST_F(HILPlatformTest, InitTesterMode) {
-    int ret = lq_hil_init(LQ_HIL_MODE_TESTER, 0);
+    int ret = lq_hil_init(LQ_HIL_MODE_TESTER, NULL, 0);
     EXPECT_EQ(ret, 0);
     EXPECT_TRUE(lq_hil_is_active());
 }
 
 TEST_F(HILPlatformTest, TesterInjectADCSuccess) {
-    lq_hil_init(LQ_HIL_MODE_TESTER, 0);
+    lq_hil_init(LQ_HIL_MODE_TESTER, NULL, 0);
     int ret = lq_hil_tester_inject_adc(3, 0x123);
     EXPECT_EQ(ret, 0);
 }

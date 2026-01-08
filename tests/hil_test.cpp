@@ -63,7 +63,7 @@ protected:
         while (retries-- > 0) {
             usleep(100000);  // 100ms
             lq_hil_cleanup();  // Reset state before retry
-            init_result = lq_hil_init(LQ_HIL_MODE_TESTER, sut_pid);
+            init_result = lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, sut_pid);
             if (init_result == 0) break;
         }
         

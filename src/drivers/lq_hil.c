@@ -60,9 +60,8 @@ static void make_socket_path(char *buf, size_t size, const char *fmt, int pid)
 }
 
 /* Helper: Create Unix domain socket */
-static int create_unix_socket(const char *path, bool is_server)
+static int create_unix_socket(const struct lq_hil_platform_ops *ops, const char *path, bool is_server)
 {
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
     
     int sock = ops->socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -115,9 +114,8 @@ static int create_unix_socket(const char *path, bool is_server)
 }
 
 /* Helper: Accept connection on listening socket */
-static int accept_connection(int listen_sock, int timeout_ms)
+static int accept_connection(const struct lq_hil_platform_ops *ops, int listen_sock, int timeout_ms)
 {
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
     
     struct pollfd pfd = {
         .fd = listen_sock,
@@ -137,7 +135,7 @@ static int accept_connection(int listen_sock, int timeout_ms)
     return client;
 }
 
-int lq_hil_init(enum lq_hil_mode mode, int pid)
+int lq_hil_init(enum lq_hil_mode mode, const char *mode_str, int pid)
 {
     const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
     
@@ -145,15 +143,14 @@ int lq_hil_init(enum lq_hil_mode mode, int pid)
         return -EALREADY;
     }
     
-    /* Auto-detect mode from environment if not specified */
-    if (mode == LQ_HIL_MODE_DISABLED) {
-        const char *env_mode = ops->getenv("LQ_HIL_MODE");
-        if (env_mode) {
-            if (strcmp(env_mode, "sut") == 0) {
-                mode = LQ_HIL_MODE_SUT;
-            } else if (strcmp(env_mode, "tester") == 0) {
-                mode = LQ_HIL_MODE_TESTER;
-            }
+    /* Override mode from string if provided */
+    if (mode_str != NULL) {
+        if (strcmp(mode_str, "sut") == 0) {
+            mode = LQ_HIL_MODE_SUT;
+        } else if (strcmp(mode_str, "tester") == 0) {
+            mode = LQ_HIL_MODE_TESTER;
+        } else if (strcmp(mode_str, "disabled") == 0) {
+            mode = LQ_HIL_MODE_DISABLED;
         }
     }
     
@@ -170,38 +167,38 @@ int lq_hil_init(enum lq_hil_mode mode, int pid)
     if (mode == LQ_HIL_MODE_SUT) {
         /* Create listening sockets */
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_ADC, hil_state.pid);
-        hil_state.listen_adc = create_unix_socket(path, true);
+        hil_state.listen_adc = create_unix_socket(ops, path, true);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SPI, hil_state.pid);
-        hil_state.listen_spi = create_unix_socket(path, true);
+        hil_state.listen_spi = create_unix_socket(ops, path, true);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_CAN, hil_state.pid);
-        hil_state.listen_can = create_unix_socket(path, true);
+        hil_state.listen_can = create_unix_socket(ops, path, true);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_GPIO, hil_state.pid);
-        hil_state.listen_gpio = create_unix_socket(path, true);
+        hil_state.listen_gpio = create_unix_socket(ops, path, true);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SYNC, hil_state.pid);
-        hil_state.listen_sync = create_unix_socket(path, true);
+        hil_state.listen_sync = create_unix_socket(ops, path, true);
         
         printf("[HIL-SUT] Listening on sockets for PID %d\n", hil_state.pid);
         
     } else if (mode == LQ_HIL_MODE_TESTER) {
         /* Connect to SUT sockets */
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_ADC, hil_state.pid);
-        hil_state.sock_adc = create_unix_socket(path, false);
+        hil_state.sock_adc = create_unix_socket(ops, path, false);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SPI, hil_state.pid);
-        hil_state.sock_spi = create_unix_socket(path, false);
+        hil_state.sock_spi = create_unix_socket(ops, path, false);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_CAN, hil_state.pid);
-        hil_state.sock_can = create_unix_socket(path, false);
+        hil_state.sock_can = create_unix_socket(ops, path, false);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_GPIO, hil_state.pid);
-        hil_state.sock_gpio = create_unix_socket(path, false);
+        hil_state.sock_gpio = create_unix_socket(ops, path, false);
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SYNC, hil_state.pid);
-        hil_state.sock_sync = create_unix_socket(path, false);
+        hil_state.sock_sync = create_unix_socket(ops, path, false);
         
         printf("[HIL-Tester] Connected to SUT PID %d\n", hil_state.pid);
     }
@@ -267,21 +264,21 @@ uint64_t lq_hil_get_timestamp_us(void)
 
 int lq_hil_sut_recv_adc(struct lq_hil_adc_msg *msg, int timeout_ms)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     if (hil_state.mode != LQ_HIL_MODE_SUT) {
         return -EINVAL;
     }
     
     /* Accept connection if not yet connected */
     if (hil_state.sock_adc < 0) {
-        hil_state.sock_adc = accept_connection(hil_state.listen_adc, timeout_ms);
+        hil_state.sock_adc = accept_connection(ops, hil_state.listen_adc, timeout_ms);
         if (hil_state.sock_adc < 0) {
             return hil_state.sock_adc;
         }
     }
     
     /* Receive message */
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
-    
     struct pollfd pfd = {
         .fd = hil_state.sock_adc,
         .events = POLLIN,
@@ -302,18 +299,18 @@ int lq_hil_sut_recv_adc(struct lq_hil_adc_msg *msg, int timeout_ms)
 
 int lq_hil_sut_recv_can(struct lq_hil_can_msg *msg, int timeout_ms)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     if (hil_state.mode != LQ_HIL_MODE_SUT) {
         return -EINVAL;
     }
     
     if (hil_state.sock_can < 0) {
-        hil_state.sock_can = accept_connection(hil_state.listen_can, timeout_ms);
+        hil_state.sock_can = accept_connection(ops, hil_state.listen_can, timeout_ms);
         if (hil_state.sock_can < 0) {
             return hil_state.sock_can;
         }
     }
-    
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
     
     struct pollfd pfd = {
         .fd = hil_state.sock_can,
@@ -335,12 +332,14 @@ int lq_hil_sut_recv_can(struct lq_hil_can_msg *msg, int timeout_ms)
 
 int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     if (hil_state.mode != LQ_HIL_MODE_SUT) {
         return -EINVAL;
     }
     
     if (hil_state.sock_gpio < 0) {
-        hil_state.sock_gpio = accept_connection(hil_state.listen_gpio, 100);
+        hil_state.sock_gpio = accept_connection(ops, hil_state.listen_gpio, 100);
         if (hil_state.sock_gpio < 0) {
             return 0;  /* No tester connected - OK */
         }
@@ -355,8 +354,6 @@ int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state)
         .state = state,
     };
     
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
-    
     ssize_t n = ops->send(hil_state.sock_gpio, &msg, sizeof(msg), MSG_NOSIGNAL);
     if (n != sizeof(msg)) {
         return -EIO;
@@ -367,19 +364,19 @@ int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state)
 
 int lq_hil_sut_send_can(const struct lq_hil_can_msg *msg)
 {
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
     if (hil_state.mode != LQ_HIL_MODE_SUT) {
         return -EINVAL;
     }
     
     /* Accept connection on first send if not yet connected */
     if (hil_state.sock_can < 0) {
-        hil_state.sock_can = accept_connection(hil_state.listen_can, 100);
+        hil_state.sock_can = accept_connection(ops, hil_state.listen_can, 100);
         if (hil_state.sock_can < 0) {
             return 0;  /* No tester connected - OK */
         }
     }
-    
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
     
     ssize_t n = ops->send(hil_state.sock_can, msg, sizeof(*msg), MSG_NOSIGNAL);
     if (n != sizeof(*msg)) {

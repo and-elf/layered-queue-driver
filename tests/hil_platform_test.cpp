@@ -78,11 +78,6 @@ static int test_usleep(useconds_t usec) {
     return 0;
 }
 
-static const char *test_getenv(const char *name) {
-    (void)name;
-    return nullptr;
-}
-
 static int test_getpid(void) {
     return 12345;
 }
@@ -100,7 +95,6 @@ static struct lq_hil_platform_ops test_ops = {
     .fcntl = test_fcntl,
     .unlink = test_unlink,
     .usleep_fn = test_usleep,
-    .getenv = test_getenv,
     .getpid = test_getpid,
 };
 
@@ -121,49 +115,49 @@ protected:
 
 TEST_F(HILPlatformTest, InitDisabledMode)
 {
-    int ret = lq_hil_init(LQ_HIL_MODE_DISABLED, 0);
+    int ret = lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0);
     EXPECT_EQ(ret, 0);
     EXPECT_FALSE(lq_hil_is_active());
 }
 
 TEST_F(HILPlatformTest, InitSUTMode)
 {
-    int ret = lq_hil_init(LQ_HIL_MODE_SUT, 0);
+    int ret = lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0);
     EXPECT_EQ(ret, 0);
     EXPECT_TRUE(lq_hil_is_active());
 }
 
 TEST_F(HILPlatformTest, InitTesterMode)
 {
-    int ret = lq_hil_init(LQ_HIL_MODE_TESTER, 0);
+    int ret = lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 0);
     EXPECT_EQ(ret, 0);
     EXPECT_TRUE(lq_hil_is_active());
 }
 
 TEST_F(HILPlatformTest, InitAlreadyInitialized)
 {
-    lq_hil_init(LQ_HIL_MODE_DISABLED, 0);
-    int ret = lq_hil_init(LQ_HIL_MODE_DISABLED, 0);
+    lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0);
+    int ret = lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0);
     EXPECT_EQ(ret, -EALREADY);
 }
 
 TEST_F(HILPlatformTest, CleanupSUTMode)
 {
-    lq_hil_init(LQ_HIL_MODE_SUT, 0);
+    lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0);
     lq_hil_cleanup();
     EXPECT_FALSE(lq_hil_is_active());
 }
 
 TEST_F(HILPlatformTest, CleanupTesterMode)
 {
-    lq_hil_init(LQ_HIL_MODE_TESTER, 0);
+    lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 0);
     lq_hil_cleanup();
     EXPECT_FALSE(lq_hil_is_active());
 }
 
 TEST_F(HILPlatformTest, TesterInjectADCSuccess)
 {
-    lq_hil_init(LQ_HIL_MODE_TESTER, 0);
+    lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 0);
     
     int ret = lq_hil_tester_inject_adc(3, 0x123);
     EXPECT_EQ(ret, 0);
@@ -171,7 +165,7 @@ TEST_F(HILPlatformTest, TesterInjectADCSuccess)
 
 TEST_F(HILPlatformTest, TesterInjectADCWrongMode)
 {
-    lq_hil_init(LQ_HIL_MODE_DISABLED, 0);
+    lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0);
     
     int ret = lq_hil_tester_inject_adc(3, 0x123);
     EXPECT_EQ(ret, -EINVAL);
@@ -179,7 +173,7 @@ TEST_F(HILPlatformTest, TesterInjectADCWrongMode)
 
 TEST_F(HILPlatformTest, TesterInjectCANSuccess)
 {
-    lq_hil_init(LQ_HIL_MODE_TESTER, 0);
+    lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 0);
     
     uint8_t data[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
     int ret = lq_hil_tester_inject_can(0x123, false, data, 8);
@@ -188,7 +182,7 @@ TEST_F(HILPlatformTest, TesterInjectCANSuccess)
 
 TEST_F(HILPlatformTest, SUTRecvADCSuccess)
 {
-    lq_hil_init(LQ_HIL_MODE_SUT, 0);
+    lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0);
     
     struct lq_hil_adc_msg msg;
     int ret = lq_hil_sut_recv_adc(&msg, 100);
@@ -197,7 +191,7 @@ TEST_F(HILPlatformTest, SUTRecvADCSuccess)
 
 TEST_F(HILPlatformTest, SUTSendGPIOSuccess)
 {
-    lq_hil_init(LQ_HIL_MODE_SUT, 0);
+    lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0);
     
     int ret = lq_hil_sut_send_gpio(5, 1);
     EXPECT_EQ(ret, 0);

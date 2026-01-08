@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
     }}
     
     /* Initialize HIL in tester mode */
-    if (lq_hil_init(LQ_HIL_MODE_TESTER, sut_pid) != 0) {{
+    if (lq_hil_init(LQ_HIL_MODE_TESTER, NULL, sut_pid) != 0) {{
         fprintf(stderr, "Failed to initialize HIL tester\\n");
         return 1;
     }}

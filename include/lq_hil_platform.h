@@ -40,7 +40,6 @@ struct lq_hil_platform_ops {
     
     /* System operations */
     int (*usleep_fn)(useconds_t usec);
-    const char *(*getenv)(const char *name);
     int (*getpid)(void);
 };
 

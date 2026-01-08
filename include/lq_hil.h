@@ -88,10 +88,11 @@ enum lq_hil_mode {
  * Initialize HIL subsystem
  * 
  * @param mode HIL mode (disabled, SUT, tester)
+ * @param mode_str Optional mode string ("sut", "tester", "disabled") to override mode parameter, NULL to use mode parameter
  * @param pid Process ID for socket naming (0 = use own PID)
  * @return 0 on success, negative errno on failure
  */
-int lq_hil_init(enum lq_hil_mode mode, int pid);
+int lq_hil_init(enum lq_hil_mode mode, const char *mode_str, int pid);
 
 /**
  * Cleanup HIL subsystem

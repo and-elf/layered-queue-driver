@@ -77,11 +77,6 @@ static int default_usleep(useconds_t usec)
     return usleep(usec);
 }
 
-static const char *default_getenv(const char *name)
-{
-    return getenv(name);
-}
-
 static int default_getpid(void)
 {
     return getpid();
@@ -101,7 +96,6 @@ static const struct lq_hil_platform_ops default_ops = {
     .fcntl = default_fcntl,
     .unlink = default_unlink,
     .usleep_fn = default_usleep,
-    .getenv = default_getenv,
     .getpid = default_getpid,
 };
 
