@@ -1,5 +1,10 @@
 # Layered Queue Driver for Zephyr RTOS
 
+[![Build and Test](https://github.com/USERNAME/layered-queue-driver/actions/workflows/test.yml/badge.svg)](https://github.com/USERNAME/layered-queue-driver/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/USERNAME/layered-queue-driver/main/.github/badges/coverage.json)](https://github.com/USERNAME/layered-queue-driver/actions/workflows/coverage-badge.yml)
+
+> **Note**: Replace `USERNAME` with your GitHub username in the badge URLs above.
+
 A declarative, device-tree-driven framework for building robust data pipelines in safety-critical embedded systems. The Layered Queue Driver enables hardware sensor abstraction, range validation, redundancy management, and fault detection—all configured through device tree.
 
 ## Features
@@ -405,15 +410,37 @@ Or use the convenience target:
 cmake --build build --target check
 ```
 
-### With Coverage
+### Generate Coverage Report
+
+Use the automated script:
+
+```bash
+./scripts/generate_coverage.sh
+```
+
+This will:
+1. Build with coverage instrumentation enabled
+2. Run all tests
+3. Generate HTML coverage report
+4. Display coverage summary
+5. Open report in browser
+
+Or manually:
 
 ```bash
 cmake -B build -DENABLE_COVERAGE=ON
 cmake --build build
 cd build && ctest --output-on-failure
 lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
-genhtml coverage.info --output-directory coverage_html
+lcov --remove coverage.info '/usr/*' '*/tests/*' '*/googletest/*' '*/build/_deps/*' '*/samples/*' --output-file coverage_filtered.info
+genhtml coverage_filtered.info --output-directory coverage_html
 ```
+
+**Coverage on GitHub**: 
+- Coverage reports are automatically generated on every push
+- PR comments show coverage changes
+- Coverage badge updates on main branch
+- HTML reports available as workflow artifacts
 
 ## Use Cases
 

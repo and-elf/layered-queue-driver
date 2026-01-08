@@ -1,0 +1,86 @@
+name: Coverage Badge
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  coverage-badge:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        persist-credentials: true
+    
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y lcov bc
+    
+    - name: Configure CMake with coverage
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+    
+    - name: Build
+      run: cmake --build build
+    
+    - name: Run Tests
+      working-directory: build
+      run: ctest --output-on-failure
+    
+    - name: Generate coverage data
+      run: |
+        lcov --capture --directory build --output-file coverage.info --rc lcov_branch_coverage=0 --ignore-errors mismatch
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/googletest/*' '*/build/_deps/*' '*/samples/*' --output-file coverage.info
+    
+    - name: Extract coverage percentage
+      id: coverage
+      run: |
+        COVERAGE=$(lcov --summary coverage.info 2>&1 | grep "lines" | awk '{print $2}' | sed 's/%//')
+        echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+        echo "Coverage: ${COVERAGE}%"
+    
+    - name: Create badges directory
+      run: mkdir -p .github/badges
+    
+    - name: Generate coverage badge JSON
+      run: |
+        COVERAGE=${{ steps.coverage.outputs.percentage }}
+        COLOR=red
+        if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+          COLOR=brightgreen
+        elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+          COLOR=green
+        elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+          COLOR=yellow
+        elif (( $(echo "$COVERAGE >= 50" | bc -l) )); then
+          COLOR=orange
+        fi
+        
+        # Create shields.io badge JSON
+        cat > .github/badges/coverage.json << EOF
+        {
+          "schemaVersion": 1,
+          "label": "coverage",
+          "message": "${COVERAGE}%",
+          "color": "${COLOR}"
+        }
+        EOF
+        
+        # Also create a markdown badge for easy copying
+        echo "![Coverage](https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR})" > .github/badges/coverage.md
+    
+    - name: Commit and push badge
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        git add .github/badges/coverage.json .github/badges/coverage.md
+        
+        if git diff --staged --quiet; then
+          echo "No changes to coverage badge"
+        else
+          git commit -m "Update coverage badge: ${{ steps.coverage.outputs.percentage }}%"
+          git push
+        fi
