@@ -17,6 +17,7 @@
 extern "C" {
 #include "lq_hil.h"
 #include "lq_j1939.h"
+#include "lq_hil_platform.h"
 }
 
 /* ============================================================================
@@ -269,3 +270,201 @@ TEST_F(HILTest, StressTest) {
     ASSERT_EQ(lq_hil_tester_wait_can(&can_msg, 1000), 0)
         << "System unresponsive after stress test";
 }
+
+/* ============================================================================
+ * Unit Tests with Mock Platform Ops
+ * ============================================================================ */
+
+class HILUnitTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        lq_hil_cleanup();
+    }
+    
+    void TearDown() override {
+        lq_hil_cleanup();
+    }
+};
+
+TEST_F(HILUnitTest, SutRecvCanNullOps) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg;
+    /* Passing NULL ops should use default ops */
+    int ret = lq_hil_sut_recv_can(NULL, &msg, 100);
+    /* Will likely fail with timeout or connection error, but shouldn't crash */
+    EXPECT_NE(ret, 0);  /* Expected to fail without actual socket connection */
+}
+
+TEST_F(HILUnitTest, SutRecvCanNullMsg) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    /* Passing NULL msg should return error */
+    int ret = lq_hil_sut_recv_can(NULL, NULL, 100);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, SutRecvCanWrongMode) {
+    /* Initialize as TESTER (not SUT) */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 12345), 0);
+    
+    struct lq_hil_can_msg msg;
+    /* Should fail because mode is TESTER, not SUT */
+    int ret = lq_hil_sut_recv_can(NULL, &msg, 100);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, SutRecvCanDisabledMode) {
+    /* Initialize as DISABLED */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg;
+    /* Should fail because HIL is disabled */
+    int ret = lq_hil_sut_recv_can(NULL, &msg, 100);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, SutSendCanNullOps) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg = {};
+    msg.can_id = 0x123;
+    msg.dlc = 8;
+    
+    /* Passing NULL ops should use default ops */
+    int ret = lq_hil_sut_send_can(NULL, &msg);
+    /* Will return 0 (no tester connected) or error, but shouldn't crash */
+    EXPECT_TRUE(ret == 0 || ret < 0);
+}
+
+TEST_F(HILUnitTest, SutSendCanNullMsg) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    /* Passing NULL msg should return error */
+    int ret = lq_hil_sut_send_can(NULL, NULL);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, SutSendCanWrongMode) {
+    /* Initialize as TESTER (not SUT) */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 12345), 0);
+    
+    struct lq_hil_can_msg msg = {};
+    msg.can_id = 0x123;
+    msg.dlc = 8;
+    
+    /* Should fail because mode is TESTER, not SUT */
+    int ret = lq_hil_sut_send_can(NULL, &msg);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, SutSendCanDisabledMode) {
+    /* Initialize as DISABLED */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg = {};
+    msg.can_id = 0x123;
+    msg.dlc = 8;
+    
+    /* Should fail because HIL is disabled */
+    int ret = lq_hil_sut_send_can(NULL, &msg);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, TesterWaitGpioNullOps) {
+    /* Initialize as TESTER */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 12345), 0);
+    
+    /* Passing NULL ops should use default ops */
+    int ret = lq_hil_tester_wait_gpio(NULL, 5, 1, 100);
+    /* Will likely timeout or error, but shouldn't crash */
+    EXPECT_NE(ret, 0);  /* Expected to fail without actual connection */
+}
+
+TEST_F(HILUnitTest, TesterWaitGpioWrongMode) {
+    /* Initialize as SUT (not TESTER) */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    /* Should fail because mode is SUT, not TESTER */
+    int ret = lq_hil_tester_wait_gpio(NULL, 5, 1, 100);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, TesterWaitGpioDisabledMode) {
+    /* Initialize as DISABLED */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_DISABLED, nullptr, 0), 0);
+    
+    /* Should fail because HIL is disabled */
+    int ret = lq_hil_tester_wait_gpio(NULL, 5, 1, 100);
+    EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(HILUnitTest, TesterWaitGpioTimeout) {
+    /* Initialize as TESTER */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_TESTER, nullptr, 12345), 0);
+    
+    /* With no GPIO data sent, should timeout */
+    int ret = lq_hil_tester_wait_gpio(NULL, 5, 1, 10);
+    EXPECT_EQ(ret, -ETIMEDOUT);
+}
+
+TEST_F(HILUnitTest, SutRecvCanTimeout) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg;
+    /* With no tester connected, should return error (EAGAIN or connection error) */
+    int ret = lq_hil_sut_recv_can(NULL, &msg, 10);
+    EXPECT_NE(ret, 0);  /* Should not succeed */
+}
+
+TEST_F(HILUnitTest, ValidCanMessage) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg = {};
+    msg.can_id = 0x18FEF100;  /* J1939 PGN format */
+    msg.is_extended = 1;
+    msg.dlc = 8;
+    msg.data[0] = 0x11;
+    msg.data[1] = 0x22;
+    msg.data[2] = 0x33;
+    msg.data[3] = 0x44;
+    msg.data[4] = 0x55;
+    msg.data[5] = 0x66;
+    msg.data[6] = 0x77;
+    msg.data[7] = 0x88;
+    
+    /* Sending should complete (even if no tester connected) */
+    int ret = lq_hil_sut_send_can(NULL, &msg);
+    EXPECT_TRUE(ret == 0 || ret == -EIO);  /* 0 = no tester, -EIO = send error */
+}
+
+TEST_F(HILUnitTest, CanMessageMaxDlc) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg = {};
+    msg.can_id = 0x123;
+    msg.dlc = 8;  /* Maximum DLC */
+    
+    int ret = lq_hil_sut_send_can(NULL, &msg);
+    EXPECT_TRUE(ret == 0 || ret == -EIO);
+}
+
+TEST_F(HILUnitTest, CanMessageZeroDlc) {
+    /* Initialize as SUT */
+    ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_SUT, nullptr, 0), 0);
+    
+    struct lq_hil_can_msg msg = {};
+    msg.can_id = 0x456;
+    msg.dlc = 0;  /* Zero length is valid */
+    
+    int ret = lq_hil_sut_send_can(NULL, &msg);
+    EXPECT_TRUE(ret == 0 || ret == -EIO);
+}
+

@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+/* Forward declaration for platform ops */
+struct lq_hil_platform_ops;
+
 /* HIL message types */
 enum lq_hil_msg_type {
     LQ_HIL_MSG_ADC = 0,      /* ADC sample */
@@ -128,8 +131,14 @@ int lq_hil_sut_recv_spi(struct lq_hil_spi_msg *msg, int timeout_ms);
 
 /**
  * Receive CAN injection (SUT side)
+ * 
+ * @param ops Platform operations (or NULL to use default)
+ * @param msg Output buffer for message
+ * @param timeout_ms Timeout in milliseconds
+ * @return 0 on success, -EAGAIN if no data, negative errno on error
  */
-int lq_hil_sut_recv_can(struct lq_hil_can_msg *msg, int timeout_ms);
+int lq_hil_sut_recv_can(const struct lq_hil_platform_ops *ops,
+                         struct lq_hil_can_msg *msg, int timeout_ms);
 
 /**
  * Send GPIO state change (SUT side - for output pins)
@@ -142,8 +151,13 @@ int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state);
 
 /**
  * Send CAN message (SUT side - for CAN output)
+ * 
+ * @param ops Platform operations (or NULL to use default)
+ * @param msg CAN message to send
+ * @return 0 on success, negative errno on error
  */
-int lq_hil_sut_send_can(const struct lq_hil_can_msg *msg);
+int lq_hil_sut_send_can(const struct lq_hil_platform_ops *ops,
+                         const struct lq_hil_can_msg *msg);
 
 /* ============================================================================
  * Tester API
@@ -170,12 +184,14 @@ int lq_hil_tester_inject_can(uint32_t can_id, bool is_extended,
 /**
  * Wait for GPIO state (tester side)
  * 
+ * @param ops Platform operations (or NULL to use default)
  * @param pin GPIO pin to monitor
  * @param expected_state Expected state (0 or 1)
  * @param timeout_ms Timeout
  * @return 0 if state matched, -ETIMEDOUT if timeout, negative errno on error
  */
-int lq_hil_tester_wait_gpio(uint8_t pin, uint8_t expected_state, int timeout_ms);
+int lq_hil_tester_wait_gpio(const struct lq_hil_platform_ops *ops,
+                             uint8_t pin, uint8_t expected_state, int timeout_ms);
 
 /**
  * Wait for CAN message (tester side)

@@ -300,9 +300,16 @@ int lq_hil_sut_recv_adc(struct lq_hil_adc_msg *msg, int timeout_ms)
     return 0;
 }
 
-int lq_hil_sut_recv_can(struct lq_hil_can_msg *msg, int timeout_ms)
+int lq_hil_sut_recv_can(const struct lq_hil_platform_ops *ops,
+                         struct lq_hil_can_msg *msg, int timeout_ms)
 {
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    if (!ops) {
+        ops = lq_hil_get_platform_ops();
+    }
+    
+    if (!msg) {
+        return -EINVAL;
+    }
     
     if (hil_state.mode != LQ_HIL_MODE_SUT) {
         return -EINVAL;
@@ -365,9 +372,16 @@ int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state)
     return 0;
 }
 
-int lq_hil_sut_send_can(const struct lq_hil_can_msg *msg)
+int lq_hil_sut_send_can(const struct lq_hil_platform_ops *ops,
+                         const struct lq_hil_can_msg *msg)
 {
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    if (!ops) {
+        ops = lq_hil_get_platform_ops();
+    }
+    
+    if (!msg) {
+        return -EINVAL;
+    }
     
     if (hil_state.mode != LQ_HIL_MODE_SUT) {
         return -EINVAL;
@@ -450,13 +464,16 @@ int lq_hil_tester_inject_can(uint32_t can_id, bool is_extended,
     return 0;
 }
 
-int lq_hil_tester_wait_gpio(uint8_t pin, uint8_t expected_state, int timeout_ms)
+int lq_hil_tester_wait_gpio(const struct lq_hil_platform_ops *ops,
+                             uint8_t pin, uint8_t expected_state, int timeout_ms)
 {
+    if (!ops) {
+        ops = lq_hil_get_platform_ops();
+    }
+    
     if (hil_state.mode != LQ_HIL_MODE_TESTER) {
         return -EINVAL;
     }
-    
-    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
     
     struct pollfd pfd = {
         .fd = hil_state.sock_gpio,

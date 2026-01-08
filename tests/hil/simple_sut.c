@@ -56,17 +56,17 @@ int main(void) {
             can_msg.data[1] = (adc_msg.value >> 8) & 0xFF;
             memset(&can_msg.data[2], 0, 6);
             
-            lq_hil_sut_send_can(&can_msg);
+            lq_hil_sut_send_can(NULL, &can_msg);
             printf("[SUT] TX CAN EEC1\n");
         }
         
         /* Check for CAN input */
-        if (lq_hil_sut_recv_can(&can_msg, 10) == 0) {
+        if (lq_hil_sut_recv_can(NULL, &can_msg, 10) == 0) {
             uint32_t pgn = (can_msg.can_id >> 8) & 0x3FFFF;
             printf("[SUT] RX CAN PGN=%u\n", pgn);
             
             /* Echo it back */
-            lq_hil_sut_send_can(&can_msg);
+            lq_hil_sut_send_can(NULL, &can_msg);
             printf("[SUT] TX CAN PGN=%u\n", pgn);
         }
         

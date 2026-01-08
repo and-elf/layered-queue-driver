@@ -259,7 +259,7 @@ int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t 
     msg.dlc = len;
     memcpy(msg.data, data, len);
     
-    return lq_hil_sut_send_can(&msg);
+    return lq_hil_sut_send_can(NULL, &msg);
 }
 
 /**
@@ -274,7 +274,7 @@ int lq_can_recv(uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len
     
     struct lq_hil_can_msg msg;
     
-    if (lq_hil_sut_recv_can(&msg, timeout_ms) != 0) {
+    if (lq_hil_sut_recv_can(NULL, &msg, timeout_ms) != 0) {
         return -EAGAIN;
     }
     
