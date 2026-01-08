@@ -122,7 +122,7 @@ int lq_queue_push(lq_queue_t *queue,
     data->stats.items_written++;
 
     /* Update peak usage */
-    uint32_t current = lq_atomic_get(&data->count);
+    uint32_t current = (uint32_t)lq_atomic_get(&data->count);
     if (current > data->stats.peak_usage) {
         data->stats.peak_usage = current;
     }
@@ -215,7 +215,7 @@ int lq_queue_get_stats(lq_queue_t *queue,
     }
 
     memcpy(stats, &data->stats, sizeof(struct lq_stats));
-    stats->items_current = lq_atomic_get(&data->count);
+    stats->items_current = (uint32_t)lq_atomic_get(&data->count);
 
     lq_mutex_unlock(&data->mutex);
     return 0;
@@ -227,5 +227,5 @@ uint32_t lq_queue_count(lq_queue_t *queue)
         return 0;
     }
 
-    return lq_atomic_get(&queue->data->count);
+    return (uint32_t)lq_atomic_get(&queue->data->count);
 }

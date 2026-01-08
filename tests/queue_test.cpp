@@ -157,7 +157,7 @@ TEST_F(QueueTest, TimestampIsSet) {
 
 TEST_F(QueueTest, FillToCapacity) {
     for (uint32_t i = 0; i < CAPACITY; i++) {
-        auto item = make_item(i);
+        auto item = make_item((int32_t)i);
         ASSERT_EQ(lq_queue_push(&queue, &item, 0), 0);
     }
     
@@ -169,7 +169,7 @@ TEST_F(QueueTest, DropOldestPolicy) {
     
     // Fill queue
     for (uint32_t i = 0; i < CAPACITY; i++) {
-        auto item = make_item(i);
+        auto item = make_item((int32_t)i);
         lq_queue_push(&queue, &item, 0);
     }
     
@@ -190,7 +190,7 @@ TEST_F(QueueTest, DropNewestPolicy) {
     
     // Fill queue
     for (uint32_t i = 0; i < CAPACITY; i++) {
-        auto item = make_item(i);
+        auto item = make_item((int32_t)i);
         lq_queue_push(&queue, &item, 0);
     }
     
@@ -211,7 +211,7 @@ TEST_F(QueueTest, DropNewestPolicy) {
 TEST_F(QueueTest, StatisticsTracking) {
     // Push 5 items
     for (int i = 0; i < 5; i++) {
-        auto item = make_item(i);
+        auto item = make_item((int32_t)i);
         lq_queue_push(&queue, &item, 0);
     }
     
@@ -233,7 +233,7 @@ TEST_F(QueueTest, StatisticsTracking) {
 TEST_F(QueueTest, PeakUsageTracking) {
     // Push 5 items
     for (int i = 0; i < 5; i++) {
-        auto item = make_item(i);
+        auto item = make_item((int32_t)i);
         lq_queue_push(&queue, &item, 0);
     }
     
@@ -254,7 +254,7 @@ TEST_F(QueueTest, DropCountTracking) {
     
     // Fill queue + 3 more
     for (uint32_t i = 0; i < CAPACITY + 3; i++) {
-        auto item = make_item(i);
+        auto item = make_item((int32_t)i);
         lq_queue_push(&queue, &item, 0);
     }
     

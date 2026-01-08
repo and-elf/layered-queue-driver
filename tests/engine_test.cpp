@@ -589,7 +589,7 @@ TEST_F(EngineTest, MaxSignalsHandling) {
     // Test with maximum signal count
     struct lq_event events[LQ_MAX_SIGNALS];
     for (int i = 0; i < LQ_MAX_SIGNALS; i++) {
-        events[i] = make_event(i, i * 10);
+        events[i] = make_event((uint8_t)i, i * 10);
     }
     
     lq_ingest_events(&engine, events, LQ_MAX_SIGNALS);

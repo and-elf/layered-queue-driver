@@ -25,8 +25,8 @@ static void serialize_remap(const struct lq_remap_ctx *remap, uint8_t *data)
     data[0] = remap->input_signal;
     data[1] = remap->output_signal;
     data[2] = (remap->invert ? 0x01 : 0x00) | (remap->enabled ? 0x02 : 0x00);
-    data[3] = (remap->deadzone >> 8) & 0xFF;
-    data[4] = remap->deadzone & 0xFF;
+    data[3] = (uint8_t)(((uint32_t)remap->deadzone >> 8) & 0xFFU);
+    data[4] = (uint8_t)((uint32_t)remap->deadzone & 0xFFU);
 }
 
 /**
@@ -59,24 +59,24 @@ static void serialize_scale(const struct lq_scale_ctx *scale, uint8_t *data)
               (scale->has_clamp_max ? 0x04 : 0x00);
     
     /* Scale factor (16-bit signed) */
-    data[3] = (scale->scale_factor >> 8) & 0xFF;
-    data[4] = scale->scale_factor & 0xFF;
+    data[3] = (uint8_t)(((uint32_t)scale->scale_factor >> 8) & 0xFFU);
+    data[4] = (uint8_t)((uint32_t)scale->scale_factor & 0xFFU);
     
     /* Offset (16-bit signed) */
-    data[5] = (scale->offset >> 8) & 0xFF;
-    data[6] = scale->offset & 0xFF;
+    data[5] = (uint8_t)(((uint32_t)scale->offset >> 8) & 0xFFU);
+    data[6] = (uint8_t)((uint32_t)scale->offset & 0xFFU);
     
     /* Clamp min (32-bit signed) */
-    data[7] = (scale->clamp_min >> 24) & 0xFF;
-    data[8] = (scale->clamp_min >> 16) & 0xFF;
-    data[9] = (scale->clamp_min >> 8) & 0xFF;
-    data[10] = scale->clamp_min & 0xFF;
+    data[7] = (uint8_t)(((uint32_t)scale->clamp_min >> 24) & 0xFFU);
+    data[8] = (uint8_t)(((uint32_t)scale->clamp_min >> 16) & 0xFFU);
+    data[9] = (uint8_t)(((uint32_t)scale->clamp_min >> 8) & 0xFFU);
+    data[10] = (uint8_t)((uint32_t)scale->clamp_min & 0xFFU);
     
     /* Clamp max (32-bit signed) */
-    data[11] = (scale->clamp_max >> 24) & 0xFF;
-    data[12] = (scale->clamp_max >> 16) & 0xFF;
-    data[13] = (scale->clamp_max >> 8) & 0xFF;
-    data[14] = scale->clamp_max & 0xFF;
+    data[11] = (uint8_t)(((uint32_t)scale->clamp_max >> 24) & 0xFFU);
+    data[12] = (uint8_t)(((uint32_t)scale->clamp_max >> 16) & 0xFFU);
+    data[13] = (uint8_t)(((uint32_t)scale->clamp_max >> 8) & 0xFFU);
+    data[14] = (uint8_t)((uint32_t)scale->clamp_max & 0xFFU);
 }
 
 /**
@@ -387,7 +387,7 @@ int lq_config_remove_remap(struct lq_config_registry *registry,
     if (index < registry->num_remaps - 1) {
         memmove(&registry->remaps[index],
                 &registry->remaps[index + 1],
-                (registry->num_remaps - index - 1) * sizeof(struct lq_remap_ctx));
+                (size_t)(registry->num_remaps - index - 1) * sizeof(struct lq_remap_ctx));
     }
     
     registry->num_remaps--;
@@ -415,7 +415,7 @@ int lq_config_remove_scale(struct lq_config_registry *registry,
     if (index < registry->num_scales - 1) {
         memmove(&registry->scales[index],
                 &registry->scales[index + 1],
-                (registry->num_scales - index - 1) * sizeof(struct lq_scale_ctx));
+                (size_t)(registry->num_scales - index - 1) * sizeof(struct lq_scale_ctx));
     }
     
     registry->num_scales--;
@@ -458,10 +458,10 @@ int lq_config_uds_read_did(const struct lq_config_registry *registry,
             return -LQ_NRC_GENERAL_PROGRAMMING_FAILURE;
         }
         
-        data[0] = (value >> 24) & 0xFF;
-        data[1] = (value >> 16) & 0xFF;
-        data[2] = (value >> 8) & 0xFF;
-        data[3] = value & 0xFF;
+        data[0] = (uint8_t)(((uint32_t)value >> 24) & 0xFFU);
+        data[1] = (uint8_t)(((uint32_t)value >> 16) & 0xFFU);
+        data[2] = (uint8_t)(((uint32_t)value >> 8) & 0xFFU);
+        data[3] = (uint8_t)((uint32_t)value & 0xFFU);
         *actual_len = 4;
         return 0;
     }
@@ -542,10 +542,10 @@ int lq_config_uds_read_did(const struct lq_config_registry *registry,
         data[1] = registry->config_locked ? 1 : 0;
         data[2] = registry->num_remaps;
         data[3] = registry->num_scales;
-        data[4] = (registry->config_version >> 24) & 0xFF;
-        data[5] = (registry->config_version >> 16) & 0xFF;
-        data[6] = (registry->config_version >> 8) & 0xFF;
-        data[7] = registry->config_version & 0xFF;
+        data[4] = (uint8_t)((registry->config_version >> 24) & 0xFFU);
+        data[5] = (uint8_t)((registry->config_version >> 16) & 0xFFU);
+        data[6] = (uint8_t)((registry->config_version >> 8) & 0xFFU);
+        data[7] = (uint8_t)(registry->config_version & 0xFFU);
         *actual_len = 8;
         return 0;
     }

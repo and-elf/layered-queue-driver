@@ -45,7 +45,7 @@ static size_t j1939_decode(struct lq_protocol_driver *proto,
         return 0;
     }
     
-    struct lq_j1939_ctx *ctx = (struct lq_j1939_ctx *)proto->ctx;
+    (void)proto->ctx;  /* Reserved for future use */
     uint32_t pgn = lq_j1939_extract_pgn(msg->address);
     size_t num_events = 0;
     
@@ -168,8 +168,8 @@ static size_t j1939_get_cyclic(struct lq_protocol_driver *proto,
                         int8_t torque = (int8_t)(ctx->signals[1].value + 125);
                         
                         out_msgs[num_msgs].data[2] = (uint8_t)torque;
-                        out_msgs[num_msgs].data[3] = rpm & 0xFF;
-                        out_msgs[num_msgs].data[4] = (rpm >> 8) & 0xFF;
+                        out_msgs[num_msgs].data[3] = (uint8_t)(rpm & 0xFFU);
+                        out_msgs[num_msgs].data[4] = (uint8_t)((rpm >> 8) & 0xFFU);
                     }
                     break;
                 }
@@ -262,10 +262,10 @@ int lq_j1939_format_dm1(const lq_j1939_dm1_t *dm1, uint8_t *data, size_t data_le
               ((dm1->red_stop_lamp & 0x03) << 4) |
               ((dm1->malfunction_lamp & 0x03) << 6);
     
-    data[1] = (dm1->flash_malfunction_lamp & 0x03) |
-              ((dm1->flash_red_stop_lamp & 0x03) << 2) |
-              ((dm1->flash_amber_warning_lamp & 0x03) << 4) |
-              ((dm1->flash_protect_lamp & 0x03) << 6);
+    data[1] = (uint8_t)((dm1->flash_malfunction_lamp & 0x03U) |
+              ((dm1->flash_red_stop_lamp & 0x03U) << 2) |
+              ((dm1->flash_amber_warning_lamp & 0x03U) << 4) |
+              ((dm1->flash_protect_lamp & 0x03U) << 6));
     
     /* Bytes 2-7: First DTC (if any) */
     if (dm1->dtc_count > 0) {
@@ -335,8 +335,8 @@ int lq_j1939_encode_eec1(uint16_t rpm, uint8_t torque, uint8_t *data)
     
     /* Engine speed: bytes 3-4 */
     uint16_t raw_rpm = (uint16_t)(rpm / 0.125);
-    data[3] = raw_rpm & 0xFF;
-    data[4] = (raw_rpm >> 8) & 0xFF;
+    data[3] = (uint8_t)(raw_rpm & 0xFFU);
+    data[4] = (uint8_t)((raw_rpm >> 8) & 0xFFU);
     
     return 0;
 }

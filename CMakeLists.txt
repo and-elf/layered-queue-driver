@@ -29,7 +29,36 @@ endif()
 
 # Compiler flags
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    # Warning flags - store in variables to apply selectively
+    set(WARNING_FLAGS
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror                      # Treat warnings as errors
+        -Wshadow                     # Warn about variable shadowing
+        -Wcast-align                 # Warn about pointer casts with alignment issues
+        -Wunused                     # Warn about unused variables/functions
+        -Wconversion                 # Warn about implicit type conversions
+        -Wsign-conversion            # Warn about sign conversions
+        -Wnull-dereference           # Warn about potential null dereferences
+        -Wdouble-promotion           # Warn about float to double promotions
+        -Wformat=2                   # Extra format string checks
+        -Wimplicit-fallthrough       # Warn about switch fallthrough
+    )
+    
+    # C-specific warnings
+    set(C_WARNING_FLAGS
+        -Wstrict-prototypes
+        -Wmissing-prototypes
+        -Wold-style-definition
+    )
+    
+    # C++-specific warnings
+    set(CXX_WARNING_FLAGS
+        -Wnon-virtual-dtor
+        -Woverloaded-virtual
+    )
+    
     if(ENABLE_COVERAGE)
         add_compile_options(--coverage -O0 -g)
         add_link_options(--coverage)
@@ -66,6 +95,15 @@ target_include_directories(layered_queue PUBLIC
 target_compile_definitions(layered_queue PUBLIC
     ${PLATFORM_DEFINITIONS}
 )
+
+# Apply strict warning flags to our library only
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(layered_queue PRIVATE
+        ${WARNING_FLAGS}
+        $<$<COMPILE_LANGUAGE:C>:${C_WARNING_FLAGS}>
+        $<$<COMPILE_LANGUAGE:CXX>:${CXX_WARNING_FLAGS}>
+    )
+endif()
 
 # Platform-specific linking
 if(LQ_PLATFORM STREQUAL "freertos")
@@ -135,6 +173,17 @@ if(BUILD_TESTS)
     target_include_directories(all_tests PRIVATE
         samples/automotive/src
     )
+    
+    # Apply strict warning flags to test code
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(all_tests PRIVATE
+            ${WARNING_FLAGS}
+            $<$<COMPILE_LANGUAGE:C>:${C_WARNING_FLAGS}>
+            $<$<COMPILE_LANGUAGE:CXX>:${CXX_WARNING_FLAGS}>
+            # Allow missing field initializers in tests for brevity
+            -Wno-missing-field-initializers
+        )
+    endif()
     
     # HIL tests need the SUT binary to be available
     if(ENABLE_HIL_TESTS)

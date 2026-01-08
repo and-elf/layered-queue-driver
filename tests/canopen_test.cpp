@@ -412,7 +412,7 @@ TEST_F(CANopenTest, UpdateSignalMaxCapacity) {
     
     // Fill to capacity (64 signals)
     for (int i = 0; i < 64; i++) {
-        proto.vtbl->update_signal(&proto, i, i * 10, i * 1000);
+        proto.vtbl->update_signal(&proto, (uint32_t)i, (int32_t)(i * 10), (uint64_t)(i * 1000));
     }
     
     EXPECT_EQ(ctx.num_signals, 64);
@@ -630,7 +630,7 @@ TEST_F(CANopenTest, LargeSignalCount) {
     
     // Update maximum number of signals (64)
     for (uint32_t i = 0; i < 64; i++) {
-        proto.vtbl->update_signal(&proto, i, i * 100, i * 1000);
+        proto.vtbl->update_signal(&proto, i, (int32_t)(i * 100), (uint64_t)(i * 1000));
     }
     
     EXPECT_EQ(ctx.num_signals, 64);

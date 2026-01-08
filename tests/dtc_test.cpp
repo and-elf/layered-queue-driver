@@ -204,7 +204,7 @@ TEST_F(DTCTest, MaxDTCs) {
     
     // Fill up DTC table
     for (int i = 0; i < LQ_MAX_DTCS; i++) {
-        int ret = lq_dtc_set_active(&mgr, 1000 + i, LQ_FMI_DATA_ERRATIC, 
+        int ret = lq_dtc_set_active(&mgr, (uint32_t)(1000 + i), LQ_FMI_DATA_ERRATIC, 
                                     LQ_LAMP_AMBER, now);
         EXPECT_EQ(ret, 0);
     }

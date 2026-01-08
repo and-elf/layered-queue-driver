@@ -648,7 +648,7 @@ TEST_F(DriverTest, PID_SetpointChange) {
     lq_process_pids(&engine, &pid, 1, 100000);
     
     // Integral should have accumulated
-    int32_t integral_before_reset = pid.integral;
+    int64_t integral_before_reset = pid.integral;
     EXPECT_GT(integral_before_reset, 0);
     
     // Change setpoint - integral should reset and then accumulate the new error

@@ -51,6 +51,8 @@ static size_t canopen_decode(struct lq_protocol_driver *proto,
     
     uint16_t function_code = msg->address & 0x780;
     uint8_t node_id = msg->address & 0x7F;
+    (void)function_code;  /* Reserved for future decoding */
+    (void)node_id;  /* Reserved for future decoding */
     
     /* Handle NMT messages */
     if (msg->address == CANOPEN_FC_NMT) {
@@ -139,7 +141,7 @@ static size_t canopen_decode(struct lq_protocol_driver *proto,
                 /* Extract value from PDO data */
                 int32_t value = 0;
                 size_t byte_idx = bit_offset / 8;
-                size_t length_bytes = (map->length + 7) / 8;
+                size_t length_bytes = (size_t)((map->length + 7U) / 8U);
                 
                 /* Simple extraction for 8, 16, 32 bit values */
                 if (byte_idx + length_bytes <= msg->len) {
@@ -184,6 +186,10 @@ static int canopen_encode(struct lq_protocol_driver *proto,
 {
     /* Encoding happens in get_cyclic or on-demand */
     /* Just update cached signal values here */
+    (void)proto;
+    (void)events;
+    (void)num_events;
+    (void)out_msg;
     return -1;
 }
 
@@ -220,8 +226,8 @@ static size_t canopen_get_cyclic(struct lq_protocol_driver *proto,
     if (ctx->emcy_pending && num_msgs < max_msgs) {
         out_msgs[num_msgs].address = lq_canopen_build_cob_id(CANOPEN_FC_EMCY, ctx->node_id);
         out_msgs[num_msgs].len = 8;
-        out_msgs[num_msgs].data[0] = ctx->emcy_error_code & 0xFF;
-        out_msgs[num_msgs].data[1] = (ctx->emcy_error_code >> 8) & 0xFF;
+        out_msgs[num_msgs].data[0] = (uint8_t)(ctx->emcy_error_code & 0xFFU);
+        out_msgs[num_msgs].data[1] = (uint8_t)((ctx->emcy_error_code >> 8) & 0xFFU);
         out_msgs[num_msgs].data[2] = 0;  /* Error register */
         memset(&out_msgs[num_msgs].data[3], 0, 5);  /* Manufacturer data */
         out_msgs[num_msgs].timestamp = now;
@@ -277,24 +283,25 @@ static size_t canopen_get_cyclic(struct lq_protocol_driver *proto,
                 
                 /* Pack value into PDO data */
                 size_t byte_idx = bit_offset / 8;
+                uint32_t uvalue = (uint32_t)value;  /* Convert to unsigned for bitwise ops */
                 switch (map->length) {
                     case 8:
                         if (byte_idx < 8) {
-                            out_msgs[num_msgs].data[byte_idx] = (uint8_t)value;
+                            out_msgs[num_msgs].data[byte_idx] = (uint8_t)uvalue;
                         }
                         break;
                     case 16:
                         if (byte_idx + 1 < 8) {
-                            out_msgs[num_msgs].data[byte_idx] = value & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 1] = (value >> 8) & 0xFF;
+                            out_msgs[num_msgs].data[byte_idx] = (uint8_t)(uvalue & 0xFFU);
+                            out_msgs[num_msgs].data[byte_idx + 1] = (uint8_t)((uvalue >> 8) & 0xFFU);
                         }
                         break;
                     case 32:
                         if (byte_idx + 3 < 8) {
-                            out_msgs[num_msgs].data[byte_idx] = value & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 1] = (value >> 8) & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 2] = (value >> 16) & 0xFF;
-                            out_msgs[num_msgs].data[byte_idx + 3] = (value >> 24) & 0xFF;
+                            out_msgs[num_msgs].data[byte_idx] = (uint8_t)(uvalue & 0xFFU);
+                            out_msgs[num_msgs].data[byte_idx + 1] = (uint8_t)((uvalue >> 8) & 0xFFU);
+                            out_msgs[num_msgs].data[byte_idx + 2] = (uint8_t)((uvalue >> 16) & 0xFFU);
+                            out_msgs[num_msgs].data[byte_idx + 3] = (uint8_t)((uvalue >> 24) & 0xFFU);
                         }
                         break;
                 }
@@ -382,6 +389,9 @@ void lq_canopen_send_emergency(struct lq_protocol_driver *proto,
                                 uint8_t error_reg,
                                 const uint8_t mfr_error[5])
 {
+    (void)error_reg;  /* Reserved for future use */
+    (void)mfr_error;  /* Reserved for future use */
+    
     if (!proto || !proto->ctx) {
         return;
     }

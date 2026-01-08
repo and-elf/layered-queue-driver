@@ -160,7 +160,7 @@ TEST_F(ISOTPTest, SendMultiFrame_Large) {
     
     /* Send all CFs */
     for (int i = 0; i < 20; i++) {
-        ASSERT_EQ(lq_isotp_periodic(&channel, mock_can_send, nullptr, i * 1000), 0);
+        ASSERT_EQ(lq_isotp_periodic(&channel, mock_can_send, nullptr, (uint64_t)(i * 1000)), 0);
         if (lq_isotp_tx_done(&channel)) break;
     }
     
@@ -235,7 +235,7 @@ TEST_F(ISOTPTest, FlowControl_BlockSize) {
     
     /* Send first block (3 CFs) */
     for (int i = 0; i < 5; i++) {
-        lq_isotp_periodic(&channel, mock_can_send, nullptr, i * 1000);
+        lq_isotp_periodic(&channel, mock_can_send, nullptr, (uint64_t)(i * 1000));
     }
     
     /* Should have FF + 3 CFs */
@@ -245,11 +245,11 @@ TEST_F(ISOTPTest, FlowControl_BlockSize) {
     /* Send multiple FCs and continue until done */
     for (int block = 0; block < 5 && !lq_isotp_tx_done(&channel); block++) {
         /* Send FC */
-        ASSERT_EQ(lq_isotp_recv(&channel, &fc, mock_can_send, nullptr, (5 + block * 10) * 1000), 0);
+        ASSERT_EQ(lq_isotp_recv(&channel, &fc, mock_can_send, nullptr, (uint64_t)((5 + block * 10) * 1000)), 0);
         
         /* Send next block */
         for (int i = 0; i < 5; i++) {
-            lq_isotp_periodic(&channel, mock_can_send, nullptr, (5 + block * 10 + i) * 1000);
+            lq_isotp_periodic(&channel, mock_can_send, nullptr, (uint64_t)((5 + block * 10 + i) * 1000));
         }
     }
     
@@ -284,7 +284,7 @@ TEST_F(ISOTPTest, FlowControl_Wait) {
     
     /* Now should send CFs */
     for (int i = 0; i < 5; i++) {
-        lq_isotp_periodic(&channel, mock_can_send, nullptr, (20 + i) * 1000);
+        lq_isotp_periodic(&channel, mock_can_send, nullptr, (uint64_t)((20 + i) * 1000));
     }
     
     EXPECT_TRUE(lq_isotp_tx_done(&channel));
@@ -385,15 +385,15 @@ TEST_F(ISOTPTest, InvalidSequenceNumber) {
 }
 
 TEST_F(ISOTPTest, MessageTooLarge) {
-    uint8_t large_data[5000];
+    uint8_t large_data[5000] = {0};
     
     ASSERT_EQ(lq_isotp_send(&channel, large_data, sizeof(large_data),
                            mock_can_send, nullptr, 0), -EMSGSIZE);
 }
 
 TEST_F(ISOTPTest, BusyTransmitter) {
-    uint8_t data1[20];
-    uint8_t data2[10];
+    uint8_t data1[20] = {0};
+    uint8_t data2[10] = {0};
     
     ASSERT_EQ(lq_isotp_send(&channel, data1, sizeof(data1), mock_can_send, nullptr, 0), 0);
     

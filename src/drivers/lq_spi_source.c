@@ -26,10 +26,10 @@ int lq_spi_source_process(const uint8_t *data,
 
     /* Sign-extend if needed for values < 4 bytes */
     if (length < 4) {
-        uint8_t sign_bit = 8 * length - 1;
+        unsigned int sign_bit = (8U * length) - 1U;
         if (result & (1 << sign_bit)) {
             /* Negative - extend sign bits */
-            int32_t mask = ~((1 << (sign_bit + 1)) - 1);
+            int32_t mask = ~((1 << (sign_bit + 1U)) - 1);
             result |= mask;
         }
     }

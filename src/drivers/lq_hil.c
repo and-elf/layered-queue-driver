@@ -56,7 +56,10 @@ static struct {
 /* Helper: Create socket path */
 static void make_socket_path(char *buf, size_t size, const char *fmt, int pid)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
     snprintf(buf, size, fmt, pid);
+#pragma GCC diagnostic pop
 }
 
 /* Helper: Create Unix domain socket */
@@ -255,7 +258,7 @@ uint64_t lq_hil_get_timestamp_us(void)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+    return (uint64_t)tv.tv_sec * 1000000U + (uint64_t)tv.tv_usec;
 }
 
 /* ============================================================================

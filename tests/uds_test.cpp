@@ -90,6 +90,7 @@ static int mock_read_did(uint16_t did, uint8_t *data, size_t max_len, size_t *ac
 
 static int mock_write_did(uint16_t did, const uint8_t *data, size_t len)
 {
+    (void)data;  /* Unused in mock */
     /* Example: Allow writing custom DID */
     if (did == UDS_DID_LQ_REMAP_CONFIG && len == 4) {
         return 0;  /* Success */

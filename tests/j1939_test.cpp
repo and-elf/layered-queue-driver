@@ -410,7 +410,7 @@ TEST_F(J1939Test, UpdateSignalMaxCapacity) {
     
     // Fill to capacity (32 signals)
     for (uint32_t i = 0; i < 32; i++) {
-        proto.vtbl->update_signal(&proto, i, i * 10, 1000000);
+        proto.vtbl->update_signal(&proto, i, (int32_t)(i * 10), 1000000ULL);
     }
     
     EXPECT_EQ(ctx.num_signals, 32);
@@ -741,7 +741,7 @@ TEST_F(J1939Test, DecodeAllPGNs) {
     const uint32_t pgns[] = {J1939_PGN_EEC1, J1939_PGN_ET1};
     
     for (size_t i = 0; i < sizeof(pgns) / sizeof(pgns[0]); i++) {
-        signal_ids[0] = 1000 + i;
+        signal_ids[0] = (uint32_t)(1000 + i);
         decode_maps[0].protocol_id = pgns[i];
         decode_maps[0].signal_ids = signal_ids;
         decode_maps[0].num_signals = 1;
@@ -767,7 +767,7 @@ TEST_F(J1939Test, LargeSignalCount) {
     
     // Add maximum signals
     for (uint32_t i = 0; i < 32; i++) {
-        proto.vtbl->update_signal(&proto, i, i * 100, 1000000);
+        proto.vtbl->update_signal(&proto, i, (int32_t)(i * 100), 1000000ULL);
     }
     
     EXPECT_EQ(ctx.num_signals, 32);

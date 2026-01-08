@@ -98,10 +98,10 @@ static inline uint32_t lq_j1939_build_id_from_pgn(uint32_t pgn, uint8_t priority
 {
     lq_j1939_id_t id = {
         .priority = priority,
-        .edp = (pgn >> 17) & 0x01,
-        .dp = (pgn >> 16) & 0x01,
-        .pf = (pgn >> 8) & 0xFF,
-        .ps = pgn & 0xFF,
+        .edp = (uint8_t)((pgn >> 17) & 0x01U),
+        .dp = (uint8_t)((pgn >> 16) & 0x01U),
+        .pf = (uint8_t)((pgn >> 8) & 0xFFU),
+        .ps = (uint8_t)(pgn & 0xFFU),
         .sa = sa
     };
     return lq_j1939_build_id(&id);

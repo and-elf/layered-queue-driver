@@ -207,8 +207,8 @@ TEST_F(HILTest, ResponseLatency) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     
     // Calculate latency in microseconds
-    uint64_t latency_us = (end.tv_sec - start.tv_sec) * 1000000ULL +
-                          (end.tv_nsec - start.tv_nsec) / 1000ULL;
+    uint64_t latency_us = (uint64_t)(end.tv_sec - start.tv_sec) * 1000000ULL +
+                          (uint64_t)(end.tv_nsec - start.tv_nsec) / 1000ULL;
     
     std::cout << "[HIL] Response latency: " << latency_us << " us" << std::endl;
     
@@ -238,7 +238,7 @@ TEST_F(HILTest, FaultCondition) {
 TEST_F(HILTest, SequentialInputs) {
     // Test multiple sequential inputs
     for (int i = 0; i < 5; i++) {
-        uint16_t adc_value = 2000 + i * 100;
+        uint16_t adc_value = (uint16_t)(2000 + i * 100);
         ASSERT_EQ(lq_hil_tester_inject_adc(0, adc_value), 0) 
             << "Injection " << i << " failed";
         
@@ -260,7 +260,7 @@ TEST_F(HILTest, SequentialInputs) {
 TEST_F(HILTest, StressTest) {
     // Rapid injection of many ADC values
     for (int i = 0; i < 100; i++) {
-        ASSERT_EQ(lq_hil_tester_inject_adc(0, 2000 + (i % 1000)), 0);
+        ASSERT_EQ(lq_hil_tester_inject_adc(0, (uint32_t)(2000 + (i % 1000))), 0);
         usleep(1000);  // 1ms between injections
     }
     

@@ -151,7 +151,7 @@ void lq_process_merges(
         int32_t result = -999;  /* Initialize to obviously wrong value for debugging */
         enum lq_status vote_status = LQ_OK;
         
-        int rc = lq_vote(values, valid_count, merge->voting_method, merge->tolerance, &result, &vote_status);
+        int rc = lq_vote(values, valid_count, merge->voting_method, (int32_t)merge->tolerance, &result, &vote_status);
         
         /* Convert lq_status to lq_event_status */
         enum lq_event_status result_status = LQ_EVENT_OK;
@@ -395,7 +395,7 @@ static void *engine_thread_func(void *arg)
             /* Convert sample to event */
             /* In real implementation, route through mid-level drivers */
             events[num_events].source_id = sample.src;
-            events[num_events].value = sample.value;
+            events[num_events].value = (int32_t)sample.value;
             events[num_events].status = LQ_EVENT_OK;
             events[num_events].timestamp = sample.timestamp;
             num_events++;

@@ -42,8 +42,8 @@ uint32_t lq_platform_uptime_get(void)
     struct timeval now;
     gettimeofday(&now, NULL);
     
-    uint32_t seconds = now.tv_sec - start_time.tv_sec;
-    uint32_t useconds = now.tv_usec - start_time.tv_usec;
+    uint32_t seconds = (uint32_t)(now.tv_sec - start_time.tv_sec);
+    uint32_t useconds = (uint32_t)(now.tv_usec - start_time.tv_usec);
     
     return seconds * 1000 + useconds / 1000;
 }
@@ -55,8 +55,8 @@ uint64_t lq_platform_get_time_us(void)
     struct timeval now;
     gettimeofday(&now, NULL);
     
-    uint64_t seconds = now.tv_sec - start_time.tv_sec;
-    uint64_t useconds = now.tv_usec - start_time.tv_usec;
+    uint64_t seconds = (uint64_t)(now.tv_sec - start_time.tv_sec);
+    uint64_t useconds = (uint64_t)(now.tv_usec - start_time.tv_usec);
     
     return seconds * 1000000ULL + useconds;
 }

@@ -134,14 +134,14 @@ static int handle_diagnostic_session_control(struct lq_uds_server *server,
     response[1] = session_type;
     
     /* P2 timing in 10ms units */
-    uint16_t p2 = server->config.p2_server_max / 10;
-    response[2] = (p2 >> 8) & 0xFF;
-    response[3] = p2 & 0xFF;
+    uint16_t p2 = (uint16_t)(server->config.p2_server_max / 10U);
+    response[2] = (uint8_t)((p2 >> 8) & 0xFFU);
+    response[3] = (uint8_t)(p2 & 0xFFU);
     
     /* P2* timing in 10ms units */
-    uint16_t p2_star = server->config.p2_star_server_max / 10;
-    response[4] = (p2_star >> 8) & 0xFF;
-    response[5] = p2_star & 0xFF;
+    uint16_t p2_star = (uint16_t)(server->config.p2_star_server_max / 10U);
+    response[4] = (uint8_t)((p2_star >> 8) & 0xFFU);
+    response[5] = (uint8_t)(p2_star & 0xFFU);
     
     LQ_UDS_LOG("Session changed to 0x%02X", session_type);
     return send_response(server, response, 6);
@@ -161,7 +161,7 @@ static int handle_security_access(struct lq_uds_server *server,
     
     uint8_t sub_function = request[1];
     bool is_seed_request = (sub_function & 0x01) != 0;
-    uint8_t level = (sub_function + 1) / 2;  /* Convert to level (1, 2, 3...) */
+    uint8_t level = (uint8_t)((sub_function + 1U) / 2U);  /* Convert to level (1, 2, 3...) */
     
     /* Check if in security lockout */
     if (now < server->security_lockout_until) {
@@ -326,7 +326,7 @@ static int handle_read_data_by_identifier(struct lq_uds_server *server,
     
     if (result < 0) {
         /* Callback returned NRC */
-        return send_negative_response(server, UDS_SID_READ_DATA_BY_IDENTIFIER, -result);
+        return send_negative_response(server, UDS_SID_READ_DATA_BY_IDENTIFIER, (uint8_t)(-result));
     }
     
     LQ_UDS_LOG("Read DID 0x%04X: %zu bytes", did, data_len);
@@ -362,7 +362,7 @@ static int handle_write_data_by_identifier(struct lq_uds_server *server,
     int result = server->config.write_did(did, &request[3], len - 3);
     
     if (result < 0) {
-        return send_negative_response(server, UDS_SID_WRITE_DATA_BY_IDENTIFIER, -result);
+        return send_negative_response(server, UDS_SID_WRITE_DATA_BY_IDENTIFIER, (uint8_t)(-result));
     }
     
     /* Positive response echoes DID */
@@ -424,7 +424,7 @@ static int handle_routine_control(struct lq_uds_server *server,
                                                  &result_len);
     
     if (result < 0) {
-        return send_negative_response(server, UDS_SID_ROUTINE_CONTROL, -result);
+        return send_negative_response(server, UDS_SID_ROUTINE_CONTROL, (uint8_t)(-result));
     }
     
     LQ_UDS_LOG("Routine 0x%04X control type %d: %zu bytes result", 

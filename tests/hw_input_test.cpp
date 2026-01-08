@@ -63,7 +63,7 @@ TEST_F(HwInputTest, InitMultipleTimes) {
 // ============================================================================
 
 TEST_F(HwInputTest, PushSingleSample) {
-    lq_hw_push(LQ_HW_ADC0, 1234);
+    lq_hw_push(LQ_HW_ADC0, 1234U);
     
     EXPECT_EQ(lq_hw_pending(), 1);
     
@@ -78,9 +78,9 @@ TEST_F(HwInputTest, PushSingleSample) {
 }
 
 TEST_F(HwInputTest, PushMultipleSamples) {
-    lq_hw_push(LQ_HW_ADC0, 100);
-    lq_hw_push(LQ_HW_ADC1, 200);
-    lq_hw_push(LQ_HW_SPI0, 300);
+    lq_hw_push(LQ_HW_ADC0, 100U);
+    lq_hw_push(LQ_HW_ADC1, 200U);
+    lq_hw_push(LQ_HW_SPI0, 300U);
     
     EXPECT_EQ(lq_hw_pending(), 3);
     
@@ -112,7 +112,7 @@ TEST_F(HwInputTest, PopEmptyBuffer) {
 }
 
 TEST_F(HwInputTest, PopNullPointer) {
-    lq_hw_push(LQ_HW_ADC0, 100);
+    lq_hw_push(LQ_HW_ADC0, 100U);
     
     // Pop with null pointer should not crash but may return error
     // (implementation may or may not check for null)
@@ -124,9 +124,9 @@ TEST_F(HwInputTest, PopNullPointer) {
 // ============================================================================
 
 TEST_F(HwInputTest, TimestampIncreases) {
-    lq_hw_push(LQ_HW_ADC0, 100);
+    lq_hw_push(LQ_HW_ADC0, 100U);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    lq_hw_push(LQ_HW_ADC1, 200);
+    lq_hw_push(LQ_HW_ADC1, 200U);
     
     struct lq_hw_sample sample1, sample2;
     
@@ -138,7 +138,7 @@ TEST_F(HwInputTest, TimestampIncreases) {
 }
 
 TEST_F(HwInputTest, TimestampInMicroseconds) {
-    lq_hw_push(LQ_HW_ADC0, 100);
+    lq_hw_push(LQ_HW_ADC0, 100U);
     
     struct lq_hw_sample sample;
     ASSERT_EQ(lq_hw_pop(&sample), 0);
@@ -157,7 +157,7 @@ TEST_F(HwInputTest, RingbufferWraparound) {
     for (int cycle = 0; cycle < 3; cycle++) {
         // Fill buffer partially
         for (int i = 0; i < 50; i++) {
-            lq_hw_push(LQ_HW_ADC0, 1000 + i);
+            lq_hw_push(LQ_HW_ADC0, (uint32_t)(1000 + i));
         }
         
         EXPECT_EQ(lq_hw_pending(), 50);
@@ -176,8 +176,8 @@ TEST_F(HwInputTest, RingbufferWraparound) {
 TEST_F(HwInputTest, FillAndDrainSequence) {
     // Interleaved push/pop to test index management
     for (int i = 0; i < 10; i++) {
-        lq_hw_push(LQ_HW_ADC0, i * 10);
-        lq_hw_push(LQ_HW_ADC1, i * 10 + 1);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)(i * 10));
+        lq_hw_push(LQ_HW_ADC1, (uint32_t)(i * 10 + 1));
         
         struct lq_hw_sample sample;
         ASSERT_EQ(lq_hw_pop(&sample), 0);
@@ -199,13 +199,13 @@ TEST_F(HwInputTest, FillAndDrainSequence) {
 TEST_F(HwInputTest, BufferFull) {
     // Fill buffer to capacity (128 samples)
     for (int i = 0; i < 128; i++) {
-        lq_hw_push(LQ_HW_ADC0, i);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)i);
     }
     
     EXPECT_EQ(lq_hw_pending(), 128);
     
     // Push one more - should be dropped
-    lq_hw_push(LQ_HW_ADC0, 9999);
+    lq_hw_push(LQ_HW_ADC0, 9999U);
     
     // Should still be 128
     EXPECT_EQ(lq_hw_pending(), 128);
@@ -224,7 +224,7 @@ TEST_F(HwInputTest, BufferFull) {
 TEST_F(HwInputTest, BufferFullRecovery) {
     // Fill buffer
     for (int i = 0; i < 128; i++) {
-        lq_hw_push(LQ_HW_ADC0, i);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)i);
     }
     
     // Pop some to make space
@@ -236,7 +236,7 @@ TEST_F(HwInputTest, BufferFullRecovery) {
     EXPECT_EQ(lq_hw_pending(), 118);
     
     // Should be able to push again
-    lq_hw_push(LQ_HW_ADC1, 5555);
+    lq_hw_push(LQ_HW_ADC1, 5555U);
     EXPECT_EQ(lq_hw_pending(), 119);
     
     // Drain and verify
@@ -257,14 +257,14 @@ TEST_F(HwInputTest, BufferFullRecovery) {
 
 TEST_F(HwInputTest, AllSourceTypes) {
     // Test various source IDs
-    lq_hw_push(LQ_HW_ADC0, 0);
-    lq_hw_push(LQ_HW_ADC1, 1);
-    lq_hw_push(LQ_HW_ADC2, 2);
-    lq_hw_push(LQ_HW_ADC3, 3);
-    lq_hw_push(LQ_HW_SPI0, 4);
-    lq_hw_push(LQ_HW_SPI1, 5);
-    lq_hw_push(LQ_HW_GPIO0, 6);
-    lq_hw_push(LQ_HW_GPIO1, 7);
+    lq_hw_push(LQ_HW_ADC0, 0U);
+    lq_hw_push(LQ_HW_ADC1, 1U);
+    lq_hw_push(LQ_HW_ADC2, 2U);
+    lq_hw_push(LQ_HW_ADC3, 3U);
+    lq_hw_push(LQ_HW_SPI0, 4U);
+    lq_hw_push(LQ_HW_SPI1, 5U);
+    lq_hw_push(LQ_HW_GPIO0, 6U);
+    lq_hw_push(LQ_HW_GPIO1, 7U);
     
     EXPECT_EQ(lq_hw_pending(), 8);
     
@@ -278,7 +278,7 @@ TEST_F(HwInputTest, AllSourceTypes) {
 TEST_F(HwInputTest, SameSourceMultipleSamples) {
     // Multiple samples from same source
     for (int i = 0; i < 20; i++) {
-        lq_hw_push(LQ_HW_ADC0, i * 100);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)(i * 100));
     }
     
     EXPECT_EQ(lq_hw_pending(), 20);
@@ -332,7 +332,7 @@ TEST_F(HwInputTest, ConcurrentPushPop) {
     // Producer thread
     std::thread producer([&]() {
         for (int i = 0; i < num_samples; i++) {
-            lq_hw_push(LQ_HW_ADC0, i);
+            lq_hw_push(LQ_HW_ADC0, (uint32_t)i);
             push_count++;
             std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
@@ -366,7 +366,7 @@ TEST_F(HwInputTest, MultipleProducers) {
     for (int t = 0; t < num_threads; t++) {
         producers.emplace_back([t, samples_per_thread]() {
             for (int i = 0; i < samples_per_thread; i++) {
-                lq_hw_push(static_cast<enum lq_hw_source>(t), i);
+                lq_hw_push(static_cast<enum lq_hw_source>(t), (uint32_t)i);
                 std::this_thread::sleep_for(std::chrono::microseconds(5));
             }
         });
@@ -399,7 +399,7 @@ TEST_F(HwInputTest, MultipleConsumers) {
     
     // Fill buffer first
     for (int i = 0; i < total_samples; i++) {
-        lq_hw_push(LQ_HW_ADC0, i);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)i);
     }
     
     EXPECT_EQ(lq_hw_pending(), total_samples);
@@ -432,7 +432,7 @@ TEST_F(HwInputTest, HighFrequencyPush) {
     
     // Rapid push (simulating high-frequency ISR)
     for (int i = 0; i < num_samples; i++) {
-        lq_hw_push(LQ_HW_ADC0, i);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)i);
     }
     
     // Should not exceed buffer size
@@ -457,13 +457,13 @@ TEST_F(HwInputTest, HighFrequencyPush) {
 TEST_F(HwInputTest, PendingCountAccuracy) {
     EXPECT_EQ(lq_hw_pending(), 0);
     
-    lq_hw_push(LQ_HW_ADC0, 1);
+    lq_hw_push(LQ_HW_ADC0, 1U);
     EXPECT_EQ(lq_hw_pending(), 1);
     
-    lq_hw_push(LQ_HW_ADC0, 2);
+    lq_hw_push(LQ_HW_ADC0, 2U);
     EXPECT_EQ(lq_hw_pending(), 2);
     
-    lq_hw_push(LQ_HW_ADC0, 3);
+    lq_hw_push(LQ_HW_ADC0, 3U);
     EXPECT_EQ(lq_hw_pending(), 3);
     
     struct lq_hw_sample sample;
@@ -487,7 +487,7 @@ TEST_F(HwInputTest, SimulateISRPattern) {
     
     for (int i = 0; i < num_conversions; i++) {
         // Simulate ADC conversion
-        uint32_t adc_value = 2048 + (i * 10);
+        uint32_t adc_value = 2048U + ((uint32_t)i * 10U);
         lq_hw_push(LQ_HW_ADC0, adc_value);
         
         std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -515,9 +515,9 @@ TEST_F(HwInputTest, SimulateMultiSourceISR) {
     const int samples_per_source = 20;
     
     for (int i = 0; i < samples_per_source; i++) {
-        lq_hw_push(LQ_HW_ADC0, 1000 + i);
-        lq_hw_push(LQ_HW_ADC1, 2000 + i);
-        lq_hw_push(LQ_HW_SPI0, 3000 + i);
+        lq_hw_push(LQ_HW_ADC0, (uint32_t)(1000 + i));
+        lq_hw_push(LQ_HW_ADC1, (uint32_t)(2000 + i));
+        lq_hw_push(LQ_HW_SPI0, (uint32_t)(3000 + i));
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
     

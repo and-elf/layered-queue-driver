@@ -81,7 +81,7 @@ static void process_single_pid(
             /* integral += error * dt_us / 1000000 (convert us to seconds) */
             /* Then i_term = ki * integral / 1000 */
             /* Combined: integral += error * dt_us * 1000 / 1000000 = error * dt_us / 1000 */
-            ctx->integral += ((int64_t)error * dt_us) / 1000000; /* Convert to seconds */
+            ctx->integral += ((int64_t)error * (int64_t)dt_us) / 1000000; /* Convert to seconds */
             
             /* Apply integral anti-windup */
             if (ctx->integral > ctx->integral_max) {
@@ -100,7 +100,7 @@ static void process_single_pid(
         /* d(error)/dt = (error - last_error) / dt */
         /* Scale to per-second: multiply by 1000000 (us to s) */
         int32_t error_delta = error - ctx->last_error;
-        d_term = ((int64_t)ctx->kd * error_delta * 1000000) / (dt_us * 1000);
+        d_term = ((int64_t)ctx->kd * error_delta * 1000000) / ((int64_t)dt_us * 1000);
     }
 
     /* Calculate total output */

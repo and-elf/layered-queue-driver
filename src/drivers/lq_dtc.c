@@ -170,9 +170,9 @@ int lq_dtc_build_dm1(struct lq_dtc_manager *mgr, uint8_t *data,
         }
         
         /* DTC format: [SPN_low, SPN_mid, SPN_high(3 bits) << 5 | FMI(5 bits), occurrence] */
-        data[offset++] = dtc->spn & 0xFF;
-        data[offset++] = (dtc->spn >> 8) & 0xFF;
-        data[offset++] = ((dtc->spn >> 16) << 5) | (dtc->fmi & 0x1F);
+        data[offset++] = (uint8_t)(dtc->spn & 0xFFU);
+        data[offset++] = (uint8_t)((dtc->spn >> 8) & 0xFFU);
+        data[offset++] = (uint8_t)(((dtc->spn >> 16) << 5) | (dtc->fmi & 0x1FU));
         data[offset++] = dtc->occurrence_count;
         
         dtc_count++;
@@ -215,9 +215,9 @@ int lq_dtc_build_dm2(struct lq_dtc_manager *mgr, uint8_t *data, size_t max_size)
             continue;
         }
         
-        data[offset++] = dtc->spn & 0xFF;
-        data[offset++] = (dtc->spn >> 8) & 0xFF;
-        data[offset++] = ((dtc->spn >> 16) << 5) | (dtc->fmi & 0x1F);
+        data[offset++] = (uint8_t)(dtc->spn & 0xFFU);
+        data[offset++] = (uint8_t)((dtc->spn >> 8) & 0xFFU);
+        data[offset++] = (uint8_t)(((dtc->spn >> 16) << 5) | (dtc->fmi & 0x1FU));
         data[offset++] = dtc->occurrence_count;
         
         dtc_count++;
