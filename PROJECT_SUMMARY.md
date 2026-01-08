@@ -1,92 +1,203 @@
 # Layered Queue Driver - Project Summary
 
 ## Overview
-A production-ready embedded automotive sensor fusion framework with comprehensive RTOS support, CAN/J1939 protocol integration, and multi-platform deployment capabilities.
+A production-ready, declarative sensor fusion framework for safety-critical embedded systems. Features device-tree-driven code generation, comprehensive protocol support (10 output types), and cross-platform portability (GNU and non-GNU toolchains).
 
 ## Key Features Implemented
 
 ### ✅ Core Framework
-- **23 Comprehensive Tests**: Full test coverage for all features (voting, merging, error detection, cyclic outputs)
-- **Declarative DeviceTree**: Define entire systems in `.dts` files
-- **Build-time Code Generation**: Automatic C code generation from DTS definitions
-- **Type-safe API**: Compile-time safety for all queue operations
+- **430 Comprehensive Tests**: Full coverage including HIL (Hardware-in-Loop) testing
+- **Declarative Device Tree**: Define entire systems in `.dts` files - no manual driver code
+- **Automatic Code Generation**: `dts_gen.py` generates complete C implementation from DTS
+- **Pure Processing Engine**: RTOS-independent core enables unit testing and formal verification
+- **ISR-Safe Input Layer**: Lock-free ringbuffer for hardware interrupt handlers
+- **Deterministic Execution**: Zero dynamic allocation, fixed-time processing
 
-### ✅ Platform Support (5 Embedded Platforms)
-1. **STM32 HAL**: Full support for STM32F4/F7/H7 with built-in CAN
-2. **ESP32 IDF**: ESP32/ESP32-S3 with TWAI CAN controller
-3. **nRF52 SDK**: nRF52840 with external MCP2515 CAN transceiver
-4. **SAMD ASF4**: Atmel/Microchip SAMD21/SAMD51
-5. **Bare Metal**: Generic platform for custom hardware
+### ✅ Protocol Support (10 Output Types)
+**Automotive/Industrial CAN:**
+1. **CAN**: Raw CAN 2.0B (11-bit/29-bit)
+2. **J1939**: SAE J1939 automotive protocol (PGN encoding, diagnostic support)
+3. **CANopen**: Industrial automation protocol (PDO/SDO support)
 
-**Platform Adaptor System** (`scripts/platform_adaptors.py`):
-- Generates real ISRs for ADC, SPI, CAN peripherals
-- Platform-specific initialization code
-- Ready-to-compile .c/.h files for each platform
-- Direct hardware deployment capability
+**Digital/Analog I/O:**
+4. **GPIO**: Digital outputs (LEDs, relays, solenoids)
+5. **PWM**: Motor control, LED dimming, servo control
+6. **DAC**: Analog voltage outputs, analog gauges
 
-### ✅ RTOS Support
-**FreeRTOS Integration** (`src/platform/lq_platform_freertos.c`):
-- Thread-safe queue operations with mutexes
-- ISR-safe event signaling with `FromISR` variants
-- Automatic cyclic task creation with `vTaskDelayUntil`
-- Priority mapping from DTS (0-7) to FreeRTOS priorities
-- Heap integration with `pvPortMalloc/vPortFree`
-- Stack overflow and malloc failure detection
-- **Performance**: ~10-15% CPU usage @ 168MHz STM32F4
+**Serial Buses:**
+7. **UART**: Serial diagnostics, RS-232/RS-485
+8. **SPI**: SPI peripherals, displays, DACs
+9. **I2C**: I2C sensors, EEPROMs, displays
 
-**Build System**: CMake platform selection via `-DLQ_PLATFORM=freertos`
+**Industrial:**
+10. **Modbus**: PLC/SCADA communication (RTU/TCP)
 
-### ✅ CAN/J1939 Protocol Support
-**CAN Features**:
-- Input: Receive J1939 messages filtered by PGN
-- Output: Transmit cyclic J1939 PGNs at configured rates
-- Hardware: Built-in CAN on STM32/ESP32, MCP2515 on nRF52/SAMD
+See [docs/output-types-reference.md](docs/output-types-reference.md) for complete API reference.
 
-**J1939 Diagnostics** (`include/lq_j1939.h`, `src/lq_j1939.c`):
-- DM0: Lamp status (MIL, Amber Warning, Red Stop, Protect)
-- DM1: Active DTCs with SPN/FMI/OC encoding
-- Standard PGN Support: EEC1, EEC2, ET1, EFL/P1
-- 29-bit Extended ID handling
-- PGN-based message filtering
+### ✅ Platform Support
+**Operating Systems:**
+- **Native (POSIX)**: Linux, macOS, Windows - development and testing
+- **Zephyr RTOS**: Production embedded systems with west integration
+- **FreeRTOS**: Via platform adapter layer
+
+**Toolchain Portability:**
+- **GNU (GCC, Clang)**: Full support with weak symbols
+- **IAR Embedded Workbench**: Portable extern declarations
+- **ARM Compiler (ARMCC)**: Standard C99 compatibility
+- **MSVC**: Windows testing support
+
+Platform abstraction uses `extern` declarations + optional weak stubs:
+- [src/platform/lq_platform_stubs.c](src/platform/lq_platform_stubs.c): Default no-op implementations
+- [include/lq_platform.h](include/lq_platform.h): Platform API (CAN, GPIO, PWM, etc.)
+- [docs/platform-portability.md](docs/platform-portability.md): Cross-compiler guide
+
+### ✅ Advanced Features
+**Redundancy Management:**
+- Median, average, min, max voting algorithms
+- Tolerance-based disagreement detection
+- Triple-modular redundancy (TMR) support
+- Automatic status propagation (OK → DEGRADED → INCONSISTENT)
+
+**Diagnostics:**
+- UDS/ISO-14229 support (DiagnosticSessionControl, ReadDataByIdentifier, etc.)
+- Diagnostic Trouble Codes (DTC) with freeze-frame capture
+- ISO-TP transport layer for multi-frame messaging
+- J1939 DM1 (active DTCs) and DM2 (previously active) support
+
+**Control Systems:**
+- PID controllers with anti-windup
+- Signal remapping and scaling
+- Verified outputs with range checking
+
+**Testing Infrastructure:**
+- Hardware-in-Loop (HIL) testing framework
+- Virtual CAN bus for integration testing
+- Auto-generated test harness from DTS
+- Coverage tracking with lcov/genhtml
 
 ## Production-Ready Examples
 
-### Automotive ECU Example (`samples/j1939/automotive_can_system.dts`)
+### Automotive Engine Monitor (`samples/automotive/app.dts`)
 ```
-Inputs:
-- 4x ADC sensors (RPM×2, oil pressure, coolant temp)
-- 3x CAN J1939 (RPM, vehicle speed, fuel rate)
+Hardware Inputs:
+- 2× RPM sensors (ADC + SPI) with redundancy
+- Coolant temperature (ADC)
+- Oil pressure (ADC)
 
 Processing:
-- Triple-redundant RPM voting (2 ADC + 1 CAN)
-- Merge voting for critical sensor fusion
-- 3x Error detectors with SPN/FMI mapping
+- Median voting on dual RPM sensors
+- Tolerance checking (flags disagreement >50 counts)
+- Staleness detection (5ms timeout)
+
+Outputs (J1939 CAN):
+- Engine speed (PGN 0xFEF1) @ 10Hz
+- Coolant temp (PGN 0xFEEE) @ 1Hz
+- Oil pressure (PGN 0xFEEF) @ 5Hz
+
+Generated Code:
+- lq_generated.h/c: Engine config, ISRs, dispatch function
+- Auto-generated from DTS, ready to compile
+```
+
+### Multi-Output Demo (`samples/multi-output-example.dts`)
+Demonstrates all 10 output types in one system:
+```
+Inputs: Temperature, Speed, Pressure sensors
 
 Outputs:
-- DM1 diagnostics with lamp control
-- EEC1 @ 10Hz (engine speed, torque)
-- EEC2 @ 10Hz (acceleration, load)
-- ET1 @ 1Hz (coolant temp)
-- EFL/P1 @ 1Hz (fuel rates, pressure)
+- GPIO: Status LED
+- PWM: Cooling fan speed control
+- DAC: Analog gauge (speed)
+- SPI: External display controller
+- I2C: EEPROM data logger
+- UART: Serial diagnostics
+- Modbus: Industrial PLC integration
+- J1939: Automotive CAN network
+- CANopen: Factory automation
+**Architecture:**
+- [README.md](README.md): Quick start and feature overview
+- [docs/architecture.md](docs/architecture.md): Layered architecture principles
+- [docs/clean-architecture.md](docs/clean-architecture.md): Pure processing design
+- [docs/layered-architecture-guide.md](docs/layered-architecture-guide.md): Implementation guide
+
+**Configuration:**
+- [docs/devicetree-guide.md](docs/devicetree-guide.md): DTS syntax and node types
+- [docs/output-types-reference.md](docs/output-types-reference.md): All 10 output types
+- [docs/platform-portability.md](docs/platform-portability.md): Cross-compiler support
+Quick Build (Native/Linux)
+```bash
+cmake -B build
+cmake --build build
+cd build && ./all_tests
+# [  PASSED  ] 430 tests
 ```
 
-### FreeRTOS Application (`samples/freertos/main.c`)
-```
-Tasks:
-- lq_processing_task (Priority 3, 20Hz): Event-driven sensor fusion
-- lq_diagnostics_task (Priority 2, 1Hz): DM1 generation
-- Auto-created cyclic outputs: EEC1, EEC2, ET1, EFL/P1
-
-ISRs:
-- HAL_ADC_ConvCpltCallback: 4 ADC values → queue
-- HAL_CAN_RxFifo0MsgPendingCallback: J1939 PGN extraction → queue
-
-FreeRTOS Hooks:
-- Stack overflow detection
-- Malloc failure handling
-- Idle task statistics
+### Generate Code from Device Tree
+```bash
+python3 scripts/dts_gen.py samples/automotive/app.dts samples/automotive/src/
+# Generates:
+#   - lq_generated.h
+#   - lq_generated.c  
+#   - lq_generated_test.dts (HIL tests)
 ```
 
+### Coverage Report
+```bash
+./scripts/generate_coverage.sh
+# Opens HTML coverage report in browser
+# Current: ~85% line coverage, ~90% function coverage
+```
+
+### CMakeLists.txt             # Build system
+├── scripts/
+│   ├── dts_gen.py            # DTS → C code generator (core)
+│   ├── hil_test_gen.py       # HIL test generator
+│   └── platform_adaptors.py  # Platform-specific ISRs
+├── include/                   # Public API headers
+│   ├── lq_engine.h           # Engine core
+│   ├── lq_event.h            # Event/output types
+│   ├── lq_platform.h         # Platform abstraction
+│   ├── lq_j1939.h            # J1939 protocol
+│   ├── lq_canopen.h          # CANopen protocol
+│   ├── lq_pid.h              # PID controller
+│   └── lq_dtc.h              # Diagnostics
+├── src/drivers/               # Core implementations
+│   ├── lq_engine.c           # Pure processing engine
+│   ├── lq_hw_input.c         # ISR-safe input layer
+│   ├── lq_j1939.c            # J1939 implementation
+│   └── platform/
+│       ├── lq_platform_native.c    # POSIX
+│       ├── lq_platform_stubs.c     # Default stubs
+│       └── lq_platform_freertos.c  # FreeRTOS
+├── samples/                   # Example applications
+│   ├── automotive/ (core), C++20 (tests)
+- **Build System**: CMake 3.14+
+- **Testing**: Google Test (430 tests passing)
+- **Coverage**: lcov/genhtml (~85% line coverage)
+- **RTOS**: Native, Zephyr, FreeRTOS
+- **Protocols**: CAN 2.0B, J1939, CANopen, Modbus, UDS/ISO-14229
+- **Code Generation**: Python 3.8+ (dts_gen.py)
+- **Toolchains**: GCC, Clang, IAR, ARMCC, MSVC
+
+## Recent Milestones
+
+```
+e3bf9ef Update README to reflect current architecture
+fb5ef94 Add 5 new output types and improve toolchain portability  
+38bc7e2 Refactor HIL testing with proper SUT/controller architecture
+8e9a4e8 Add comprehensive HIL testing framework
+c5c8d16 Add UDS/ISO-14229 diagnostic protocol support
+9b2a5d7 Add DTC (Diagnostic Trouble Codes) management
+a5f3c84 Add PID controller support
+```
+
+**Key Achievements:**
+- ✅ 430 tests passing (up from 23)
+- ✅ 10 output types (was CAN/J1939 only)
+- ✅ Cross-compiler support (GNU + non-GNU)
+- ✅ HIL testing infrastructure
+- ✅ UDS diagnostics + DTC management
+- ✅ Comprehensive documentation
 ## Documentation
 - [Architecture Guide](docs/architecture.md): Clean architecture principles
 - [DeviceTree Guide](docs/devicetree-guide.md): DTS syntax and examples
@@ -104,20 +215,32 @@ mkdir build && cd build
 cmake ..
 cmake --build .
 ./queue_test  # All 23 tests passing
-```
+``**430 tests passing** - comprehensive test coverage  
+✅ **10 output protocols** - automotive + industrial + IoT  
+✅ **Cross-platform** - GNU, IAR, ARMCC, MSVC support  
+✅ **Code generation** - DTS → C, no manual driver code  
+✅ **Pure processing** - testable, verifiable core  
+✅ **HIL testing** - hardware-in-loop validation  
+✅ **Diagnostics** - UDS, DTCs, J1939 DM1/DM2  
+✅ **Documentation** - 15+ comprehensive guides  
 
-### FreeRTOS STM32F4
-```bash
-mkdir build && cd build
-cmake -DLQ_PLATFORM=freertos ..
-cmake --build .
-# Flash build/firmware.elf to STM32F4 Discovery
-```
+**Use Cases:**
+- Automotive ECUs (engine control, transmission, body control)
+- Industrial controllers (PLCs, motor drives, process control)
+- Aerospace systems (sensor fusion, redundancy management)
+- Medical devices (patient monitors, infusion pumps)
 
-### Generate Platform-Specific Code
-```bash
-python3 scripts/platform_adaptors.py samples/j1939/automotive_can_system.dts --platform stm32
-# Generates: stm32_lq_platform.c with real HAL ISRs
+## Next Steps
+- [ ] Zephyr devicetree binding finalization
+- [ ] On-change outputs with hysteresis
+- [ ] Additional filter nodes (Kalman, moving average)
+- [ ] Runtime configuration via UDS
+- [ ] Flash-based DTC storage
+
+## License
+Apache-2.0
+
+## Contributorses: stm32_lq_platform.c with real HAL ISRs
 ```
 
 ## Repository Structure
