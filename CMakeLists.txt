@@ -387,9 +387,17 @@ if(ARDUINO_CLI)
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     
-    # NOTE: AVR boards (Uno, Mega, etc.) are NOT supported due to insufficient RAM
-    # The lq_engine struct requires >2KB which exceeds AVR's 2KB limit
-    # Only 32-bit platforms (SAMD, ESP32, STM32) are supported
+    # NOTE: AVR boards (Uno, Mega, etc.) use reduced configuration (lq_config_avr.h)
+    # Default configuration requires >2KB RAM which exceeds Uno's 2KB limit
+    # AVR uses smaller limits: 8 signals, 4 scales, 2 PIDs, etc.
+    # This fits in ~1.8KB RAM on Uno, or ~2-3KB on Mega with room to grow
+    
+    # Add targets for each installed core
+    string(FIND "${ARDUINO_CORES}" "arduino:avr" AVR_FOUND)
+    if(AVR_FOUND GREATER -1)
+        add_arduino_examples_for_board("arduino:avr:uno" "avr-uno")
+        add_arduino_examples_for_board("arduino:avr:mega" "avr-mega")
+    endif()
     
     # Add targets for each installed 32-bit core
     string(FIND "${ARDUINO_CORES}" "arduino:samd" SAMD_FOUND)
@@ -412,6 +420,9 @@ if(ARDUINO_CLI)
         message(STATUS "  all: make arduino-check")
         message(STATUS "")
         message(STATUS "Install cores with:")
+        if(NOT AVR_FOUND GREATER -1)
+            message(STATUS "  arduino-cli core install arduino:avr")
+        endif()
         if(NOT SAMD_FOUND GREATER -1)
             message(STATUS "  arduino-cli core install arduino:samd")
         endif()
@@ -422,10 +433,10 @@ if(ARDUINO_CLI)
             message(STATUS "  arduino-cli core install STMicroelectronics:stm32 --additional-urls https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json")
         endif()
         message(STATUS "")
-        message(STATUS "Note: AVR boards (Uno/Mega) not supported - insufficient RAM")
+        message(STATUS "Note: AVR uses reduced config (~1.8KB RAM), 32-bit MCUs use full config")
     else()
-        message(STATUS "  No 32-bit Arduino cores installed")
-        message(STATUS "  Install SAMD: arduino-cli core install arduino:samd")
+        message(STATUS "  No Arduino cores installed")
+        message(STATUS "  Install AVR: arduino-cli core install arduino:avr")
     endif()
 else()
     message(STATUS "arduino-cli not found - skipping Arduino compilation tests")

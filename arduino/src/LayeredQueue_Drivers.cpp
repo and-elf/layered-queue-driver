@@ -13,9 +13,13 @@
 
 #ifdef ARDUINO
 
-/* Arduino AVR doesn't support C11 _Static_assert, so stub it out for AVR only */
-#if defined(__AVR__) && !defined(_Static_assert)
+/* AVR-specific configuration must be included before any other headers */
+#ifdef __AVR__
+#include "../../include/lq_config_avr.h"
+/* Arduino AVR doesn't support C11 _Static_assert, so stub it out */
+#if !defined(_Static_assert)
 #define _Static_assert(cond, msg) /* AVR compatibility */
+#endif
 #endif
 
 /* Tell the .c files where to find headers (relative to this file) */
