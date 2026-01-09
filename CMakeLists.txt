@@ -138,6 +138,18 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
+    # Generate automotive sample code for tests
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.c
+               ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.h
+        COMMAND ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
+            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/
+        DEPENDS ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
+                ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
+        COMMENT "Generating automotive sample code for tests"
+    )
+    
     # Source files for all_tests
     set(ALL_TESTS_SOURCES
         tests/queue_test.cpp
