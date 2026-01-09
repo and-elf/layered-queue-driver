@@ -86,6 +86,7 @@ add_library(layered_queue
     src/drivers/lq_verified_output.c
     src/drivers/lq_dtc.c
     src/drivers/lq_pid.c
+    src/drivers/lq_bldc.c
     src/platform/lq_platform_stubs.c
     ${PLATFORM_SOURCES}
 )
@@ -147,6 +148,7 @@ if(BUILD_TESTS)
         tests/engine_test.cpp
         tests/hw_input_test.cpp
         tests/hil_platform_test.cpp
+        tests/bldc_test.cpp
         samples/automotive/src/lq_generated_test.cpp
         samples/automotive/src/lq_generated.c
         src/drivers/lq_hil.c

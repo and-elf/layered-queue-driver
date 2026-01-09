@@ -1,12 +1,12 @@
 # Layered Queue Driver - Project Summary
 
 ## Overview
-A production-ready, declarative sensor fusion framework for safety-critical embedded systems. Features device-tree-driven code generation, comprehensive protocol support (10 output types), and cross-platform portability (GNU and non-GNU toolchains).
+A production-ready, declarative sensor fusion framework for safety-critical embedded systems. Features device-tree-driven code generation, comprehensive protocol support (10 output types + BLDC motor control), and cross-platform portability (GNU and non-GNU toolchains).
 
 ## Key Features Implemented
 
 ### ✅ Core Framework
-- **430 Comprehensive Tests**: Full coverage including HIL (Hardware-in-Loop) testing
+- **444 Comprehensive Tests**: Full coverage including HIL (Hardware-in-Loop) testing
 - **Declarative Device Tree**: Define entire systems in `.dts` files - no manual driver code
 - **Automatic Code Generation**: `dts_gen.py` generates complete C implementation from DTS
 - **Pure Processing Engine**: RTOS-independent core enables unit testing and formal verification
@@ -32,7 +32,16 @@ A production-ready, declarative sensor fusion framework for safety-critical embe
 **Industrial:**
 10. **Modbus**: PLC/SCADA communication (RTU/TCP)
 
-See [docs/output-types-reference.md](docs/output-types-reference.md) for complete API reference.
+### ✅ BLDC Motor Control
+**N-Phase Brushless Motor Driver** ([docs/bldc-motor-driver.md](docs/bldc-motor-driver.md)):
+- **Commutation Modes**: 6-step, Sinusoidal PWM, FOC, Open-loop V/f
+- **Multi-Phase Support**: 1-6 phases (3-phase typical for BLDC)
+- **Safety Features**: Emergency stop, deadtime insertion, active braking
+- **Platform Abstraction**: STM32/ESP32/Nordic implementations
+- **Power Control**: 0-100 input with 0.01% duty cycle resolution
+- **Multi-Motor**: Support for drone/robotics applications (4+ motors)
+
+See [docs/output-types-reference.md](docs/output-types-reference.md) for protocol API reference.
 
 ### ✅ Platform Support
 **Operating Systems:**

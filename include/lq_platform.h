@@ -360,7 +360,64 @@ int lq_dac_write(uint8_t channel, uint16_t value);
 int lq_modbus_write(uint8_t slave_id, uint16_t reg, uint16_t value);
 
 /* ============================================================================
- * Error codes (POSIX-compatible)
+ * BLDC Motor Control
+ * ============================================================================ */
+
+/* Forward declaration */
+struct lq_bldc_config;
+
+/* Platform capability flags */
+#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7) || defined(STM32G4)
+    #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 1
+    #define LQ_PLATFORM_HAS_DEADTIME 1
+#elif defined(ESP32) || defined(ESP32S3)
+    #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 1
+    #define LQ_PLATFORM_HAS_DEADTIME 1
+#elif defined(__SAMD21__) || defined(__SAMD51__)
+    #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 1
+    #define LQ_PLATFORM_HAS_DEADTIME 1
+#elif defined(NRF52) || defined(NRF53)
+    #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 0
+    #define LQ_PLATFORM_HAS_DEADTIME 0
+#else
+    /* Native/test platform - stub implementation */
+    #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 0
+    #define LQ_PLATFORM_HAS_DEADTIME 0
+#endif
+
+/**
+ * @brief Initialize BLDC motor PWM hardware
+ * @param motor_id Motor instance ID
+ * @param config Complete motor configuration including pins
+ * @return 0 on success, negative errno on failure
+ */
+int lq_bldc_platform_init(uint8_t motor_id, const struct lq_bldc_config *config);
+
+/**
+ * @brief Set PWM duty cycle for a motor phase
+ * @param motor_id Motor instance ID
+ * @param phase Phase number (0 to num_phases-1)
+ * @param duty_cycle Duty cycle in 0.01% units (0-10000 = 0-100.00%)
+ * @return 0 on success, negative errno on failure
+ */
+int lq_bldc_platform_set_duty(uint8_t motor_id, uint8_t phase, uint16_t duty_cycle);
+
+/**
+ * @brief Enable/disable motor PWM outputs
+ * @param motor_id Motor instance ID
+ * @param enable true to enable, false to disable
+ * @return 0 on success, negative errno on failure
+ */
+int lq_bldc_platform_enable(uint8_t motor_id, bool enable);
+
+/**
+ * @brief Emergency brake motor
+ * @param motor_id Motor instance ID
+ * @return 0 on success, negative errno on failure
+ */
+int lq_bldc_platform_brake(uint8_t motor_id);
+
+/* ============================================================================ * Error codes (POSIX-compatible)
  * ============================================================================ */
 
 #ifndef EINVAL

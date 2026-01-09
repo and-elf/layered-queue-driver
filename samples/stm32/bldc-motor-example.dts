@@ -1,0 +1,119 @@
+/ {
+    compatible = "layered-queue,example";
+    
+    /* 3-Phase BLDC Motor Configuration */
+    bldc_motor: bldc@0 {
+        compatible = "lq,bldc-motor";
+        label = "MAIN_MOTOR";
+        motor-id = <0>;
+        
+        /* Motor electrical configuration */
+        num-phases = <3>;
+        pole-pairs = <7>;  /* Common for drone/RC motors */
+        
+        /* Commutation mode */
+        mode = "sine";  /* Options: "6step", "sine", "foc", "open-loop" */
+        
+        /* PWM configuration */
+        pwm-frequency-hz = <25000>;  /* 25kHz */
+        max-duty-cycle = <9500>;     /* 95% (0.01% resolution) */
+        
+        /* Deadtime for complementary outputs */
+        enable-deadtime;
+        deadtime-ns = <1000>;  /* 1μs */
+        
+        /* STM32 TIM1 Pin Configuration */
+        /* High-side pins: [port, pin, AF] */
+        high-side-pins = <
+            0  8  1   /* PA8  = TIM1_CH1  (Phase U) */
+            0  9  1   /* PA9  = TIM1_CH2  (Phase V) */
+            0 10  1   /* PA10 = TIM1_CH3  (Phase W) */
+        >;
+        
+        /* Low-side (complementary) pins: [port, pin, AF] */
+        low-side-pins = <
+            0  7  1   /* PA7  = TIM1_CH1N (Phase U complementary) */
+            1  0  1   /* PB0  = TIM1_CH2N (Phase V complementary) */
+            1  1  1   /* PB1  = TIM1_CH3N (Phase W complementary) */
+        >;
+        
+        status = "okay";
+    };
+    
+    /* Example: Throttle input from ADC */
+    throttle: analog-input@0 {
+        compatible = "lq,analog-input";
+        label = "THROTTLE";
+        channel = <0>;
+        
+        /* Scale ADC (0-4095) to throttle (0-100) */
+        input-scale = "linear";
+        input-min = <0>;
+        input-max = <4095>;
+        output-min = <0>;
+        output-max = <100>;
+        
+        /* Safety: require valid signal */
+        fault-timeout-ms = <100>;
+        default-value = <0>;  /* Stop on fault */
+        
+        status = "okay";
+    };
+    
+    /* Example: Multi-motor drone configuration */
+    bldc_motor1: bldc@1 {
+        compatible = "lq,bldc-motor";
+        label = "MOTOR_FL";  /* Front-left */
+        motor-id = <1>;
+        num-phases = <3>;
+        pole-pairs = <14>;
+        mode = "sine";
+        pwm-frequency-hz = <32000>;
+        max-duty-cycle = <9800>;
+        enable-deadtime;
+        deadtime-ns = <800>;
+        status = "okay";
+    };
+    
+    bldc_motor2: bldc@2 {
+        compatible = "lq,bldc-motor";
+        label = "MOTOR_FR";  /* Front-right */
+        motor-id = <2>;
+        num-phases = <3>;
+        pole-pairs = <14>;
+        mode = "sine";
+        pwm-frequency-hz = <32000>;
+        max-duty-cycle = <9800>;
+        enable-deadtime;
+        deadtime-ns = <800>;
+        status = "okay";
+    };
+    
+    bldc_motor3: bldc@3 {
+        compatible = "lq,bldc-motor";
+        label = "MOTOR_RL";  /* Rear-left */
+        motor-id = <3>;
+        num-phases = <3>;
+        pole-pairs = <14>;
+        mode = "sine";
+        pwm-frequency-hz = <32000>;
+        max-duty-cycle = <9800>;
+        enable-deadtime;
+        deadtime-ns = <800>;
+        status = "okay";
+    };
+    
+    bldc_motor4: bldc@4 {
+        compatible = "lq,bldc-motor";
+        label = "MOTOR_RR";  /* Rear-right */
+        motor-id = <4>;
+        num-phases = <3>;
+        pole-pairs = <14>;
+        mode = "sine";
+        pwm-frequency-hz = <32000>;
+        max-duty-cycle = <9800>;
+        enable-deadtime;
+        deadtime-ns = <800>;
+        status = "okay";
+    };
+};

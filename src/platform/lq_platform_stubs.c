@@ -128,3 +128,43 @@ int lq_modbus_write(uint8_t slave_id, uint16_t reg, uint16_t value) {
     (void)value;
     return 0;  /* Stub - no actual Modbus write */
 }
+
+/* =============================================================================
+ * BLDC Motor Control Functions
+ * ========================================================================== */
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+int lq_bldc_platform_init(uint8_t motor_id, const struct lq_bldc_config *config) {
+    (void)motor_id;
+    (void)config;
+    return 0;  /* Stub - no actual PWM initialization */
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+int lq_bldc_platform_set_duty(uint8_t motor_id, uint8_t phase, uint16_t duty_cycle) {
+    (void)motor_id;
+    (void)phase;
+    (void)duty_cycle;
+    return 0;  /* Stub - no actual duty cycle update */
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+int lq_bldc_platform_enable(uint8_t motor_id, bool enable) {
+    (void)motor_id;
+    (void)enable;
+    return 0;  /* Stub - no actual enable/disable */
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+int lq_bldc_platform_brake(uint8_t motor_id) {
+    (void)motor_id;
+    return 0;  /* Stub - no actual braking */
+}
