@@ -307,57 +307,129 @@ if(BUILD_TESTS)
     )
 endif()
 
+# ============================================================================
 # Arduino examples compilation test
+# ============================================================================
+
+# Function to add Arduino compilation targets for a specific board
+function(add_arduino_examples_for_board BOARD_FQBN BOARD_NAME)
+    # Get list of Arduino example directories
+    file(GLOB ARDUINO_EXAMPLES 
+        ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples/*/*.ino
+    )
+    
+    # Create test target for each example
+    foreach(EXAMPLE_PATH ${ARDUINO_EXAMPLES})
+        get_filename_component(EXAMPLE_DIR ${EXAMPLE_PATH} DIRECTORY)
+        get_filename_component(EXAMPLE_NAME ${EXAMPLE_DIR} NAME)
+        
+        # Skip platform-specific examples for wrong board
+        set(SKIP_EXAMPLE FALSE)
+        if(${BOARD_NAME} STREQUAL "avr")
+            # AVR can't build ESP32/SAMD specific examples
+            if(${EXAMPLE_NAME} MATCHES "ESP32" OR ${EXAMPLE_NAME} MATCHES "SAMD")
+                set(SKIP_EXAMPLE TRUE)
+            endif()
+        elseif(${BOARD_NAME} STREQUAL "esp32")
+            # ESP32 can't build SAMD specific examples
+            if(${EXAMPLE_NAME} MATCHES "SAMD")
+                set(SKIP_EXAMPLE TRUE)
+            endif()
+        elseif(${BOARD_NAME} MATCHES "samd")
+            # SAMD can't build ESP32 specific examples
+            if(${EXAMPLE_NAME} MATCHES "ESP32")
+                set(SKIP_EXAMPLE TRUE)
+            endif()
+        endif()
+        
+        if(NOT SKIP_EXAMPLE)
+            # Create unique target name with board identifier
+            set(TARGET_NAME arduino-${BOARD_NAME}-${EXAMPLE_NAME})
+            
+            add_custom_target(${TARGET_NAME}
+                COMMAND ${ARDUINO_CLI} compile 
+                    --fqbn ${BOARD_FQBN}
+                    --library ${CMAKE_CURRENT_SOURCE_DIR}/arduino
+                    --build-property "compiler.cpp.extra_flags=-I${CMAKE_CURRENT_SOURCE_DIR}/include"
+                    ${EXAMPLE_DIR}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Compiling ${EXAMPLE_NAME} for ${BOARD_NAME}"
+            )
+            
+            # Add to board-specific meta-target
+            set(BOARD_TARGET arduino-${BOARD_NAME})
+            if(NOT TARGET ${BOARD_TARGET})
+                add_custom_target(${BOARD_TARGET})
+            endif()
+            add_dependencies(${BOARD_TARGET} ${TARGET_NAME})
+            
+            # Add to global arduino-check target
+            if(NOT TARGET arduino-check)
+                add_custom_target(arduino-check)
+            endif()
+            add_dependencies(arduino-check ${TARGET_NAME})
+        endif()
+    endforeach()
+    
+    message(STATUS "  ${BOARD_NAME}: make arduino-${BOARD_NAME}")
+endfunction()
+
+# Check for arduino-cli and add compilation targets
 find_program(ARDUINO_CLI arduino-cli)
 if(ARDUINO_CLI)
     message(STATUS "Found arduino-cli: ${ARDUINO_CLI}")
+    message(STATUS "Arduino compilation targets:")
     
-    # Check if Arduino AVR core is installed
+    # Check which cores are installed
     execute_process(
         COMMAND ${ARDUINO_CLI} core list
         OUTPUT_VARIABLE ARDUINO_CORES
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     
-    string(FIND "${ARDUINO_CORES}" "arduino:avr" AVR_CORE_FOUND)
+    # NOTE: AVR boards (Uno, Mega, etc.) are NOT supported due to insufficient RAM
+    # The lq_engine struct requires >2KB which exceeds AVR's 2KB limit
+    # Only 32-bit platforms (SAMD, ESP32, STM32) are supported
     
-    if(AVR_CORE_FOUND GREATER -1)
-        # Get list of Arduino example directories
-        file(GLOB ARDUINO_EXAMPLES 
-            RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples
-            ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples/*/*.ino
-        )
-        
-        # Create test target for each example
-        foreach(EXAMPLE_PATH ${ARDUINO_EXAMPLES})
-            get_filename_component(EXAMPLE_DIR ${EXAMPLE_PATH} DIRECTORY)
-            get_filename_component(EXAMPLE_NAME ${EXAMPLE_DIR} NAME)
-            
-            add_custom_target(arduino-${EXAMPLE_NAME}
-                COMMAND ${ARDUINO_CLI} compile 
-                    --fqbn arduino:avr:uno
-                    --library ${CMAKE_CURRENT_SOURCE_DIR}/arduino
-                    --build-properties compiler.cpp.extra_flags=-I${CMAKE_CURRENT_SOURCE_DIR}/include
-                    ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples/${EXAMPLE_NAME}
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                COMMENT "Compiling Arduino example: ${EXAMPLE_NAME}"
-            )
-            
-            # Add to check target dependency list
-            if(NOT TARGET arduino-check)
-                add_custom_target(arduino-check)
-            endif()
-            add_dependencies(arduino-check arduino-${EXAMPLE_NAME})
-        endforeach()
-        
-        message(STATUS "Arduino examples will be compiled with: make arduino-check")
+    # Add targets for each installed 32-bit core
+    string(FIND "${ARDUINO_CORES}" "arduino:samd" SAMD_FOUND)
+    if(SAMD_FOUND GREATER -1)
+        add_arduino_examples_for_board("arduino:samd:mkrzero" "samd21")
+        add_arduino_examples_for_board("arduino:samd:adafruit_metro_m4" "samd51")
+    endif()
+    
+    string(FIND "${ARDUINO_CORES}" "esp32:esp32" ESP32_FOUND)
+    if(ESP32_FOUND GREATER -1)
+        add_arduino_examples_for_board("esp32:esp32:esp32" "esp32")
+    endif()
+    
+    string(FIND "${ARDUINO_CORES}" "STMicroelectronics:stm32" STM32_FOUND)
+    if(STM32_FOUND GREATER -1)
+        add_arduino_examples_for_board("STMicroelectronics:stm32:Nucleo_64" "stm32")
+    endif()
+    
+    if(TARGET arduino-check)
+        message(STATUS "  all: make arduino-check")
+        message(STATUS "")
+        message(STATUS "Install cores with:")
+        if(NOT SAMD_FOUND GREATER -1)
+            message(STATUS "  arduino-cli core install arduino:samd")
+        endif()
+        if(NOT ESP32_FOUND GREATER -1)
+            message(STATUS "  arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json")
+        endif()
+        if(NOT STM32_FOUND GREATER -1)
+            message(STATUS "  arduino-cli core install STMicroelectronics:stm32 --additional-urls https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json")
+        endif()
+        message(STATUS "")
+        message(STATUS "Note: AVR boards (Uno/Mega) not supported - insufficient RAM")
     else()
-        message(STATUS "arduino-cli found but arduino:avr core not installed")
-        message(STATUS "Install with: arduino-cli core install arduino:avr")
+        message(STATUS "  No 32-bit Arduino cores installed")
+        message(STATUS "  Install SAMD: arduino-cli core install arduino:samd")
     endif()
 else()
-    message(STATUS "arduino-cli not found - skipping Arduino example compilation tests")
-    message(STATUS "Install with: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh")
+    message(STATUS "arduino-cli not found - skipping Arduino compilation tests")
+    message(STATUS "Install: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh")
 endif()
 
 # Install

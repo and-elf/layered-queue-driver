@@ -13,8 +13,8 @@
 
 #ifdef ARDUINO
 
-/* Arduino AVR doesn't support C11 _Static_assert, so stub it out */
-#ifndef _Static_assert
+/* Arduino AVR doesn't support C11 _Static_assert, so stub it out for AVR only */
+#if defined(__AVR__) && !defined(_Static_assert)
 #define _Static_assert(cond, msg) /* AVR compatibility */
 #endif
 

@@ -8,8 +8,8 @@
  * 
  * Key concepts:
  * - Signals: Named data slots (like variables)
- * - Drivers: Processing blocks that read/write signals
- * - Engine: Manages signal storage and routing
+ * - Helper functions: lq_engine_set_signal() and lq_engine_get_signal()
+ * - Engine: Manages signal storage
  */
 
 #include <LayeredQueue.h>
@@ -31,8 +31,9 @@ void setup() {
   Serial.println("LayeredQueue - Engine Basics");
   Serial.println("=============================\n");
   
-  // Initialize engine with signal storage
-  lq_engine_init(&engine, signal_storage, 10);
+  // Initialize engine
+  lq_engine_init(&engine);
+  engine.num_signals = 10;
   
   Serial.println("Engine initialized with 10 signal slots\n");
   
@@ -41,7 +42,8 @@ void setup() {
   
   Serial.println("Demo: Simple signal flow");
   Serial.println("-------------------------");
-  Serial.println("Sensor → Filter → Error Calculation → Output\n");
+  Serial.println("Sensor → Filter → Error Calculation → Output");
+  Serial.println("Commands: '+' increase setpoint, '-' decrease, 'd' dump signals\n");
 }
 
 void loop() {
@@ -106,11 +108,6 @@ void loop() {
     Serial.println(output);
     
     Serial.println("---");
-    
-    // =========================================================================
-    // The engine stores all these values - you can read them anytime!
-    // =========================================================================
-    // In a real system, other drivers can now read SIG_OUTPUT and act on it
   }
   
   // Handle commands

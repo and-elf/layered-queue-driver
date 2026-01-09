@@ -382,13 +382,13 @@ int lq_modbus_write(uint8_t slave_id, uint16_t reg, uint16_t value);
 struct lq_bldc_config;
 
 /* Platform capability flags */
-#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7) || defined(STM32G4)
+#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7) || defined(STM32G4) || defined(ARDUINO_ARCH_STM32)
     #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 1
     #define LQ_PLATFORM_HAS_DEADTIME 1
-#elif defined(ESP32) || defined(ESP32S3)
+#elif defined(ESP32) || defined(ESP32S3) || defined(ESP_PLATFORM)
     #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 1
     #define LQ_PLATFORM_HAS_DEADTIME 1
-#elif defined(__SAMD21__) || defined(__SAMD51__)
+#elif defined(__SAMD21__) || defined(__SAMD51__) || defined(ARDUINO_ARCH_SAMD) || defined(__SAMD21G18A__) || defined(__SAMD51P19A__)
     #define LQ_PLATFORM_HAS_COMPLEMENTARY_PWM 1
     #define LQ_PLATFORM_HAS_DEADTIME 1
 #elif defined(NRF52) || defined(NRF53)
