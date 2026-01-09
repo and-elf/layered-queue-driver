@@ -37,6 +37,7 @@
         min-value = <0>;
         max-value = <3000>;      /* Max 300.0°C */
         fault-level = <2>;
+        expected-response-ms = <50>;  /* Fault detection should be fast */
         label = "overheat_alarm";
     };
 
@@ -47,6 +48,7 @@
         target-id = <13>;        /* GPIO pin 13 (LED) */
         source-signal = <2>;     /* alarm signal (0=OK, >0=fault) */
         period-ms = <100>;       /* Check every 100ms */
+        expected-response-ms = <150>;  /* Should respond within period + margin */
         label = "alarm_led";
     };
 };
