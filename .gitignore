@@ -31,4 +31,4 @@ _deps/
 
 # Test outputs
 Testing/
-**/__pycache__/
+**/__pycache__/samples/automotive/src/lq_generated*
