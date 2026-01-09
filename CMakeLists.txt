@@ -138,13 +138,14 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
-    # Generate automotive sample code for tests
+    # Generate automotive sample code for tests (not the test file itself)
     add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.c
-               ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.h
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/lq_generated.c
+               ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/lq_generated.h
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated
         COMMAND ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
             ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
-            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/
+            ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/
         DEPENDS ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
                 ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
         COMMENT "Generating automotive sample code for tests"
@@ -164,8 +165,8 @@ if(BUILD_TESTS)
         tests/hw_input_test.cpp
         tests/hil_platform_test.cpp
         tests/bldc_test.cpp
-        samples/automotive/src/lq_generated_test.cpp
-        samples/automotive/src/lq_generated.c
+        samples/automotive/src/lq_generated_test.cpp  # Handwritten integration tests
+        ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/lq_generated.c  # Generated code under test
         src/drivers/lq_hil.c
         src/drivers/lq_hil_platform.c
         src/drivers/lq_j1939.c
@@ -190,7 +191,7 @@ if(BUILD_TESTS)
     )
     
     target_include_directories(all_tests PRIVATE
-        samples/automotive/src
+        ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated
     )
     
     # Apply strict warning flags to test code
@@ -249,12 +250,13 @@ if(BUILD_TESTS)
     # Real SUT with full generated application (when code is up to date)
     add_custom_target(hil-sut-full
         COMMAND ${CMAKE_COMMAND} -E echo "Building FULL SUT with generated code..."
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated
         COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dts_gen.py
             ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
-            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/
+            ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/
         COMMAND ${CMAKE_C_COMPILER} 
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/real_sut.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src/lq_generated.c
+            ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/lq_generated.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_queue_core.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_util.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_spi_source.c
@@ -269,7 +271,7 @@ if(BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_verified_output.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/lq_platform_hil.c
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
-            -I${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/src
+            -I${CMAKE_CURRENT_BINARY_DIR}/automotive_generated
             -DLQ_PLATFORM_NATIVE=1
             -DFULL_APP=1
             -lpthread
