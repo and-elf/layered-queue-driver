@@ -28,25 +28,23 @@ Complete embedded framework for data pipelines and motor control. No device tree
 
 ## Installation
 
-### Arduino Library Manager (Recommended)
-
-1. Open Arduino IDE
-2. Go to **Sketch → Include Library → Manage Libraries**
-3. Search for **"LayeredQueue BLDC Motor"**
-4. Click **Install**
-
 ### Manual Installation
 
-**Note**: This library uses symlinks to share code with the main repository. On Windows, you may need to enable Developer Mode or configure Git to handle symlinks.
+**Note**: This library requires the full repository (uses relative includes to share code with parent directories).
 
-1. Clone or download this repository
-2. Copy the `arduino/` folder to your Arduino libraries folder:
-   - Windows: `Documents\Arduino\libraries\LayeredQueue_BLDC\`
-   - macOS: `~/Documents/Arduino/libraries/LayeredQueue_BLDC/`
-   - Linux: `~/Arduino/libraries/LayeredQueue_BLDC/`
+1. Clone the full repository:
+   ```bash
+   git clone https://github.com/yourusername/layered-queue-driver.git
+   ```
+
+2. Add the `arduino/` folder to Arduino libraries:
+   - Windows: Copy or symlink `layered-queue-driver\arduino\` to `Documents\Arduino\libraries\LayeredQueue\`
+   - macOS: `ln -s ~/path/to/layered-queue-driver/arduino ~/Documents/Arduino/libraries/LayeredQueue`
+   - Linux: `ln -s ~/path/to/layered-queue-driver/arduino ~/Arduino/libraries/LayeredQueue`
+
 3. Restart Arduino IDE
 
-**Windows users**: If symlinks don't work, see [BUILD_NOTES.md](BUILD_NOTES.md) for solutions.
+4. Open examples: **File → Examples → LayeredQueue → BasicBLDC**
 
 ### PlatformIO
 
@@ -59,47 +57,49 @@ lib_deps =
 
 ## Quick Start
 
-### BLDC Motor Control (SAMD21)
+Check out the comprehensive examples included with the library:
+
+### Examples Overview
+
+**Start Here:**
+1. **Engine_Basics** - Understand signal routing (core concept!)
+2. **Engine_MultiDriver** - Connect multiple processing blocks
+3. **BasicBLDC** - Simple BLDC motor control
+
+**Advanced Features:**
+4. **PID_SpeedControl** - Closed-loop speed regulation
+5. **SignalProcessing** - Scale and remap sensor inputs
+6. **J1939_Engine** - Automotive CAN bus (engine data)
+7. **Diagnostics_DTC** - Fault monitoring and codes
+8. **CANopen_SDO** - Industrial automation protocols
+9. **Complete_System** - Full production-ready controller
+
+Open them via: **File → Examples → LayeredQueue**
+
+### Simple Example
 
 ```cpp
-#include <LayeredQueue_BLDC.h>
+#include <LayeredQueue.h>
 
-BLDC_Motor motor(0);
+struct lq_bldc_config motor_config;
+struct lq_bldc_ctx motor;
 
 void setup() {
-  // Configure TCC0 pins
-  motor.setHighSidePin(0, 0, 4, 0x04);   // PA04 - Phase U
-  motor.setHighSidePin(1, 0, 5, 0x04);   // PA05 - Phase V
-  motor.setHighSidePin(2, 0, 6, 0x04);   // PA06 - Phase W
+  motor_config.pole_pairs = 7;
+  motor_config.pwm_frequency = 20000;  // 20 kHz
+  motor_config.deadtime_ns = 500;
+  motor_config.max_duty = 950;
   
-  motor.setLowSidePin(0, 0, 10, 0x04);   // PA10 - Phase U'
-  motor.setLowSidePin(1, 0, 11, 0x04);   // PA11 - Phase V'
-  motor.setLowSidePin(2, 0, 12, 0x04);   // PA12 - Phase W'
-  
-  motor.begin(3, 7, 25000, 1000);  // 3-phase, 7 pole pairs, 25kHz, 1μs deadtime
-  motor.setMode(LQ_BLDC_MODE_SINE);
-  motor.enable(true);
+  lq_bldc_init(&motor, &motor_config);
 }
 
 void loop() {
-  motor.update();  // Call regularly
-  motor.setPower(50);  // 50% power
-  delay(1);
+  lq_bldc_set_speed(&motor, 1500);    // 1500 RPM
+  lq_bldc_set_throttle(&motor, 500);  // 50% (0-1000)
+  lq_bldc_update(&motor, micros());
+  delay(10);
 }
 ```
-
-### ESP32
-
-```cpp
-#include <LayeredQueue_BLDC.h>
-
-BLDC_Motor motor(0);
-
-void setup() {
-  // Configure MCPWM pins
-  motor.setHighSidePin(0, 0, 16, 0);  // GPIO16 - Phase U
-  motor.setHighSidePin(1, 0, 18, 0);  // GPIO18 - Phase V
-  motor.setHighSidePin(2, 0, 19, 0);  // GPIO19 - Phase W
   
   motor.setLowSidePin(0, 0, 17, 0);   // GPIO17 - Phase U'
   motor.setLowSidePin(1, 0, 5, 0);    // GPIO5  - Phase V'

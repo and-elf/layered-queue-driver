@@ -394,6 +394,52 @@ int lq_engine_task_start(void);
 void lq_engine_task_run(void);
 
 /* ============================================================================
+ * Simple signal access (for Arduino and basic use cases)
+ * ============================================================================ */
+
+/**
+ * @brief Set signal value directly
+ * 
+ * Simple helper for Arduino and basic use cases that don't use the full
+ * event-based architecture. Directly sets the signal value and marks it
+ * as updated with OK status.
+ * 
+ * For production systems, use the event-based API with mid-level drivers
+ * and lq_engine_step() instead.
+ * 
+ * @param engine Engine instance
+ * @param signal_id Signal index (0 to num_signals-1)
+ * @param value Value to set
+ */
+static inline void lq_engine_set_signal(struct lq_engine *engine, uint8_t signal_id, int32_t value)
+{
+    if (signal_id >= LQ_MAX_SIGNALS)
+        return;
+    
+    engine->signals[signal_id].value = value;
+    engine->signals[signal_id].status = LQ_EVENT_OK;
+    engine->signals[signal_id].updated = true;
+    engine->signals[signal_id].timestamp = lq_platform_get_time_us();
+}
+
+/**
+ * @brief Get signal value directly
+ * 
+ * Simple helper for Arduino and basic use cases. Reads the current signal value.
+ * 
+ * @param engine Engine instance
+ * @param signal_id Signal index (0 to num_signals-1)
+ * @return Current signal value (or 0 if invalid signal_id)
+ */
+static inline int32_t lq_engine_get_signal(const struct lq_engine *engine, uint8_t signal_id)
+{
+    if (signal_id >= LQ_MAX_SIGNALS)
+        return 0;
+    
+    return engine->signals[signal_id].value;
+}
+
+/* ============================================================================
  * Utility functions
  * ============================================================================ */
 
