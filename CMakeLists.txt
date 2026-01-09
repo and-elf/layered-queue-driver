@@ -503,4 +503,6 @@ message(STATUS "")
 # CANopen sample
 if(BUILD_TESTS)
     add_subdirectory(samples/canopen)
+    add_subdirectory(samples/automotive)
+    add_subdirectory(samples/basic)
 endif()

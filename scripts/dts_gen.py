@@ -791,8 +791,7 @@ def generate_source(nodes, output_path):
 
 def generate_hil_tests(nodes, output_path):
     """Generate HIL test devicetree for native platform testing"""
-    # Implementation omitted for brevity - generates test sequences
-    pass  # Actual implementation exists below
+    generate_hil_tests_impl(nodes, output_path)
 
 
 def generate_main(nodes, output_path, platform='baremetal'):

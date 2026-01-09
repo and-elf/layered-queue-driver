@@ -38,6 +38,9 @@ Functions for creating LayeredQueue applications from device trees.
   ``SOURCES <source>...``
     Optional additional source files to link with the application.
 
+  ``ENABLE_HIL_TESTS``
+    Optional flag to generate HIL test infrastructure for this application.
+
 Example::
 
   add_lq_application(motor_driver
@@ -51,7 +54,7 @@ Example::
 function(add_lq_application TARGET_NAME)
     cmake_parse_arguments(
         APP
-        ""
+        "ENABLE_HIL_TESTS"
         "DTS;EDS;PLATFORM"
         "SOURCES"
         ${ARGN}
@@ -144,5 +147,97 @@ function(add_lq_application TARGET_NAME)
         message(STATUS "  EDS: ${APP_EDS}")
     endif()
     message(STATUS "  Platform: ${APP_PLATFORM}")
+
+    # Generate HIL test infrastructure if requested
+    if(APP_ENABLE_HIL_TESTS)
+        message(STATUS "  HIL Tests: Enabled")
+        
+        # Create HIL output directory
+        set(HIL_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}_hil")
+        
+        # Generate test DTS and test runner
+        add_custom_command(
+            OUTPUT ${HIL_DIR}/lq_generated_test.dts
+                   ${HIL_DIR}/test_runner.c
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${HIL_DIR}
+            COMMAND ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
+                ${PARSED_DTS}
+                ${HIL_DIR}/
+            COMMAND ${CMAKE_SOURCE_DIR}/scripts/hil_test_gen.py
+                ${HIL_DIR}/lq_generated_test.dts
+                ${HIL_DIR}/
+            DEPENDS ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
+                    ${CMAKE_SOURCE_DIR}/scripts/hil_test_gen.py
+                    ${PARSED_DTS}
+            COMMENT "Generating HIL tests for ${TARGET_NAME}"
+        )
+        
+        # Build HIL-enabled SUT binary
+        add_executable(${TARGET_NAME}_hil_sut
+            ${CMAKE_SOURCE_DIR}/tests/hil/real_sut.c
+            ${GEN_DIR}/lq_generated.c
+            # Core drivers needed for SUT
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_queue_core.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_util.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_engine.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hw_input.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_remap.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_scale.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_pid.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_verified_output.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_spi_source.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_j1939.c
+            ${CMAKE_SOURCE_DIR}/src/platform/lq_platform_hil.c
+        )
+        
+        add_dependencies(${TARGET_NAME}_hil_sut ${TARGET_NAME}_codegen)
+        
+        target_include_directories(${TARGET_NAME}_hil_sut PRIVATE
+            ${GEN_DIR}
+            ${CMAKE_SOURCE_DIR}/include
+        )
+        
+        target_compile_definitions(${TARGET_NAME}_hil_sut PRIVATE
+            LQ_PLATFORM_NATIVE=1
+            FULL_APP=1
+        )
+        
+        target_link_libraries(${TARGET_NAME}_hil_sut PRIVATE pthread)
+        
+        # Build test runner
+        add_executable(${TARGET_NAME}_hil_test_runner
+            ${HIL_DIR}/test_runner.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
+        )
+        
+        add_custom_target(${TARGET_NAME}_hil_testgen
+            DEPENDS ${HIL_DIR}/lq_generated_test.dts
+                    ${HIL_DIR}/test_runner.c
+        )
+        
+        add_dependencies(${TARGET_NAME}_hil_test_runner ${TARGET_NAME}_hil_testgen)
+        
+        target_include_directories(${TARGET_NAME}_hil_test_runner PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+        )
+        
+        target_link_libraries(${TARGET_NAME}_hil_test_runner PRIVATE pthread)
+        
+        # Create convenience target to run HIL tests
+        add_custom_target(${TARGET_NAME}_hil_run
+            COMMAND ${CMAKE_COMMAND} -E echo "=== Running HIL Tests for ${TARGET_NAME} ==="
+            COMMAND ${CMAKE_COMMAND} -E env LQ_HIL_MODE=sut
+                ${CMAKE_SOURCE_DIR}/tests/hil/run_hil_cmake.sh
+                $<TARGET_FILE:${TARGET_NAME}_hil_sut>
+                $<TARGET_FILE:${TARGET_NAME}_hil_test_runner>
+            DEPENDS ${TARGET_NAME}_hil_sut ${TARGET_NAME}_hil_test_runner
+            COMMENT "Running HIL tests for ${TARGET_NAME}"
+        )
+        
+        message(STATUS "  HIL Targets: ${TARGET_NAME}_hil_sut, ${TARGET_NAME}_hil_test_runner, ${TARGET_NAME}_hil_run")
+    endif()
 
 endfunction()
