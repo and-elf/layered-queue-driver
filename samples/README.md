@@ -17,7 +17,8 @@ All samples are platform-agnostic. Simply specify your target platform when buil
 ```cmake
 add_lq_application(my_motor_controller
     DTS motor_system.dts
-    PLATFORM esp32          # or: stm32, nrf52, samd, baremetal, etc.
+    PLATFORM esp32          # Hardware: stm32, esp32, nrf52, samd, native, etc.
+    RTOS freertos           # OS: baremetal, freertos, zephyr, etc.
 )
 ```
 
@@ -46,18 +47,21 @@ Then run:
 cmake --build build --target automotive_app_hil_run
 ```
 
-## Platform Support
+## Platform and RTOS Support
 
-Supported platforms:
-- **baremetal** - Generic C implementation (no RTOS)
-- **stm32** - STM32 HAL with hardware timers
-- **esp32** - ESP-IDF with MCPWM
-- **nrf52** - Nordic SDK with PPI
+### Hardware Platforms
+- **native** - Host PC (for testing/HIL)
+- **stm32** - STM32 with HAL and hardware timers
+- **esp32** - ESP32 with ESP-IDF and MCPWM
+- **nrf52** - Nordic nRF52 with SDK and PPI
 - **samd** - Atmel SAMD with TC/TCC
-- **freertos** - FreeRTOS wrapper
+
+### RTOS/OS Options
+- **baremetal** - No RTOS, direct hardware access
+- **freertos** - FreeRTOS with tasks and queues
 - **zephyr** - Zephyr RTOS integration
 
-The code generator automatically creates platform-specific ISRs, timer setup, and peripheral initialization based on the platform selection.
+The code generator automatically creates platform-specific ISRs, timer setup, peripheral initialization, and RTOS integration code based on the platform and RTOS selection.
 
 ## Example DTS Files
 

@@ -33,7 +33,10 @@ Functions for creating LayeredQueue applications from device trees.
     Optional path to CANopen EDS file (enables EDS expansion).
 
   ``PLATFORM <platform>``
-    Target platform: baremetal (default), freertos, zephyr, stm32, esp32, etc.
+    Target hardware platform: stm32, esp32, nrf52, samd, etc. (default: native)
+
+  ``RTOS <rtos>``
+    Target RTOS/OS: baremetal (default), freertos, zephyr, etc.
 
   ``SOURCES <source>...``
     Optional additional source files to link with the application.
@@ -46,7 +49,8 @@ Example::
   add_lq_application(motor_driver
     DTS motor_system.dts
     EDS example_motor.eds
-    PLATFORM baremetal
+    PLATFORM stm32
+    RTOS freertos
   )
 
 #]=======================================================================]
@@ -55,7 +59,7 @@ function(add_lq_application TARGET_NAME)
     cmake_parse_arguments(
         APP
         "ENABLE_HIL_TESTS"
-        "DTS;EDS;PLATFORM"
+        "DTS;EDS;PLATFORM;RTOS"
         "SOURCES"
         ${ARGN}
     )
@@ -66,7 +70,11 @@ function(add_lq_application TARGET_NAME)
 
     # Set defaults
     if(NOT APP_PLATFORM)
-        set(APP_PLATFORM "baremetal")
+        set(APP_PLATFORM "native")
+    endif()
+    
+    if(NOT APP_RTOS)
+        set(APP_RTOS "baremetal")
     endif()
 
     # Resolve paths
@@ -143,6 +151,7 @@ function(add_lq_application TARGET_NAME)
     # Print configuration
     message(STATUS "LayeredQueue App: ${TARGET_NAME}")
     message(STATUS "  DTS: ${APP_DTS}")
+    message(STATUS "  RTOS: ${APP_RTOS}")
     if(APP_EDS)
         message(STATUS "  EDS: ${APP_EDS}")
     endif()

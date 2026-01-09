@@ -3,6 +3,7 @@
 
 add_lq_application(automotive_app
     DTS app.dts
-    PLATFORM baremetal
+    PLATFORM native
+    RTOS baremetal
     ENABLE_HIL_TESTS
 )

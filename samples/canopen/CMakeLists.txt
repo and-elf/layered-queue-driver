@@ -5,7 +5,8 @@
 add_lq_application(canopen_motor_driver
     DTS motor_system.dts
     EDS example_motor.eds
-    PLATFORM baremetal
+    PLATFORM native
+    RTOS baremetal
 )
 
 # Post-build messages
