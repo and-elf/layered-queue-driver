@@ -62,17 +62,14 @@ Check out the comprehensive examples included with the library:
 ### Examples Overview
 
 **Start Here:**
-1. **Engine_Basics** - Understand signal routing (core concept!)
-2. **Engine_MultiDriver** - Connect multiple processing blocks
-3. **BasicBLDC** - Simple BLDC motor control
+1. **Engine_Basics** - Understand signal storage (core concept!)
+2. **SimpleScale** - Scale sensor values (ADC → percentage)
+3. **SimplePID** - PID closed-loop control
+4. **BasicBLDC** - BLDC motor control
 
-**Advanced Features:**
-4. **PID_SpeedControl** - Closed-loop speed regulation
-5. **SignalProcessing** - Scale and remap sensor inputs
-6. **J1939_Engine** - Automotive CAN bus (engine data)
-7. **Diagnostics_DTC** - Fault monitoring and codes
-8. **CANopen_SDO** - Industrial automation protocols
-9. **Complete_System** - Full production-ready controller
+**Protocols:**
+5. **J1939_Engine** - Automotive CAN bus (engine data)
+6. **Diagnostics_DTC** - Fault monitoring and codes
 
 Open them via: **File → Examples → LayeredQueue**
 
