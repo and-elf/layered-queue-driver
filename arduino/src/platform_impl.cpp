@@ -12,8 +12,6 @@
  * stays in sync with the main repository.
  */
 
-#include "platform_includes.h"
-
 #ifdef ARDUINO
 
 /* Include platform-specific implementation from parent src/platform/ */

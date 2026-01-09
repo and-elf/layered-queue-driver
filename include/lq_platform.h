@@ -19,7 +19,9 @@ extern "C" {
 #endif
 
 /* Platform detection */
-#if defined(__ZEPHYR__)
+#if defined(ARDUINO)
+    #define LQ_PLATFORM_ARDUINO 1
+#elif defined(__ZEPHYR__)
     #define LQ_PLATFORM_ZEPHYR 1
 #else
     #define LQ_PLATFORM_NATIVE 1
@@ -59,7 +61,20 @@ static inline void lq_platform_delay_ms(uint32_t ms) {
  * Mutex API
  * ============================================================================ */
 
-#ifdef LQ_PLATFORM_NATIVE
+#if defined(LQ_PLATFORM_ARDUINO)
+/* Arduino - single threaded, no mutex/semaphore needed */
+struct lq_mutex {
+    int dummy;  /* Empty struct not allowed in C */
+};
+
+struct lq_sem {
+    int dummy;  /* Empty struct not allowed in C */
+};
+
+typedef struct lq_mutex lq_mutex_t;
+typedef struct lq_sem lq_sem_t;
+
+#elif defined(LQ_PLATFORM_NATIVE)
 #include <pthread.h>
 #ifndef __APPLE__
 #include <semaphore.h>

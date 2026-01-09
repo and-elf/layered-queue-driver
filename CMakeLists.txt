@@ -307,6 +307,59 @@ if(BUILD_TESTS)
     )
 endif()
 
+# Arduino examples compilation test
+find_program(ARDUINO_CLI arduino-cli)
+if(ARDUINO_CLI)
+    message(STATUS "Found arduino-cli: ${ARDUINO_CLI}")
+    
+    # Check if Arduino AVR core is installed
+    execute_process(
+        COMMAND ${ARDUINO_CLI} core list
+        OUTPUT_VARIABLE ARDUINO_CORES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    
+    string(FIND "${ARDUINO_CORES}" "arduino:avr" AVR_CORE_FOUND)
+    
+    if(AVR_CORE_FOUND GREATER -1)
+        # Get list of Arduino example directories
+        file(GLOB ARDUINO_EXAMPLES 
+            RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples
+            ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples/*/*.ino
+        )
+        
+        # Create test target for each example
+        foreach(EXAMPLE_PATH ${ARDUINO_EXAMPLES})
+            get_filename_component(EXAMPLE_DIR ${EXAMPLE_PATH} DIRECTORY)
+            get_filename_component(EXAMPLE_NAME ${EXAMPLE_DIR} NAME)
+            
+            add_custom_target(arduino-${EXAMPLE_NAME}
+                COMMAND ${ARDUINO_CLI} compile 
+                    --fqbn arduino:avr:uno
+                    --library ${CMAKE_CURRENT_SOURCE_DIR}/arduino
+                    --build-properties compiler.cpp.extra_flags=-I${CMAKE_CURRENT_SOURCE_DIR}/include
+                    ${CMAKE_CURRENT_SOURCE_DIR}/arduino/examples/${EXAMPLE_NAME}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Compiling Arduino example: ${EXAMPLE_NAME}"
+            )
+            
+            # Add to check target dependency list
+            if(NOT TARGET arduino-check)
+                add_custom_target(arduino-check)
+            endif()
+            add_dependencies(arduino-check arduino-${EXAMPLE_NAME})
+        endforeach()
+        
+        message(STATUS "Arduino examples will be compiled with: make arduino-check")
+    else()
+        message(STATUS "arduino-cli found but arduino:avr core not installed")
+        message(STATUS "Install with: arduino-cli core install arduino:avr")
+    endif()
+else()
+    message(STATUS "arduino-cli not found - skipping Arduino example compilation tests")
+    message(STATUS "Install with: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh")
+endif()
+
 # Install
 install(TARGETS layered_queue
     LIBRARY DESTINATION lib
@@ -333,9 +386,12 @@ message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERS
 if(BUILD_TESTS)
     message(STATUS "")
     message(STATUS "Available test targets:")
-    message(STATUS "  make test       - Run unit tests")
-    message(STATUS "  make hil-quick  - Run HIL tests (demo)")
-    message(STATUS "  make hil        - Run HIL tests (strict)")
+    message(STATUS "  make test         - Run unit tests")
+    message(STATUS "  make hil-quick    - Run HIL tests (demo)")
+    message(STATUS "  make hil          - Run HIL tests (strict)")
+    if(ARDUINO_CLI)
+        message(STATUS "  make arduino-check - Compile all Arduino examples")
+    endif()
 endif()
 message(STATUS "==========================================")
 message(STATUS "")

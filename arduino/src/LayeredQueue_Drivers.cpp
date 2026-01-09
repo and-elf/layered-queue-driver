@@ -7,9 +7,19 @@
  * This file includes all .c files from the parent repository.
  * The Arduino build system will compile this single file which
  * in turn includes all the driver code.
+ * 
+ * NOTE: We need to define LQ_INCLUDE_PATH so the .c files can find headers
  */
 
 #ifdef ARDUINO
+
+/* Arduino AVR doesn't support C11 _Static_assert, so stub it out */
+#ifndef _Static_assert
+#define _Static_assert(cond, msg) /* AVR compatibility */
+#endif
+
+/* Tell the .c files where to find headers (relative to this file) */
+#define LQ_INCLUDE_PREFIX "../../include/"
 
 /* Include all driver source files from parent repository */
 #include "../../src/drivers/lq_util.c"
@@ -29,7 +39,9 @@
 #include "../../src/drivers/lq_dtc.c"
 #include "../../src/drivers/lq_spi_source.c"
 #include "../../src/drivers/lq_config.c"
-#include "../../src/drivers/lq_hil.c"
-#include "../../src/drivers/lq_hil_platform.c"
+
+/* HIL and platform-specific drivers excluded from Arduino (need sockets/pthread) */
+/* #include "../../src/drivers/lq_hil.c" */
+/* #include "../../src/drivers/lq_hil_platform.c" */
 
 #endif /* ARDUINO */
