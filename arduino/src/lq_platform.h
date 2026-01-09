@@ -1,1 +1,0 @@
-../../include/lq_platform.h

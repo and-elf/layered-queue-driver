@@ -2,46 +2,50 @@
 
 ## Architecture
 
-The Arduino library is **thin wrapper** around the main repository code:
+The Arduino library uses **relative includes** to access parent repository code without symlinks:
 
 ```
 arduino/
 ├── src/
-│   ├── LayeredQueue_BLDC.cpp      # Arduino C++ wrapper class
-│   ├── LayeredQueue_BLDC.h        # Public API
-│   ├── lq_platform_arduino.cpp    # Arduino time/delay functions
-│   ├── platform_impl.cpp          # Includes parent platform code
-│   ├── lq_bldc.c -> ../../src/drivers/lq_bldc.c    # Symlink to core
-│   ├── lq_bldc.h -> ../../include/lq_bldc.h        # Symlink to header
-│   └── lq_platform.h -> ../../include/lq_platform.h # Symlink
+│   ├── LayeredQueue.h              # Main header (includes all functionality)
+│   ├── LayeredQueue_Drivers.cpp    # Includes all .c files from parent
+│   ├── LayeredQueue_BLDC.h         # BLDC C++ wrapper header
+│   ├── LayeredQueue_BLDC.cpp       # BLDC C++ wrapper implementation
+│   ├── lq_platform_arduino.cpp     # Arduino time/delay functions
+│   └── platform_impl.cpp           # Platform-specific code selector
 │
-├── examples/                      # Arduino sketches (.ino files)
-└── library.properties             # Arduino library metadata
+├── examples/                       # Arduino sketches (.ino files)
+└── library.properties              # Arduino library metadata
 ```
 
 ## How It Works
 
-### Shared Code (via symlinks)
+### No Symlinks - Pure Relative Includes
 
-The core BLDC driver and headers are **symlinked** from the main repository:
-- `lq_bldc.c` → `../../src/drivers/lq_bldc.c` (core motor logic)
-- `lq_bldc.h` → `../../include/lq_bldc.h` (API definitions)
-- `lq_platform.h` → `../../include/lq_platform.h` (platform abstraction)
+All code is accessed via relative paths:
 
-**Why symlinks?**
-- Single source of truth - no code duplication
-- Changes to core driver automatically available to Arduino users
-- Easier maintenance
+```cpp
+// LayeredQueue.h includes headers from parent:
+#include "../../include/lq_bldc.h"
+#include "../../include/lq_j1939.h"
+// ... etc
 
-**Symlink compatibility:**
-- ✅ Linux/macOS: Native support
-- ✅ Windows: Works with Developer Mode or git config
-- ✅ Arduino IDE: Follows symlinks during compilation
-- ⚠️ ZIP distribution: Some unzip tools may not preserve symlinks
+// LayeredQueue_Drivers.cpp includes source from parent:
+#include "../../src/drivers/lq_bldc.c"
+#include "../../src/drivers/lq_j1939.c"
+// ... etc
+```
 
-### Platform Implementations (via include)
+**Benefits**:
+- ✅ Works on Windows without special configuration
+- ✅ No symlink setup needed
+- ✅ ZIP distribution works perfectly
+- ✅ Arduino IDE compiles files directly from parent paths
+- ✅ Single source of truth - no code duplication
 
-Platform-specific code is **included** from parent `src/platform/`:
+### Platform Implementations (via conditional include)
+
+Platform-specific code is included from parent `src/platform/`:
 
 ```cpp
 // platform_impl.cpp conditionally includes:
@@ -54,54 +58,58 @@ Platform-specific code is **included** from parent `src/platform/`:
 #endif
 ```
 
-**Why include instead of symlink?**
+**Why include instead of separate files?**
 - Platform selection happens at compile-time based on Arduino board
 - Only one platform compiled per build
 - No duplicate symbols
-- Cleaner than conditional compilation in symlinked files
+- All driver code in single compilation unit for better optimization
 
 ## Maintaining the Library
 
-### When updating core driver (`src/drivers/lq_bldc.c`)
+### When updating any driver (`src/drivers/*.c` or `include/*.h`)
 
-✅ **No action needed** - symlink automatically picks up changes
+✅ **No action needed** - relative includes automatically pick up changes
 
-### When updating platform code (`src/platform/lq_platform_*.c`)
+### When adding new driver
 
-✅ **No action needed** - included via `platform_impl.cpp`
+1. Create `src/drivers/lq_newdriver.c` and `include/lq_newdriver.h` in parent repo
+2. Add include to `arduino/src/LayeredQueue_Drivers.cpp`:
+   ```cpp
+   #include "../../src/drivers/lq_newdriver.c"
+   ```
+3. Add include to `arduino/src/LayeredQueue.h`:
+   ```cpp
+   #include "../../include/lq_newdriver.h"
+   ```
 
 ### When adding new platform
 
 1. Create `src/platform/lq_platform_newplatform.c` in parent repo
 2. Add include case in `arduino/src/platform_impl.cpp`:
-   ```cpp
-   #elif defined(NEW_PLATFORM_DEFINE)
-       #include "../../src/platform/lq_platform_newplatform.c"
-   ```
-3. Update `library.properties` architectures field
-
-### When releasing library
-
-For best compatibility, consider creating a release package that resolves symlinks:
+The library is ready to distribute as-is:
 
 ```bash
-# Create standalone copy for distribution
+# Create ZIP for Arduino Library Manager
 cd arduino/
-mkdir -p release/src
-cp -L src/*.h release/src/    # -L follows symlinks
-cp -L src/*.cpp release/src/
-cp -L src/*.c release/src/
-cp -r examples/ release/
-cp *.md *.txt *.properties release/
+zip -r LayeredQueue-1.0.0.zip . -x ".*" -x "__*"
 ```
+
+**Note**: The parent repository must be included since we use relative paths. The Arduino library is designed to be distributed as part of the full repository, not standalone.
+
+## Installation Requirements
+
+Users must:
+1. Clone/download the **full repository** (not just `arduino/` folder)
+2. Copy or symlink the `arduino/` folder to their Arduino libraries directory
+3. The library will compile files from parent directories using relative includes
 
 ## Testing
 
-The Arduino library shares the same core code as the main repository, so:
+The library shares code with the main repository:
 
-1. **Unit tests** in `tests/bldc_test.cpp` validate the core driver
-2. **Platform implementations** are tested in parent repo
-3. **Arduino wrapper** is tested manually with example sketches
+1. **Unit tests** in `tests/` validate all drivers
+2. **Platform implementations** tested in parent repo  
+3. **Arduino wrapper** tested manually with examples
 
 Run main repo tests:
 ```bash
@@ -109,62 +117,38 @@ cd /path/to/layered-queue-driver
 mkdir build && cd build
 cmake .. -DBUILD_TESTING=ON
 make
-./all_tests
+./all_tests  # All 444+ tests
 ```
-
-## Windows Symlink Setup
-
-If symlinks don't work on Windows:
-
-### Option 1: Enable Developer Mode (Windows 10+)
-Settings → Update & Security → For Developers → Developer Mode
-
-### Option 2: Configure Git
-```bash
-git config --global core.symlinks true
-```
-
-Then re-clone the repository.
-
-### Option 3: Manual Copy (Not Recommended)
-If symlinks completely fail, manually copy files:
-```bash
-cd arduino/src
-cp ../../src/drivers/lq_bldc.c .
-cp ../../include/lq_bldc.h .
-cp ../../include/lq_platform.h .
-```
-
-**Warning**: You must manually re-copy when upstream files change!
 
 ## Troubleshooting
 
-### "lq_bldc.c not found"
+### "lq_bldc.h: No such file or directory"
 
-**Cause**: Symlinks not working
+**Cause**: Arduino library installed without parent repository
 
-**Fix**:
-1. Check if symlinks exist: `ls -la arduino/src/`
-2. Enable Windows Developer Mode or git symlinks
-3. As last resort, manually copy files
+**Fix**: 
+1. Ensure full repository is available
+2. Copy entire repo to Arduino libraries:
+   ```bash
+   cp -r /path/to/layered-queue-driver ~/Arduino/libraries/LayeredQueue
+   ```
+3. The `arduino/` folder must maintain its relative position to `src/` and `include/`
 
-### "Multiple definition of lq_bldc_init"
+### "Multiple definition of..."
 
-**Cause**: Platform file included multiple times
+**Cause**: Files included multiple times
 
-**Fix**: Check `platform_impl.cpp` has proper `#elif` structure
-
-### "Unsupported platform warning"
-
-**Cause**: Arduino board not recognized
-
-**Fix**: Add platform detection in `platform_impl.cpp`:
-```cpp
-#elif defined(YOUR_BOARD_DEFINE)
-    #include "../../src/platform/lq_platform_yourboard.c"
-```
+**Fix**: Check that `LayeredQueue_Drivers.cpp` only includes each `.c` file once
 
 ## File Size
+
+The library compiles efficiently:
+- Core drivers: ~40 KB compiled
+- Platform implementation: ~10-15 KB (only one per build)
+- BLDC wrapper: ~5 KB
+- Total: ~55-70 KB depending on features used
+
+Arduino compiler optimizes away unused functions
 
 The Arduino library is very small:
 - Core wrapper: ~5 KB

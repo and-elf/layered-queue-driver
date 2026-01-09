@@ -8,8 +8,8 @@
 #ifndef LAYEREDQUEUE_BLDC_H_
 #define LAYEREDQUEUE_BLDC_H_
 
-#include "lq_bldc.h"
-#include "lq_platform.h"
+#include "../../include/lq_bldc.h"
+#include "../../include/lq_platform.h"
 
 #ifdef ARDUINO
 #include <Arduino.h>

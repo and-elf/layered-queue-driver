@@ -1,6 +1,20 @@
-# LayeredQueue BLDC Motor - Arduino Library
+# LayeredQueue - Arduino Library
 
-Platform-independent BLDC motor control library for Arduino. Supports complementary PWM with hardware deadtime on capable platforms.
+Complete embedded framework for data pipelines and motor control. No device tree or code generation needed!
+
+## Features
+
+- **BLDC Motor Control**: 3-phase motors with complementary PWM and deadtime
+  - Multiple modes: 6-step, sinusoidal, FOC, open-loop
+  - Supports SAMD21/51 (TCC), ESP32 (MCPWM), STM32 (TIM)
+  
+- **CAN Protocols**: J1939, CANopen, ISO-TP, UDS
+  
+- **Signal Processing**: PID control, scaling, remapping, verified outputs
+  
+- **Diagnostics**: DTC (Diagnostic Trouble Codes) management
+  
+- **Hardware Abstraction**: Clean API works across platforms
 
 ## Supported Boards
 
@@ -45,7 +59,7 @@ lib_deps =
 
 ## Quick Start
 
-### SAMD21 (Arduino Zero)
+### BLDC Motor Control (SAMD21)
 
 ```cpp
 #include <LayeredQueue_BLDC.h>
