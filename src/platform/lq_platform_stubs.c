@@ -54,9 +54,10 @@ int lq_gpio_set(uint8_t pin, bool state) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
-int lq_uart_send(const uint8_t *data, size_t len) {
+int lq_uart_send(uint8_t port, const uint8_t *data, uint16_t length) {
+    (void)port;
     (void)data;
-    (void)len;
+    (void)length;
     return 0;  /* Stub - no actual UART transmission */
 }
 
@@ -67,10 +68,10 @@ int lq_uart_send(const uint8_t *data, size_t len) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
-int lq_spi_send(uint8_t device, const uint8_t *data, size_t len) {
-    (void)device;
+int lq_spi_send(uint8_t cs_pin, const uint8_t *data, uint16_t length) {
+    (void)cs_pin;
     (void)data;
-    (void)len;
+    (void)length;
     return 0;  /* Stub - no actual SPI transmission */
 }
 
@@ -81,12 +82,21 @@ int lq_spi_send(uint8_t device, const uint8_t *data, size_t len) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
-int lq_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, size_t len) {
-    (void)addr;
-    (void)reg;
+int lq_i2c_write(uint8_t address, const uint8_t *data, uint16_t length) {
+    (void)address;
     (void)data;
-    (void)len;
+    (void)length;
     return 0;  /* Stub - no actual I2C write */
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+int lq_i2c_read(uint8_t address, uint8_t *data, uint16_t length) {
+    (void)address;
+    (void)data;
+    (void)length;
+    return 0;  /* Stub - no actual I2C read */
 }
 
 /* =============================================================================
@@ -96,9 +106,10 @@ int lq_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, size_t len) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
-int lq_pwm_set(uint8_t channel, uint32_t duty_cycle) {
+int lq_pwm_set(uint8_t channel, uint16_t duty_cycle, uint32_t frequency_hz) {
     (void)channel;
     (void)duty_cycle;
+    (void)frequency_hz;
     return 0;  /* Stub - no actual PWM control */
 }
 

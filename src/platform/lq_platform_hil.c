@@ -316,3 +316,84 @@ int lq_gpio_get(uint8_t pin, bool *value) {
     *value = false;
     return -ENOTSUP;
 }
+
+/**
+ * @brief Send UART data (HIL intercept)
+ * 
+ * In HIL mode, this sends UART data to the HIL tester for verification.
+ */
+int lq_uart_send(uint8_t port, const uint8_t *data, uint16_t length) {
+    if (!lq_hil_is_active()) {
+        return -ENODEV;
+    }
+    
+    return lq_hil_sut_send_uart(port, data, length);
+}
+
+/**
+ * @brief Set PWM output (HIL intercept)
+ * 
+ * In HIL mode, this sends PWM settings to the HIL tester for verification.
+ * 
+ * @param channel PWM channel number
+ * @param duty_cycle PWM duty cycle (0-10000 represents 0-100.00%)
+ * @param frequency_hz PWM frequency in Hz
+ */
+int lq_pwm_set(uint8_t channel, uint16_t duty_cycle, uint32_t frequency_hz) {
+    if (!lq_hil_is_active()) {
+        return -ENODEV;
+    }
+    
+    return lq_hil_sut_send_pwm(channel, duty_cycle, frequency_hz);
+}
+
+/**
+ * @brief Send SPI data (HIL intercept)
+ * 
+ * In HIL mode, this sends SPI output to the HIL tester for verification.
+ * 
+ * @param cs_pin Chip select pin number
+ * @param data Data to send
+ * @param length Length of data
+ */
+int lq_spi_send(uint8_t cs_pin, const uint8_t *data, uint16_t length) {
+    if (!lq_hil_is_active()) {
+        return -ENODEV;
+    }
+    
+    return lq_hil_sut_send_spi_out(cs_pin, data, length);
+}
+
+/**
+ * @brief Write I2C data (HIL intercept)
+ * 
+ * In HIL mode, this sends I2C write transactions to the HIL tester for verification.
+ * 
+ * @param address I2C device address
+ * @param data Data to write
+ * @param length Length of data
+ */
+int lq_i2c_write(uint8_t address, const uint8_t *data, uint16_t length) {
+    if (!lq_hil_is_active()) {
+        return -ENODEV;
+    }
+    
+    return lq_hil_sut_send_i2c(address, 0, data, length);
+}
+
+/**
+ * @brief Read I2C data (HIL intercept)
+ * 
+ * In HIL mode, this sends I2C read request to the HIL tester.
+ * 
+ * @param address I2C device address
+ * @param data Buffer to store read data
+ * @param length Length to read
+ */
+int lq_i2c_read(uint8_t address, uint8_t *data, uint16_t length) {
+    if (!lq_hil_is_active()) {
+        return -ENODEV;
+    }
+    
+    return lq_hil_sut_send_i2c(address, 1, data, length);
+}

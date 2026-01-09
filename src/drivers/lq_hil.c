@@ -29,6 +29,10 @@ static struct {
     int sock_can;
     int sock_gpio;
     int sock_sync;
+    int sock_uart;
+    int sock_pwm;
+    int sock_spi_out;
+    int sock_i2c;
     
     /* For SUT: listening sockets */
     int listen_adc;
@@ -36,6 +40,10 @@ static struct {
     int listen_can;
     int listen_gpio;
     int listen_sync;
+    int listen_uart;
+    int listen_pwm;
+    int listen_spi_out;
+    int listen_i2c;
     
     bool initialized;
 } hil_state = {
@@ -46,11 +54,19 @@ static struct {
     .sock_can = -1,
     .sock_gpio = -1,
     .sock_sync = -1,
+    .sock_uart = -1,
+    .sock_pwm = -1,
+    .sock_spi_out = -1,
+    .sock_i2c = -1,
     .listen_adc = -1,
     .listen_spi = -1,
     .listen_can = -1,
     .listen_gpio = -1,
     .listen_sync = -1,
+    .listen_uart = -1,
+    .listen_pwm = -1,
+    .listen_spi_out = -1,
+    .listen_i2c = -1,
 };
 
 /* Helper: Create socket path */
@@ -184,6 +200,18 @@ int lq_hil_init(enum lq_hil_mode mode, const char *mode_str, int pid)
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SYNC, hil_state.pid);
         hil_state.listen_sync = create_unix_socket(ops, path, true);
         
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_UART, hil_state.pid);
+        hil_state.listen_uart = create_unix_socket(ops, path, true);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_PWM, hil_state.pid);
+        hil_state.listen_pwm = create_unix_socket(ops, path, true);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SPI_OUT, hil_state.pid);
+        hil_state.listen_spi_out = create_unix_socket(ops, path, true);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_I2C, hil_state.pid);
+        hil_state.listen_i2c = create_unix_socket(ops, path, true);
+        
         printf("[HIL-SUT] Listening on sockets for PID %d\n", hil_state.pid);
         
     } else if (mode == LQ_HIL_MODE_TESTER) {
@@ -202,6 +230,18 @@ int lq_hil_init(enum lq_hil_mode mode, const char *mode_str, int pid)
         
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SYNC, hil_state.pid);
         hil_state.sock_sync = create_unix_socket(ops, path, false);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_UART, hil_state.pid);
+        hil_state.sock_uart = create_unix_socket(ops, path, false);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_PWM, hil_state.pid);
+        hil_state.sock_pwm = create_unix_socket(ops, path, false);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SPI_OUT, hil_state.pid);
+        hil_state.sock_spi_out = create_unix_socket(ops, path, false);
+        
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_I2C, hil_state.pid);
+        hil_state.sock_i2c = create_unix_socket(ops, path, false);
         
         printf("[HIL-Tester] Connected to SUT PID %d\n", hil_state.pid);
     }
@@ -224,6 +264,10 @@ void lq_hil_cleanup(void)
         if (hil_state.listen_can >= 0) ops->close(hil_state.listen_can);
         if (hil_state.listen_gpio >= 0) ops->close(hil_state.listen_gpio);
         if (hil_state.listen_sync >= 0) ops->close(hil_state.listen_sync);
+        if (hil_state.listen_uart >= 0) ops->close(hil_state.listen_uart);
+        if (hil_state.listen_pwm >= 0) ops->close(hil_state.listen_pwm);
+        if (hil_state.listen_spi_out >= 0) ops->close(hil_state.listen_spi_out);
+        if (hil_state.listen_i2c >= 0) ops->close(hil_state.listen_i2c);
         
         /* Remove socket files */
         char path[256];
@@ -237,6 +281,14 @@ void lq_hil_cleanup(void)
         ops->unlink(path);
         make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SYNC, hil_state.pid);
         ops->unlink(path);
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_UART, hil_state.pid);
+        ops->unlink(path);
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_PWM, hil_state.pid);
+        ops->unlink(path);
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_SPI_OUT, hil_state.pid);
+        ops->unlink(path);
+        make_socket_path(path, sizeof(path), LQ_HIL_SOCKET_I2C, hil_state.pid);
+        ops->unlink(path);
         
     } else if (hil_state.mode == LQ_HIL_MODE_TESTER) {
         if (hil_state.sock_adc >= 0) ops->close(hil_state.sock_adc);
@@ -244,6 +296,10 @@ void lq_hil_cleanup(void)
         if (hil_state.sock_can >= 0) ops->close(hil_state.sock_can);
         if (hil_state.sock_gpio >= 0) ops->close(hil_state.sock_gpio);
         if (hil_state.sock_sync >= 0) ops->close(hil_state.sock_sync);
+        if (hil_state.sock_uart >= 0) ops->close(hil_state.sock_uart);
+        if (hil_state.sock_pwm >= 0) ops->close(hil_state.sock_pwm);
+        if (hil_state.sock_spi_out >= 0) ops->close(hil_state.sock_spi_out);
+        if (hil_state.sock_i2c >= 0) ops->close(hil_state.sock_i2c);
     }
     
     memset(&hil_state, 0, sizeof(hil_state));
@@ -365,6 +421,143 @@ int lq_hil_sut_send_gpio(uint8_t pin, uint8_t state)
     };
     
     ssize_t n = ops->send(hil_state.sock_gpio, &msg, sizeof(msg), MSG_NOSIGNAL);
+    if (n != sizeof(msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_sut_send_uart(uint8_t port, const uint8_t *data, uint16_t length)
+{
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    if (hil_state.mode != LQ_HIL_MODE_SUT || !data || length > 256) {
+        return -EINVAL;
+    }
+    
+    /* Accept connection on first send */
+    if (hil_state.sock_uart < 0) {
+        hil_state.sock_uart = accept_connection(ops, hil_state.listen_uart, 100);
+        if (hil_state.sock_uart < 0) {
+            return 0;  /* No tester connected */
+        }
+    }
+    
+    struct lq_hil_uart_msg msg = {
+        .hdr = {
+            .type = LQ_HIL_MSG_UART,
+            .timestamp_us = lq_hil_get_timestamp_us(),
+        },
+        .port = port,
+        .length = length,
+    };
+    memcpy(msg.data, data, length);
+    
+    ssize_t n = ops->send(hil_state.sock_uart, &msg, sizeof(msg), MSG_NOSIGNAL);
+    if (n != sizeof(msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_sut_send_pwm(uint8_t channel, uint16_t duty_cycle, uint32_t frequency_hz)
+{
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    if (hil_state.mode != LQ_HIL_MODE_SUT) {
+        return -EINVAL;
+    }
+    
+    /* Accept connection on first send */
+    if (hil_state.sock_pwm < 0) {
+        hil_state.sock_pwm = accept_connection(ops, hil_state.listen_pwm, 100);
+        if (hil_state.sock_pwm < 0) {
+            return 0;
+        }
+    }
+    
+    struct lq_hil_pwm_msg msg = {
+        .hdr = {
+            .type = LQ_HIL_MSG_PWM,
+            .timestamp_us = lq_hil_get_timestamp_us(),
+        },
+        .channel = channel,
+        .duty_cycle = duty_cycle,
+        .frequency_hz = frequency_hz,
+    };
+    
+    ssize_t n = ops->send(hil_state.sock_pwm, &msg, sizeof(msg), MSG_NOSIGNAL);
+    if (n != sizeof(msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_sut_send_spi_out(uint8_t cs_pin, const uint8_t *data, uint16_t length)
+{
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    if (hil_state.mode != LQ_HIL_MODE_SUT || !data || length > 256) {
+        return -EINVAL;
+    }
+    
+    /* Accept connection on first send */
+    if (hil_state.sock_spi_out < 0) {
+        hil_state.sock_spi_out = accept_connection(ops, hil_state.listen_spi_out, 100);
+        if (hil_state.sock_spi_out < 0) {
+            return 0;
+        }
+    }
+    
+    struct lq_hil_spi_out_msg msg = {
+        .hdr = {
+            .type = LQ_HIL_MSG_SPI_OUT,
+            .timestamp_us = lq_hil_get_timestamp_us(),
+        },
+        .cs_pin = cs_pin,
+        .length = length,
+    };
+    memcpy(msg.data, data, length);
+    
+    ssize_t n = ops->send(hil_state.sock_spi_out, &msg, sizeof(msg), MSG_NOSIGNAL);
+    if (n != sizeof(msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_sut_send_i2c(uint8_t address, uint8_t is_read, const uint8_t *data, uint16_t length)
+{
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    if (hil_state.mode != LQ_HIL_MODE_SUT || !data || length > 256) {
+        return -EINVAL;
+    }
+    
+    /* Accept connection on first send */
+    if (hil_state.sock_i2c < 0) {
+        hil_state.sock_i2c = accept_connection(ops, hil_state.listen_i2c, 100);
+        if (hil_state.sock_i2c < 0) {
+            return 0;
+        }
+    }
+    
+    struct lq_hil_i2c_msg msg = {
+        .hdr = {
+            .type = LQ_HIL_MSG_I2C,
+            .timestamp_us = lq_hil_get_timestamp_us(),
+        },
+        .address = address,
+        .is_read = is_read,
+        .length = length,
+    };
+    memcpy(msg.data, data, length);
+    
+    ssize_t n = ops->send(hil_state.sock_i2c, &msg, sizeof(msg), MSG_NOSIGNAL);
     if (n != sizeof(msg)) {
         return -EIO;
     }
@@ -517,6 +710,110 @@ int lq_hil_tester_wait_can(struct lq_hil_can_msg *msg, int timeout_ms)
     }
     
     ssize_t n = ops->recv(hil_state.sock_can, msg, sizeof(*msg), 0);
+    if (n != sizeof(*msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_tester_wait_uart(struct lq_hil_uart_msg *msg, int timeout_ms)
+{
+    if (hil_state.mode != LQ_HIL_MODE_TESTER) {
+        return -EINVAL;
+    }
+    
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    struct pollfd pfd = {
+        .fd = hil_state.sock_uart,
+        .events = POLLIN,
+    };
+    
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
+    if (ret <= 0) {
+        return -ETIMEDOUT;
+    }
+    
+    ssize_t n = ops->recv(hil_state.sock_uart, msg, sizeof(*msg), 0);
+    if (n != sizeof(*msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_tester_wait_pwm(struct lq_hil_pwm_msg *msg, int timeout_ms)
+{
+    if (hil_state.mode != LQ_HIL_MODE_TESTER) {
+        return -EINVAL;
+    }
+    
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    struct pollfd pfd = {
+        .fd = hil_state.sock_pwm,
+        .events = POLLIN,
+    };
+    
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
+    if (ret <= 0) {
+        return -ETIMEDOUT;
+    }
+    
+    ssize_t n = ops->recv(hil_state.sock_pwm, msg, sizeof(*msg), 0);
+    if (n != sizeof(*msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_tester_wait_spi_out(struct lq_hil_spi_out_msg *msg, int timeout_ms)
+{
+    if (hil_state.mode != LQ_HIL_MODE_TESTER) {
+        return -EINVAL;
+    }
+    
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    struct pollfd pfd = {
+        .fd = hil_state.sock_spi_out,
+        .events = POLLIN,
+    };
+    
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
+    if (ret <= 0) {
+        return -ETIMEDOUT;
+    }
+    
+    ssize_t n = ops->recv(hil_state.sock_spi_out, msg, sizeof(*msg), 0);
+    if (n != sizeof(*msg)) {
+        return -EIO;
+    }
+    
+    return 0;
+}
+
+int lq_hil_tester_wait_i2c(struct lq_hil_i2c_msg *msg, int timeout_ms)
+{
+    if (hil_state.mode != LQ_HIL_MODE_TESTER) {
+        return -EINVAL;
+    }
+    
+    const struct lq_hil_platform_ops *ops = lq_hil_get_platform_ops();
+    
+    struct pollfd pfd = {
+        .fd = hil_state.sock_i2c,
+        .events = POLLIN,
+    };
+    
+    int ret = ops->poll_fn(&pfd, 1, timeout_ms);
+    if (ret <= 0) {
+        return -ETIMEDOUT;
+    }
+    
+    ssize_t n = ops->recv(hil_state.sock_i2c, msg, sizeof(*msg), 0);
     if (n != sizeof(*msg)) {
         return -EIO;
     }

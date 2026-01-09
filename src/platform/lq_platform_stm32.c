@@ -268,3 +268,286 @@ int lq_bldc_platform_brake(uint8_t motor_id)
     
     return 0;
 }
+
+/* =============================================================================
+ * UART Platform Functions (STM32 HAL)
+ * ========================================================================== */
+
+extern UART_HandleTypeDef huart1;  /* Assume UART handles defined in user code */
+extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart3;
+
+static UART_HandleTypeDef* get_uart_handle(uint8_t port)
+{
+    switch (port) {
+        case 0: return &huart1;
+        case 1: return &huart2;
+        case 2: return &huart3;
+        default: return NULL;
+    }
+}
+
+int lq_uart_send(uint8_t port, const uint8_t *data, uint16_t length)
+{
+    UART_HandleTypeDef *huart = get_uart_handle(port);
+    if (!huart) {
+        return -ENODEV;
+    }
+    
+    HAL_StatusTypeDef status = HAL_UART_Transmit(huart, (uint8_t*)data, length, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_uart_recv(uint8_t port, uint8_t *data, uint16_t length, uint32_t timeout_ms)
+{
+    UART_HandleTypeDef *huart = get_uart_handle(port);
+    if (!huart) {
+        return -ENODEV;
+    }
+    
+    HAL_StatusTypeDef status = HAL_UART_Receive(huart, data, length, timeout_ms);
+    if (status == HAL_OK) {
+        return length;
+    } else if (status == HAL_TIMEOUT) {
+        return -ETIMEDOUT;
+    }
+    return -EIO;
+}
+
+/* =============================================================================
+ * GPIO Platform Functions (STM32 HAL)
+ * ========================================================================== */
+
+static GPIO_TypeDef* get_gpio_port(uint8_t pin)
+{
+    uint8_t port_num = pin / 16;
+    switch (port_num) {
+        case 0: return GPIOA;
+        case 1: return GPIOB;
+        case 2: return GPIOC;
+        case 3: return GPIOD;
+        case 4: return GPIOE;
+        case 5: return GPIOF;
+        case 6: return GPIOG;
+        case 7: return GPIOH;
+        default: return NULL;
+    }
+}
+
+static uint16_t get_gpio_pin(uint8_t pin)
+{
+    return (1U << (pin % 16));
+}
+
+int lq_gpio_set(uint8_t pin, bool value)
+{
+    GPIO_TypeDef *port = get_gpio_port(pin);
+    if (!port) {
+        return -ENODEV;
+    }
+    
+    uint16_t pin_mask = get_gpio_pin(pin);
+    HAL_GPIO_WritePin(port, pin_mask, value ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    return 0;
+}
+
+int lq_gpio_get(uint8_t pin, bool *value)
+{
+    GPIO_TypeDef *port = get_gpio_port(pin);
+    if (!port || !value) {
+        return -ENODEV;
+    }
+    
+    uint16_t pin_mask = get_gpio_pin(pin);
+    *value = (HAL_GPIO_ReadPin(port, pin_mask) == GPIO_PIN_SET);
+    return 0;
+}
+
+int lq_gpio_toggle(uint8_t pin)
+{
+    GPIO_TypeDef *port = get_gpio_port(pin);
+    if (!port) {
+        return -ENODEV;
+    }
+    
+    uint16_t pin_mask = get_gpio_pin(pin);
+    HAL_GPIO_TogglePin(port, pin_mask);
+    return 0;
+}
+
+/* =============================================================================
+ * PWM Platform Functions (STM32 HAL)
+ * Note: Uses TIM2-TIM5 for general PWM, TIM1 is reserved for BLDC
+ * ========================================================================== */
+
+extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim4;
+
+static TIM_HandleTypeDef* get_pwm_timer(uint8_t channel)
+{
+    /* Map channel to timer:
+     * 0-3: TIM2 CH1-4
+     * 4-7: TIM3 CH1-4
+     * 8-11: TIM4 CH1-4
+     */
+    uint8_t timer_num = channel / 4;
+    switch (timer_num) {
+        case 0: return &htim2;
+        case 1: return &htim3;
+        case 2: return &htim4;
+        default: return NULL;
+    }
+}
+
+static uint32_t get_pwm_channel(uint8_t channel)
+{
+    uint32_t channels[] = {TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4};
+    return channels[channel % 4];
+}
+
+int lq_pwm_set(uint8_t channel, uint16_t duty_cycle, uint32_t frequency_hz)
+{
+    TIM_HandleTypeDef *htim = get_pwm_timer(channel);
+    if (!htim) {
+        return -ENODEV;
+    }
+    
+    uint32_t tim_channel = get_pwm_channel(channel);
+    
+    /* Update frequency if needed */
+    if (frequency_hz > 0 && frequency_hz != htim->Init.Period) {
+        uint32_t timer_clock = HAL_RCC_GetPCLK1Freq() * 2;
+        htim->Init.Period = (timer_clock / frequency_hz) - 1;
+        __HAL_TIM_SET_AUTORELOAD(htim, htim->Init.Period);
+    }
+    
+    /* Calculate CCR value from duty_cycle (0-10000 = 0-100.00%) */
+    uint32_t ccr_value = ((uint32_t)duty_cycle * (htim->Init.Period + 1)) / 10000;
+    __HAL_TIM_SET_COMPARE(htim, tim_channel, ccr_value);
+    
+    return 0;
+}
+
+/* =============================================================================
+ * SPI Platform Functions (STM32 HAL)
+ * ========================================================================== */
+
+extern SPI_HandleTypeDef hspi1;
+extern SPI_HandleTypeDef hspi2;
+
+static SPI_HandleTypeDef* get_spi_handle(uint8_t cs_pin)
+{
+    /* Map CS pin to SPI peripheral - user should configure this mapping */
+    if (cs_pin < 4) return &hspi1;
+    else return &hspi2;
+}
+
+int lq_spi_send(uint8_t cs_pin, const uint8_t *data, uint16_t length)
+{
+    SPI_HandleTypeDef *hspi = get_spi_handle(cs_pin);
+    if (!hspi) {
+        return -ENODEV;
+    }
+    
+    /* Pull CS low */
+    lq_gpio_set(cs_pin, false);
+    
+    /* Transmit data */
+    HAL_StatusTypeDef status = HAL_SPI_Transmit(hspi, (uint8_t*)data, length, HAL_MAX_DELAY);
+    
+    /* Pull CS high */
+    lq_gpio_set(cs_pin, true);
+    
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_spi_recv(uint8_t cs_pin, uint8_t *data, uint16_t length)
+{
+    SPI_HandleTypeDef *hspi = get_spi_handle(cs_pin);
+    if (!hspi) {
+        return -ENODEV;
+    }
+    
+    lq_gpio_set(cs_pin, false);
+    HAL_StatusTypeDef status = HAL_SPI_Receive(hspi, data, length, HAL_MAX_DELAY);
+    lq_gpio_set(cs_pin, true);
+    
+    return (status == HAL_OK) ? length : -EIO;
+}
+
+int lq_spi_transceive(uint8_t cs_pin, const uint8_t *tx_data, uint8_t *rx_data, uint16_t length)
+{
+    SPI_HandleTypeDef *hspi = get_spi_handle(cs_pin);
+    if (!hspi) {
+        return -ENODEV;
+    }
+    
+    lq_gpio_set(cs_pin, false);
+    HAL_StatusTypeDef status = HAL_SPI_TransmitReceive(hspi, (uint8_t*)tx_data, rx_data, length, HAL_MAX_DELAY);
+    lq_gpio_set(cs_pin, true);
+    
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+/* =============================================================================
+ * I2C Platform Functions (STM32 HAL)
+ * ========================================================================== */
+
+extern I2C_HandleTypeDef hi2c1;
+extern I2C_HandleTypeDef hi2c2;
+
+static I2C_HandleTypeDef* hi2c = &hi2c1;  /* Default to I2C1 */
+
+int lq_i2c_set_default_bus(uint8_t bus_id)
+{
+    hi2c = (bus_id == 0) ? &hi2c1 : &hi2c2;
+    return 0;
+}
+
+int lq_i2c_write(uint8_t address, const uint8_t *data, uint16_t length)
+{
+    HAL_StatusTypeDef status = HAL_I2C_Master_Transmit(hi2c, address << 1, (uint8_t*)data, length, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_i2c_read(uint8_t address, uint8_t *data, uint16_t length)
+{
+    HAL_StatusTypeDef status = HAL_I2C_Master_Receive(hi2c, address << 1, data, length, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_i2c_write_read(uint8_t address, 
+                      const uint8_t *write_data, uint16_t write_length,
+                      uint8_t *read_data, uint16_t read_length)
+{
+    /* Sequential write then read */
+    int ret = lq_i2c_write(address, write_data, write_length);
+    if (ret != 0) return ret;
+    
+    return lq_i2c_read(address, read_data, read_length);
+}
+
+int lq_i2c_reg_write_byte(uint8_t address, uint8_t reg, uint8_t value)
+{
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Write(hi2c, address << 1, reg, I2C_MEMADD_SIZE_8BIT, &value, 1, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_i2c_reg_read_byte(uint8_t address, uint8_t reg, uint8_t *value)
+{
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Read(hi2c, address << 1, reg, I2C_MEMADD_SIZE_8BIT, value, 1, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_i2c_burst_write(uint8_t address, uint8_t start_reg, const uint8_t *data, uint16_t length)
+{
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Write(hi2c, address << 1, start_reg, I2C_MEMADD_SIZE_8BIT, (uint8_t*)data, length, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}
+
+int lq_i2c_burst_read(uint8_t address, uint8_t start_reg, uint8_t *data, uint16_t length)
+{
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Read(hi2c, address << 1, start_reg, I2C_MEMADD_SIZE_8BIT, data, length, HAL_MAX_DELAY);
+    return (status == HAL_OK) ? 0 : -EIO;
+}

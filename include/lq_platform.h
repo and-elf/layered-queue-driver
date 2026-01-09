@@ -335,39 +335,143 @@ int lq_gpio_set(uint8_t pin, bool value);
 int lq_gpio_get(uint8_t pin, bool *value);
 
 /**
- * @brief Send data over UART
- * @param data Data buffer to send
- * @param len Number of bytes to send
+ * @brief Send UART data
+ * @param port UART port number
+ * @param data Data to send
+ * @param length Length of data
  * @return 0 on success, negative errno on failure
  */
-int lq_uart_send(const uint8_t *data, size_t len);
+int lq_uart_send(uint8_t port, const uint8_t *data, uint16_t length);
 
 /**
- * @brief Send data over SPI
- * @param device SPI device/chip select number
- * @param data Data buffer to send
- * @param len Number of bytes to send
- * @return 0 on success, negative errno on failure
- */
-int lq_spi_send(uint8_t device, const uint8_t *data, size_t len);
-
-/**
- * @brief Write data to I2C device
- * @param addr I2C slave address
- * @param reg Register address
- * @param data Data buffer to write
- * @param len Number of bytes to write
- * @return 0 on success, negative errno on failure
- */
-int lq_i2c_write(uint8_t addr, uint8_t reg, const uint8_t *data, size_t len);
-
-/**
- * @brief Set PWM duty cycle
+ * @brief Set PWM output
  * @param channel PWM channel number
- * @param duty_cycle Duty cycle value (format depends on platform)
+ * @param duty_cycle Duty cycle (0-10000 represents 0-100.00%)
+ * @param frequency_hz PWM frequency in Hz
  * @return 0 on success, negative errno on failure
  */
-int lq_pwm_set(uint8_t channel, uint32_t duty_cycle);
+int lq_pwm_set(uint8_t channel, uint16_t duty_cycle, uint32_t frequency_hz);
+
+/**
+ * @brief Send SPI data
+ * @param cs_pin Chip select pin
+ * @param data Data to send
+ * @param length Length of data
+ * @return 0 on success, negative errno on failure
+ */
+int lq_spi_send(uint8_t cs_pin, const uint8_t *data, uint16_t length);
+
+/**
+ * @brief Write I2C data
+ * @param address I2C device address
+ * @param data Data to write
+ * @param length Length of data
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_write(uint8_t address, const uint8_t *data, uint16_t length);
+
+/**
+ * @brief Read I2C data
+ * @param address I2C device address
+ * @param data Buffer to store read data
+ * @param length Length to read
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_read(uint8_t address, uint8_t *data, uint16_t length);
+
+/**
+ * @brief Toggle GPIO output
+ * @param pin GPIO pin number
+ * @return 0 on success, negative errno on failure
+ */
+int lq_gpio_toggle(uint8_t pin);
+
+/**
+ * @brief Receive UART data
+ * @param port UART port number
+ * @param data Buffer to store received data
+ * @param length Maximum length to receive
+ * @param timeout_ms Timeout in milliseconds
+ * @return Number of bytes received, or negative errno on failure
+ */
+int lq_uart_recv(uint8_t port, uint8_t *data, uint16_t length, uint32_t timeout_ms);
+
+/**
+ * @brief Receive SPI data
+ * @param cs_pin Chip select pin
+ * @param data Buffer to store received data
+ * @param length Length of data to receive
+ * @return Number of bytes received, or negative errno on failure
+ */
+int lq_spi_recv(uint8_t cs_pin, uint8_t *data, uint16_t length);
+
+/**
+ * @brief Transceive SPI data (simultaneous send/receive)
+ * @param cs_pin Chip select pin
+ * @param tx_data Data to send
+ * @param rx_data Buffer to store received data
+ * @param length Length of transaction
+ * @return 0 on success, negative errno on failure
+ */
+int lq_spi_transceive(uint8_t cs_pin, const uint8_t *tx_data, uint8_t *rx_data, uint16_t length);
+
+/**
+ * @brief I2C write then read
+ * @param address I2C device address
+ * @param write_data Data to write
+ * @param write_length Length of write data
+ * @param read_data Buffer for read data
+ * @param read_length Length to read
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_write_read(uint8_t address, 
+                      const uint8_t *write_data, uint16_t write_length,
+                      uint8_t *read_data, uint16_t read_length);
+
+/**
+ * @brief Write byte to I2C register
+ * @param address I2C device address
+ * @param reg Register address
+ * @param value Value to write
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_reg_write_byte(uint8_t address, uint8_t reg, uint8_t value);
+
+/**
+ * @brief Read byte from I2C register
+ * @param address I2C device address
+ * @param reg Register address
+ * @param value Pointer to store value
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_reg_read_byte(uint8_t address, uint8_t reg, uint8_t *value);
+
+/**
+ * @brief Burst write to I2C registers
+ * @param address I2C device address
+ * @param start_reg Starting register address
+ * @param data Data to write
+ * @param length Length of data
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_burst_write(uint8_t address, uint8_t start_reg, const uint8_t *data, uint16_t length);
+
+/**
+ * @brief Burst read from I2C registers
+ * @param address I2C device address
+ * @param start_reg Starting register address
+ * @param data Buffer for read data
+ * @param length Length to read
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_burst_read(uint8_t address, uint8_t start_reg, uint8_t *data, uint16_t length);
+
+/**
+ * @brief Set default I2C bus
+ * @param bus_id I2C bus number
+ * @return 0 on success, negative errno on failure
+ */
+int lq_i2c_set_default_bus(uint8_t bus_id);
 
 /**
  * @brief Write value to DAC
