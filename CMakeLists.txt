@@ -247,13 +247,16 @@ if(BUILD_TESTS)
         COMMENT "Building HIL platform demo"
     )
     
-    # Real SUT with full generated application (when code is up to date)
+    # Real SUT with full generated application
     add_custom_target(hil-sut-full
         COMMAND ${CMAKE_COMMAND} -E echo "Building FULL SUT with generated code..."
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/hil
+        # Generate SUT code from DTS
         COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dts_gen.py
             ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
             ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/
+        # Build SUT binary
         COMMAND ${CMAKE_C_COMPILER} 
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/real_sut.c
             ${CMAKE_CURRENT_BINARY_DIR}/automotive_generated/lq_generated.c
@@ -276,19 +279,15 @@ if(BUILD_TESTS)
             -DFULL_APP=1
             -lpthread
             -o ${CMAKE_CURRENT_BINARY_DIR}/hil_sut_full
-        COMMENT "Building full HIL SUT with real generated code"
-    )
-    
-    add_custom_target(hil-tests
-        COMMAND ${CMAKE_COMMAND} -E echo "Generating HIL test DTS..."
+        # Auto-generate test cases from same DTS
+        COMMAND ${CMAKE_COMMAND} -E echo "Generating HIL tests for SUT..."
         COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dts_gen.py
             ${CMAKE_CURRENT_SOURCE_DIR}/samples/automotive/app.dts
             ${CMAKE_CURRENT_BINARY_DIR}/hil/
-        COMMAND ${CMAKE_COMMAND} -E echo "Generating test runner..."
         COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hil_test_gen.py
             ${CMAKE_CURRENT_BINARY_DIR}/hil/lq_generated_test.dts
             ${CMAKE_CURRENT_BINARY_DIR}/hil/
-        COMMAND ${CMAKE_COMMAND} -E echo "Compiling test runner..."
+        # Build test runner
         COMMAND ${CMAKE_C_COMPILER}
             ${CMAKE_CURRENT_BINARY_DIR}/hil/test_runner.c
             ${CMAKE_CURRENT_SOURCE_DIR}/src/drivers/lq_hil.c
@@ -297,8 +296,13 @@ if(BUILD_TESTS)
             -I${CMAKE_CURRENT_SOURCE_DIR}/include
             -lpthread
             -o ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner
-        DEPENDS hil-sut
-        COMMENT "Generating and compiling HIL tests"
+        COMMENT "Building full HIL SUT and auto-generating tests"
+    )
+    
+    # Legacy target for manual test generation (now handled by hil-sut-full)
+    add_custom_target(hil-tests
+        DEPENDS hil-sut-full
+        COMMENT "HIL tests are now auto-generated with hil-sut-full"
     )
     
     add_custom_target(hil
@@ -308,7 +312,7 @@ if(BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/run_hil_cmake.sh
             ${CMAKE_CURRENT_BINARY_DIR}/hil_sut
             ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner
-        DEPENDS hil-tests
+        DEPENDS hil-sut-full
         COMMENT "Running HIL test suite"
     )
     
@@ -319,7 +323,7 @@ if(BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/hil/run_hil_cmake.sh
             ${CMAKE_CURRENT_BINARY_DIR}/hil_sut
             ${CMAKE_CURRENT_BINARY_DIR}/hil_test_runner || true
-        DEPENDS hil-tests
+        DEPENDS hil-sut-full
         COMMENT "Running HIL tests (non-failing)"
     )
 endif()
