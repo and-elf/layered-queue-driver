@@ -1,0 +1,52 @@
+#######################################
+# Syntax Coloring Map For LayeredQueue BLDC Motor
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+BLDC_Motor	KEYWORD1
+lq_bldc_motor	KEYWORD1
+lq_bldc_config	KEYWORD1
+lq_bldc_state	KEYWORD1
+lq_bldc_mode	KEYWORD1
+lq_bldc_direction	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+setHighSidePin	KEYWORD2
+setLowSidePin	KEYWORD2
+setMode	KEYWORD2
+enable	KEYWORD2
+setPower	KEYWORD2
+setDirection	KEYWORD2
+emergencyStop	KEYWORD2
+update	KEYWORD2
+getPower	KEYWORD2
+isEnabled	KEYWORD2
+
+lq_bldc_init	KEYWORD2
+lq_bldc_enable	KEYWORD2
+lq_bldc_set_power	KEYWORD2
+lq_bldc_set_direction	KEYWORD2
+lq_bldc_emergency_stop	KEYWORD2
+lq_bldc_commutate	KEYWORD2
+lq_bldc_update	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+LQ_BLDC_MODE_6STEP	LITERAL1
+LQ_BLDC_MODE_SINE	LITERAL1
+LQ_BLDC_MODE_FOC	LITERAL1
+LQ_BLDC_MODE_OPEN_LOOP	LITERAL1
+
+LQ_BLDC_DIR_FORWARD	LITERAL1
+LQ_BLDC_DIR_REVERSE	LITERAL1
+
+LQ_BLDC_MAX_PHASES	LITERAL1

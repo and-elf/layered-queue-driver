@@ -15,6 +15,54 @@ A declarative, device-tree-driven framework for building robust data pipelines i
 - **Safety-Critical Ready**: Thread-safe queues, deterministic behavior, error propagation
 - **Statistics**: Built-in monitoring for drops, peak usage, throughput
 - **Multiple Output Types**: GPIO, PWM, DAC, SPI, I2C, UART, CAN, J1939, CANopen, Modbus
+- **BLDC Motor Control**: N-phase brushless motor driver with complementary PWM and deadtime
+
+## NEW: BLDC Motor Driver 🎉
+
+This repository now includes a complete BLDC motor control driver! Available in two forms:
+
+### Arduino Library (No Code Generation Needed!)
+
+For Arduino users, we provide a simple C++ library that works directly in the Arduino IDE:
+
+```cpp
+#include <LayeredQueue_BLDC.h>
+
+BLDC_Motor motor(0);
+
+void setup() {
+  motor.setHighSidePin(0, 0, 4, 0x04);  // Configure pins
+  motor.begin(3, 7, 25000, 1000);       // 3-phase, 7 poles, 25kHz, 1μs deadtime
+  motor.enable(true);
+}
+
+void loop() {
+  motor.update();
+  motor.setPower(50);  // 50% power
+  delay(1);
+}
+```
+
+**Supported**: Arduino Zero/MKR (SAMD21), Metro M4 (SAMD51), ESP32, ESP32-S3
+
+👉 **[Arduino Quick Start Guide](arduino/GETTING_STARTED.md)**
+
+### Full System (With Device Tree)
+
+For advanced users and production systems:
+
+```dts
+bldc_motor: bldc@0 {
+    compatible = "lq,bldc-motor";
+    num-phases = <3>;
+    pole-pairs = <7>;
+    high-side-pins = <0 4 0x04  0 5 0x04  0 6 0x04>;
+    /* ... */
+};
+```
+
+👉 **[BLDC Motor Documentation](docs/bldc-motor-driver.md)**  
+👉 **[Usage Comparison](BLDC_USAGE.md)** - Which approach to use?
 
 ## Architecture
 
