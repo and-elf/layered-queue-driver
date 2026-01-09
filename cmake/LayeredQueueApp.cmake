@@ -3,6 +3,8 @@
 # Provides functions to create applications from device tree files
 # with automatic code generation and EDS expansion.
 
+include(GoogleTest)
+
 #[=======================================================================[.rst:
 LayeredQueueApp
 ---------------
@@ -172,7 +174,7 @@ function(add_lq_application TARGET_NAME)
         # Generate test DTS and test runner
         add_custom_command(
             OUTPUT ${HIL_DIR}/lq_generated_test.dts
-                   ${HIL_DIR}/test_runner.c
+                   ${HIL_DIR}/test_runner.cpp
             COMMAND ${CMAKE_COMMAND} -E make_directory ${HIL_DIR}
             COMMAND ${CMAKE_SOURCE_DIR}/scripts/dts_gen.py
                 ${PARSED_DTS}
@@ -186,50 +188,37 @@ function(add_lq_application TARGET_NAME)
             COMMENT "Generating HIL tests for ${TARGET_NAME}"
         )
         
-        # Build HIL-enabled SUT binary
+        # Build HIL-enabled SUT binary - just the generated application with HIL support
         add_executable(${TARGET_NAME}_hil_sut
-            ${CMAKE_SOURCE_DIR}/tests/hil/real_sut.c
+            ${GEN_DIR}/main.c
             ${GEN_DIR}/lq_generated.c
-            # Core drivers needed for SUT
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_queue_core.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_util.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_engine.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hw_input.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_remap.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_scale.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_pid.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_verified_output.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_spi_source.c
-            ${CMAKE_SOURCE_DIR}/src/drivers/lq_j1939.c
-            ${CMAKE_SOURCE_DIR}/src/platform/lq_platform_hil.c
         )
         
         add_dependencies(${TARGET_NAME}_hil_sut ${TARGET_NAME}_codegen)
         
         target_include_directories(${TARGET_NAME}_hil_sut PRIVATE
             ${GEN_DIR}
-            ${CMAKE_SOURCE_DIR}/include
         )
         
         target_compile_definitions(${TARGET_NAME}_hil_sut PRIVATE
             LQ_PLATFORM_NATIVE=1
-            FULL_APP=1
         )
         
-        target_link_libraries(${TARGET_NAME}_hil_sut PRIVATE pthread)
+        target_link_libraries(${TARGET_NAME}_hil_sut PRIVATE
+            layered_queue
+            pthread
+        )
         
-        # Build test runner
+        # Build test runner as GTest C++ executable
         add_executable(${TARGET_NAME}_hil_test_runner
-            ${HIL_DIR}/test_runner.c
+            ${HIL_DIR}/test_runner.cpp
             ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
             ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
         )
         
         add_custom_target(${TARGET_NAME}_hil_testgen
             DEPENDS ${HIL_DIR}/lq_generated_test.dts
-                    ${HIL_DIR}/test_runner.c
+                    ${HIL_DIR}/test_runner.cpp
         )
         
         add_dependencies(${TARGET_NAME}_hil_test_runner ${TARGET_NAME}_hil_testgen)
@@ -238,7 +227,13 @@ function(add_lq_application TARGET_NAME)
             ${CMAKE_SOURCE_DIR}/include
         )
         
-        target_link_libraries(${TARGET_NAME}_hil_test_runner PRIVATE pthread)
+        target_link_libraries(${TARGET_NAME}_hil_test_runner PRIVATE 
+            pthread
+            GTest::gtest
+        )
+        
+        # Note: Cannot use gtest_discover_tests() because test runner requires
+        # --sut-pid argument and SUT process to be running. Use custom target instead.
         
         # Create convenience target to run HIL tests
         add_custom_target(${TARGET_NAME}_hil_run

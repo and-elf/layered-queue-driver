@@ -40,4 +40,14 @@
         enable-overtemperature-protection;
         max-temp-dc = <1200>;  /* 120.0°C */
     };
+
+    /* Cyclic transmission of CANopen TPDO1 - send motor status every 1 second */
+    tpdo1_cyclic: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        output-type = "canopen";
+        cob-id = <0x185>;  /* TPDO1: 0x180 + node-id(5) */
+        source-signal = <100>;  /* Motor statusword */
+        period-ms = <1000>;
+        label = "motor_status_tx";
+    };
 };

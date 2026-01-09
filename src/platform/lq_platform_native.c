@@ -9,6 +9,9 @@
 #include "lq_engine.h"
 #include "lq_hil.h"
 
+/* Forward declaration for generated dispatch function */
+extern void lq_generated_dispatch_outputs(void);
+
 #ifdef LQ_PLATFORM_NATIVE
 
 #include <pthread.h>
@@ -93,7 +96,13 @@ int lq_engine_run(void)
     /* Simple infinite loop - no threading on native platform */
     while (1) {
         uint64_t now = lq_platform_get_time_us();
+        
+        /* Run engine processing - updates signals and creates output events */
         lq_engine_step(&g_lq_engine, now, NULL, 0);
+        
+        /* Dispatch output events to hardware/protocol drivers */
+        lq_generated_dispatch_outputs();
+        
         lq_platform_sleep_ms(10);
     }
     

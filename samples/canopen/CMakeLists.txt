@@ -7,6 +7,7 @@ add_lq_application(canopen_motor_driver
     EDS example_motor.eds
     PLATFORM native
     RTOS baremetal
+    ENABLE_HIL_TESTS
 )
 
 # Post-build messages

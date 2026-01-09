@@ -151,6 +151,14 @@ if(BUILD_TESTS)
         COMMENT "Generating automotive sample code for tests"
     )
     
+    # GPIO threshold test - use add_lq_application for automatic HIL test generation
+    add_lq_application(gpio_threshold_test
+        DTS samples/basic/gpio_threshold_test.dts
+        PLATFORM native
+        RTOS baremetal
+        ENABLE_HIL_TESTS
+    )
+    
     # Source files for all_tests
     set(ALL_TESTS_SOURCES
         tests/queue_test.cpp
@@ -206,9 +214,10 @@ if(BUILD_TESTS)
     endif()
     
     # HIL tests need the SUT binary to be available
-    if(ENABLE_HIL_TESTS)
-        add_dependencies(all_tests hil-sut-full)
-    endif()
+    # DEPRECATED: Old HIL targets replaced by add_lq_application with ENABLE_HIL_TESTS
+    # if(ENABLE_HIL_TESTS)
+    #     add_dependencies(all_tests hil-sut-full)
+    # endif()
     
     include(GoogleTest)
     gtest_discover_tests(all_tests)

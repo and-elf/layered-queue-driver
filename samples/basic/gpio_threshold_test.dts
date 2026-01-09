@@ -1,0 +1,52 @@
+/*
+ * Simple GPIO threshold test
+ * When ADC value > 3000, set GPIO high
+ */
+
+/ {
+    config {
+        compatible = "lq,config";
+        max-signals = <8>;
+        max-cyclic-outputs = <4>;
+    };
+
+    /* ADC input - reads analog sensor value */
+    temp_sensor: lq-hw-adc@0 {
+        compatible = "lq,hw-adc";
+        channel = <0>;
+        signal-id = <0>;
+        label = "temperature_raw";
+    };
+
+    /* Scale raw ADC value to temperature in decidegrees C */
+    temp_scaled: lq-scale@0 {
+        compatible = "lq,scale";
+        source-signal = <0>;     /* temp_sensor raw */
+        output-signal = <1>;     /* temp_scaled */
+        scale-factor = <100>;    /* ADC units to decidegrees */
+        offset = <0>;
+        label = "temperature_scaled";
+    };
+
+    /* Fault monitor: if temperature > 3000 (300.0°C), set alarm signal */
+    overtemp_monitor: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        input-signal = <1>;      /* temp_scaled */
+        fault-output-signal = <2>;  /* alarm signal */
+        check-range;
+        min-value = <0>;
+        max-value = <3000>;      /* Max 300.0°C */
+        fault-level = <2>;
+        label = "overheat_alarm";
+    };
+
+    /* GPIO output: cyclic check of alarm signal, toggle GPIO */
+    alarm_gpio: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        output-type = "gpio";
+        target-id = <13>;        /* GPIO pin 13 (LED) */
+        source-signal = <2>;     /* alarm signal (0=OK, >0=fault) */
+        period-ms = <100>;       /* Check every 100ms */
+        label = "alarm_led";
+    };
+};

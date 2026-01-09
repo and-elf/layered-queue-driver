@@ -692,6 +692,16 @@ def generate_source(nodes, output_path):
             f.write("            case LQ_OUTPUT_CANOPEN: {\n")
             f.write("                /* CANopen output: encode PDO and send */\n")
             f.write("                uint8_t data[8] = {0};\n")
+            f.write("                data[0] = (uint8_t)(evt->value & 0xFF);\n")
+            f.write("                data[1] = (uint8_t)((evt->value >> 8) & 0xFF);\n")
+            f.write("                data[2] = (uint8_t)((evt->value >> 16) & 0xFF);\n")
+            f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
+            f.write("                \n")
+            f.write("                /* target_id is COB-ID */\n")
+            f.write("                lq_can_send(evt->target_id, false, data, 4);\n")
+            f.write("                break;\n")
+            f.write("            }\n")
+        
         if 'spi' in output_types_used:
             f.write("            case LQ_OUTPUT_SPI: {\n")
             f.write("                /* SPI output: target_id is device/CS, value is data */\n")
@@ -768,7 +778,7 @@ def generate_source(nodes, output_path):
         if 'gpio' in output_types_used:
             f.write("            case LQ_OUTPUT_GPIO: {\n")
             f.write("                /* GPIO output: target_id is pin number */\n")
-            f.write("                lq_gpio_set(evt->target_id, evt->value != 0);\n")
+            f.write("                lq_gpio_set((uint8_t)evt->target_id, evt->value != 0);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -846,7 +856,7 @@ def generate_hil_tests_impl(nodes, output_path):
     spi_sources = [n for n in nodes if 'spi' in n.compatible]
     can_sources = [n for n in nodes if 'can' in n.compatible]
     merge_nodes = [n for n in nodes if 'merge' in n.compatible or 'voter' in n.compatible]
-    error_nodes = [n for n in nodes if 'error' in n.compatible]
+    fault_monitors = [n for n in nodes if 'fault-monitor' in n.compatible]
     output_nodes = [n for n in nodes if 'cyclic-output' in n.compatible or 'can-output' in n.compatible]
     
     with open(output_path, 'w') as f:
@@ -889,15 +899,42 @@ def generate_hil_tests_impl(nodes, output_path):
             f.write(f"            }};\n")
             step += 1
         
-        # Expect output
+        # Expect output based on actual output type
         if output_nodes:
             output = output_nodes[0]
-            pgn = output.properties.get('pgn', 61444)
-            f.write(f"            step@{step} {{\n")
-            f.write(f"                action = \"expect-can\";\n")
-            f.write(f"                pgn = <{pgn}>;\n")
-            f.write(f"                timeout-ms = <200>;\n")
-            f.write(f"            }};\n")
+            output_type = output.properties.get('output_type', 'can')
+            
+            if output_type == 'gpio':
+                pin = output.properties.get('target_id', 0)
+                # GPIO output - expect it to go high when signal is active
+                f.write(f"            step@{step} {{\n")
+                f.write(f"                action = \"wait-gpio-high\";\n")
+                f.write(f"                pin = <{pin}>;\n")
+                f.write(f"                timeout-ms = <500>;\n")
+                f.write(f"            }};\n")
+            elif output_type == 'can' or output_type == 'canopen':
+                # For CANopen, use cob-id; for regular CAN, use pgn
+                if output_type == 'canopen':
+                    can_id = output.properties.get('cob_id', 0x180)
+                    f.write(f"            step@{step} {{\n")
+                    f.write(f"                action = \"expect-can\";\n")
+                    f.write(f"                can-id = <{can_id}>;\n")
+                    f.write(f"                timeout-ms = <1500>;\n")
+                    f.write(f"            }};\n")
+                else:
+                    pgn = output.properties.get('pgn', 61444)
+                    f.write(f"            step@{step} {{\n")
+                    f.write(f"                action = \"expect-can\";\n")
+                    f.write(f"                pgn = <{pgn}>;\n")
+                    f.write(f"                timeout-ms = <200>;\n")
+                    f.write(f"            }};\n")
+            elif output_type == 'pwm':
+                channel = output.properties.get('target_id', 0)
+                f.write(f"            step@{step} {{\n")
+                f.write(f"                action = \"measure-pwm\";\n")
+                f.write(f"                channel = <{channel}>;\n")
+                f.write(f"                timeout-ms = <200>;\n")
+                f.write(f"            }};\n")
         
         f.write("        };\n")
         f.write("    };\n\n")
@@ -924,45 +961,122 @@ def generate_hil_tests_impl(nodes, output_path):
                 f.write(f"            }};\n")
                 step += 1
             
-            # Verify merged output
+            # Verify merged output based on actual output type
             if output_nodes:
                 output = output_nodes[0]
-                pgn = output.properties.get('pgn', 61444)
-                f.write(f"            step@{step} {{\n")
-                f.write(f"                action = \"expect-can\";\n")
-                f.write(f"                pgn = <{pgn}>;\n")
-                f.write(f"                timeout-ms = <200>;\n")
-                f.write(f"            }};\n")
+                output_type = output.properties.get('output_type', 'can')
+                
+                if output_type == 'gpio':
+                    pin = output.properties.get('target_id', 0)
+                    f.write(f"            step@{step} {{\n")
+                    f.write(f"                action = \"wait-gpio-high\";\n")
+                    f.write(f"                pin = <{pin}>;\n")
+                    f.write(f"                timeout-ms = <500>;\n")
+                    f.write(f"            }};\n")
+                elif output_type == 'can' or output_type == 'canopen':
+                    if output_type == 'canopen':
+                        can_id = output.properties.get('cob_id', 0x180)
+                        f.write(f"            step@{step} {{\n")
+                        f.write(f"                action = \"expect-can\";\n")
+                        f.write(f"                can-id = <{can_id}>;\n")
+                        f.write(f"                timeout-ms = <1500>;\n")
+                        f.write(f"            }};\n")
+                    else:
+                        pgn = output.properties.get('pgn', 61444)
+                        f.write(f"            step@{step} {{\n")
+                        f.write(f"                action = \"expect-can\";\n")
+                        f.write(f"                pgn = <{pgn}>;\n")
+                        f.write(f"                timeout-ms = <200>;\n")
+                        f.write(f"            }};\n")
             
             f.write("        };\n")
             f.write("    };\n\n")
         
-        # Test 3: Error detection
-        if error_nodes and adc_sources:
-            error = error_nodes[0]
+        # Test 3: Fault condition triggering
+        if fault_monitors and adc_sources and output_nodes:
+            fault = fault_monitors[0]
             adc = adc_sources[0]
+            output = output_nodes[0]
             channel = adc.properties.get('channel', 0)
+            output_type = output.properties.get('output_type', 'can')
             
-            f.write("    hil-test-error-detection {\n")
+            # Get fault threshold from monitor
+            max_value = fault.properties.get('max_value', 5000)
+            fault_test_value = max_value + 1000  # Above threshold
+            
+            f.write("    hil-test-fault-trigger {\n")
             f.write("        compatible = \"lq,hil-test\";\n")
-            f.write("        description = \"Test error detection and DM1\";\n")
-            f.write("        timeout-ms = <3000>;\n")
+            f.write("        description = \"Test fault detection triggers output\";\n")
+            f.write("        timeout-ms = <2000>;\n")
             f.write("        \n")
             f.write("        sequence {\n")
             f.write("            step@0 {\n")
             f.write("                action = \"inject-adc\";\n")
             f.write(f"                channel = <{channel}>;\n")
-            f.write("                value = <9999>;  /* Out of range */\n")
+            f.write(f"                value = <{fault_test_value}>;  /* Above max threshold */\n")
             f.write("            };\n")
-            f.write("            step@1 {\n")
-            f.write("                action = \"expect-can\";\n")
-            f.write("                pgn = <65226>;  /* DM1 */\n")
-            f.write("                timeout-ms = <1500>;\n")
+            
+            if output_type == 'gpio':
+                pin = output.properties.get('target_id', 0)
+                f.write("            step@1 {\n")
+                f.write("                action = \"wait-gpio-high\";\n")
+                f.write(f"                pin = <{pin}>;\n")
+                f.write("                timeout-ms = <500>;\n")
+                f.write("            };\n")
+            elif output_type == 'can' or output_type == 'canopen':
+                # For CANopen faults, still check for DM1
+                f.write("            step@1 {\n")
+                f.write("                action = \"expect-can\";\n")
+                f.write("                pgn = <65226>;  /* DM1 diagnostic message */\n")
+                f.write("                timeout-ms = <1000>;\n")
+                f.write("            };\n")
+            
+            f.write("        };\n")
+            f.write("    };\n\n")
+            
+            # Test 4: Normal condition (no fault)
+            min_value = fault.properties.get('min_value', 0)
+            normal_value = (min_value + max_value) // 2  # Mid-range
+            
+            f.write("    hil-test-normal-operation {\n")
+            f.write("        compatible = \"lq,hil-test\";\n")
+            f.write("        description = \"Test normal operation without faults\";\n")
+            f.write("        timeout-ms = <2000>;\n")
+            f.write("        \n")
+            f.write("        sequence {\n")
+            f.write("            step@0 {\n")
+            f.write("                action = \"inject-adc\";\n")
+            f.write(f"                channel = <{channel}>;\n")
+            f.write(f"                value = <{normal_value}>;  /* Within normal range */\n")
             f.write("            };\n")
+            
+            if output_type == 'gpio':
+                pin = output.properties.get('target_id', 0)
+                f.write("            step@1 {\n")
+                f.write("                action = \"wait-gpio-low\";\n")
+                f.write(f"                pin = <{pin}>;\n")
+                f.write("                timeout-ms = <500>;\n")
+                f.write("            };\n")
+            elif output_type == 'can' or output_type == 'canopen':
+                if output_type == 'canopen':
+                    can_id = output.properties.get('cob_id', 0x180)
+                    f.write("            step@1 {\n")
+                    f.write("                action = \"expect-can\";\n")
+                    f.write(f"                can-id = <{can_id}>;\n")
+                    f.write("                timeout-ms = <1500>;\n")
+                    f.write("            };\n")
+                else:
+                    pgn = output.properties.get('pgn', 61444)
+                    f.write("            step@1 {\n")
+                    f.write("                action = \"expect-can\";\n")
+                    f.write(f"                pgn = <{pgn}>;\n")
+                    f.write("                timeout-ms = <500>;\n")
+                    f.write("            };\n")
+            
             f.write("        };\n")
             f.write("    };\n\n")
         
-        # Test 4: Latency test
+        # Test 5: Latency test
         if adc_sources and output_nodes:
             f.write("    hil-test-latency {\n")
             f.write("        compatible = \"lq,hil-test\";\n")

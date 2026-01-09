@@ -145,75 +145,72 @@ def parse_test_dts(dts_content):
     return tests
 
 def generate_test_runner(tests, output_file):
-    """Generate C test runner from parsed tests"""
+    """Generate C++ GTest test runner from parsed tests"""
     
     code = """/*
- * AUTO-GENERATED HIL Test Runner
+ * AUTO-GENERATED HIL Test Runner (GTest)
  * Generated from test DTS file
  * DO NOT EDIT MANUALLY
  */
 
+#include <gtest/gtest.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/wait.h>
+
+extern "C" {
 #include "lq_hil.h"
 #include "lq_j1939.h"
-
-/* Test statistics */
-static int tests_run = 0;
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-/* Helper: Print TAP result */
-static void tap_result(bool passed, const char *test_name, const char *details)
-{
-    tests_run++;
-    if (passed) {
-        tests_passed++;
-        printf("ok %d - %s", tests_run, test_name);
-    } else {
-        tests_failed++;
-        printf("not ok %d - %s", tests_run, test_name);
-    }
-    
-    if (details && details[0]) {
-        printf(" # %s", details);
-    }
-    printf("\\n");
 }
 
-/* Helper: Parse byte array from DTS */
-static void parse_byte_array(const char *str, uint8_t *data, size_t *len)
-{
-    *len = 0;
-    const char *p = str;
-    
-    while (*p && *len < 8) {
-        while (*p && !isxdigit(*p)) p++;
-        if (!*p) break;
-        
-        int value;
-        sscanf(p, "%x", &value);
-        data[(*len)++] = (uint8_t)value;
-        
-        while (*p && isxdigit(*p)) p++;
+/* Global SUT PID for communication */
+static int g_sut_pid = 0;
+
+/* GTest Fixture for HIL Tests */
+class HILTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Initialize HIL in tester mode
+        ASSERT_NE(g_sut_pid, 0) << "SUT PID not set";
+        ASSERT_EQ(lq_hil_init(LQ_HIL_MODE_TESTER, NULL, g_sut_pid), 0)
+            << "Failed to initialize HIL tester";
     }
-}
+    
+    void TearDown() override {
+        lq_hil_cleanup();
+    }
+    
+    /* Helper: Parse byte array from DTS */
+    static void parse_byte_array(const char *str, uint8_t *data, size_t *len) {
+        *len = 0;
+        const char *p = str;
+        
+        while (*p && *len < 8) {
+            while (*p && !isxdigit(*p)) p++;
+            if (!*p) break;
+            
+            int value;
+            sscanf(p, "%x", &value);
+            data[(*len)++] = (uint8_t)value;
+            
+            while (*p && isxdigit(*p)) p++;
+        }
+    }
+};
 
 """
     
-    # Generate each test function
+    # Generate each test as a GTest TEST_F
     for test in tests:
-        func_name = test.name.replace('-', '_')
+        test_name = test.name.replace('-', '_').replace('hil_test_', '')
         
         code += f"""
 /* Test: {test.description} */
-static bool {func_name}(void)
+TEST_F(HILTest, {test_name})
 {{
-    char details[256] = "";
     uint64_t start_time, latency_us;
     
 """
@@ -227,10 +224,8 @@ static bool {func_name}(void)
                 delay_ms = step.properties.get('delay-ms', '0')
                 
                 code += f"""    /* Step {step.step_num}: Inject ADC */
-    if (lq_hil_tester_inject_adc({channel}, {value}) != 0) {{
-        snprintf(details, sizeof(details), "Failed to inject ADC ch%d", {channel});
-        return false;
-    }}
+    ASSERT_EQ(lq_hil_tester_inject_adc({channel}, {value}), 0)
+        << "Failed to inject ADC on channel " << {channel};
 """
                 if int(delay_ms) > 0:
                     code += f"    usleep({delay_ms} * 1000);\n"
@@ -254,10 +249,9 @@ static bool {func_name}(void)
     size_t can_len_{step.step_num};
     parse_byte_array("{data_str}", can_data_{step.step_num}, &can_len_{step.step_num});
     
-    if (lq_hil_tester_inject_can(can_id_{step.step_num}, {extended}, can_data_{step.step_num}, can_len_{step.step_num}) != 0) {{
-        snprintf(details, sizeof(details), "Failed to inject CAN");
-        return false;
-    }}
+    ASSERT_EQ(lq_hil_tester_inject_can(can_id_{step.step_num}, {extended}, 
+                                        can_data_{step.step_num}, can_len_{step.step_num}), 0)
+        << "Failed to inject CAN message";
 """
             
             elif action == "wait-gpio-high" or action == "wait-gpio-low":
@@ -266,10 +260,8 @@ static bool {func_name}(void)
                 expected_state = '1' if action == "wait-gpio-high" else '0'
                 
                 code += f"""    /* Step {step.step_num}: Wait for GPIO */
-    if (lq_hil_tester_wait_gpio({pin}, {expected_state}, {timeout_ms}) != 0) {{
-        snprintf(details, sizeof(details), "GPIO pin {pin} timeout");
-        return false;
-    }}
+    ASSERT_EQ(lq_hil_tester_wait_gpio(NULL, {pin}, {expected_state}, {timeout_ms}), 0)
+        << "GPIO pin " << {pin} << " timeout";
 """
             
             elif action == "expect-can":
@@ -278,20 +270,16 @@ static bool {func_name}(void)
                 
                 code += f"""    /* Step {step.step_num}: Expect CAN message */
     struct lq_hil_can_msg can_msg_{step.step_num};
-    if (lq_hil_tester_wait_can(&can_msg_{step.step_num}, {timeout_ms}) != 0) {{
-        snprintf(details, sizeof(details), "CAN message timeout");
-        return false;
-    }}
+    ASSERT_EQ(lq_hil_tester_wait_can(&can_msg_{step.step_num}, {timeout_ms}), 0)
+        << "CAN message timeout";
 """
                 
                 if pgn:
                     code += f"""    
     /* Verify PGN */
     uint32_t received_pgn = (can_msg_{step.step_num}.can_id >> 8) & 0x3FFFF;
-    if (received_pgn != {pgn}) {{
-        snprintf(details, sizeof(details), "Expected PGN {pgn}, got %u", received_pgn);
-        return false;
-    }}
+    EXPECT_EQ(received_pgn, {pgn})
+        << "Expected PGN " << {pgn} << ", got " << received_pgn;
 """
             
             elif action == "measure-latency":
@@ -303,67 +291,35 @@ static bool {func_name}(void)
     /* TODO: Implement trigger and response from nested properties */
     
     latency_us = lq_hil_get_timestamp_us() - start_time;
-    if (latency_us > {max_latency}) {{
-        snprintf(details, sizeof(details), "Latency %lluus exceeds limit {max_latency}us", latency_us);
-        return false;
-    }}
-    snprintf(details, sizeof(details), "latency: %lluus", latency_us);
+    EXPECT_LE(latency_us, {max_latency})
+        << "Latency " << latency_us << "us exceeds limit {max_latency}us";
 """
             
             elif action == "delay":
                 duration_ms = step.properties.get('duration-ms', '100')
                 code += f"    usleep({duration_ms} * 1000);\n"
         
-        code += """    
-    return true;
-}
+        code += """}
 """
     
-    # Generate main function
+    # Generate main function with GTest initialization
     code += f"""
-int main(int argc, char *argv[])
+int main(int argc, char **argv)
 {{
-    int sut_pid = 0;
-    
-    /* Parse arguments */
+    /* Parse SUT PID before GTest consumes arguments */
     for (int i = 1; i < argc; i++) {{
         if (strncmp(argv[i], "--sut-pid=", 10) == 0) {{
-            sut_pid = atoi(argv[i] + 10);
+            g_sut_pid = atoi(argv[i] + 10);
         }}
     }}
     
-    if (sut_pid == 0) {{
-        fprintf(stderr, "Usage: %s --sut-pid=<pid>\\n", argv[0]);
+    if (g_sut_pid == 0) {{
+        fprintf(stderr, "Error: --sut-pid=<pid> argument required\\n");
         return 1;
     }}
     
-    /* Initialize HIL in tester mode */
-    if (lq_hil_init(LQ_HIL_MODE_TESTER, NULL, sut_pid) != 0) {{
-        fprintf(stderr, "Failed to initialize HIL tester\\n");
-        return 1;
-    }}
-    
-    /* TAP header */
-    printf("TAP version 14\\n");
-    printf("1..{len(tests)}\\n");
-    
-    /* Run all tests */
-"""
-    
-    for test in tests:
-        func_name = test.name.replace('-', '_')
-        code += f"""    tap_result({func_name}(), "{test.name}", "");
-"""
-    
-    code += f"""    
-    /* Cleanup */
-    lq_hil_cleanup();
-    
-    /* Summary */
-    fprintf(stderr, "\\nTests: %d passed, %d failed, %d total\\n",
-            tests_passed, tests_failed, tests_run);
-    
-    return tests_failed > 0 ? 1 : 0;
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }}
 """
     
@@ -400,8 +356,8 @@ def main():
         print(f"Warning: No HIL tests found in {dts_file}")
         sys.exit(0)
     
-    # Generate test runner
-    output_file = output_dir / "test_runner.c"
+    # Generate test runner (C++ with GTest)
+    output_file = output_dir / "test_runner.cpp"
     generate_test_runner(tests, output_file)
 
 if __name__ == '__main__':
