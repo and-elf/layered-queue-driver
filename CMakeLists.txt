@@ -8,6 +8,9 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Include LayeredQueue application generator
+include(cmake/LayeredQueueApp.cmake)
+
 # Options
 option(BUILD_TESTS "Build tests" ON)
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
@@ -478,3 +481,8 @@ if(BUILD_TESTS)
 endif()
 message(STATUS "==========================================")
 message(STATUS "")
+
+# CANopen sample
+if(BUILD_TESTS)
+    add_subdirectory(samples/canopen)
+endif()

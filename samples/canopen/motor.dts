@@ -1,0 +1,74 @@
+/*
+ * CANopen Motor Driver Device Tree Overlay
+ * Generated from: example_motor.eds
+ * 
+ * This file is created by:
+ *   python3 scripts/canopen_eds_parser.py scripts/example_motor.eds \
+ *           --node-id 5 --output motor.dts
+ * 
+ * Include this in your board's device tree overlay
+ */
+
+/ {
+    canopen_device: canopen-device@5 {
+        compatible = "lq,protocol-canopen";
+        node-id = <5>;
+        label = "BLDC Motor Driver 3000";
+
+        /* Device Identity (Object 0x1018) */
+        vendor-id = <0x12345678>;
+        product-code = <0x00003000>;
+
+        /* TPDO1 - Transmit status to master */
+        tpdo1: tpdo@0 {
+            cob-id = <0x185>;  /* 0x180 + node-id */
+            transmission-type = <254>;  /* Event-driven */
+            event-timer-ms = <1000>;
+
+            /* Statusword (0x6041) */
+            mapping@0 {
+                index = <0x6041>;
+                subindex = <0>;
+                length = <16>;
+                signal-id = <100>;
+            };
+
+            /* Velocity Actual Value (0x606C) */
+            mapping@1 {
+                index = <0x606C>;
+                subindex = <0>;
+                length = <32>;
+                signal-id = <101>;
+            };
+
+            /* Supported Drive Modes (0x6502) */
+            mapping@2 {
+                index = <0x6502>;
+                subindex = <0>;
+                length = <32>;
+                signal-id = <102>;
+            };
+        };
+
+        /* RPDO1 - Receive commands from master */
+        rpdo1: rpdo@0 {
+            cob-id = <0x205>;  /* 0x200 + node-id */
+
+            /* Controlword (0x6040) */
+            mapping@0 {
+                index = <0x6040>;
+                subindex = <0>;
+                length = <16>;
+                signal-id = <0>;
+            };
+
+            /* Modes of Operation (0x6060) */
+            mapping@1 {
+                index = <0x6060>;
+                subindex = <0>;
+                length = <8>;
+                signal-id = <1>;
+            };
+        };
+    };
+};

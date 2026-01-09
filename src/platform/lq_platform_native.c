@@ -6,6 +6,7 @@
  */
 
 #include "lq_platform.h"
+#include "lq_engine.h"
 #include "lq_hil.h"
 
 #ifdef LQ_PLATFORM_NATIVE
@@ -21,6 +22,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/time.h>
+
+/* Forward declarations */
+extern struct lq_engine g_lq_engine;
 
 /* Static start time for uptime calculation */
 static struct timeval start_time;
@@ -76,6 +80,24 @@ uint64_t lq_platform_get_time_us(void)
 void lq_platform_sleep_ms(uint32_t ms)
 {
     usleep(ms * 1000);
+}
+
+/* ============================================================================
+ * Engine runner - bare metal loop for native
+ * ============================================================================ */
+
+int lq_engine_run(void)
+{
+    printf("Running engine in main loop (native/bare metal)\n");
+    
+    /* Simple infinite loop - no threading on native platform */
+    while (1) {
+        uint64_t now = lq_platform_get_time_us();
+        lq_engine_step(&g_lq_engine, now, NULL, 0);
+        lq_platform_sleep_ms(10);
+    }
+    
+    return 0;
 }
 
 /* ============================================================================

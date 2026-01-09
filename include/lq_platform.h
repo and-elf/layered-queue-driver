@@ -57,6 +57,18 @@ static inline void lq_platform_delay_ms(uint32_t ms) {
     lq_platform_sleep_ms(ms);
 }
 
+/**
+ * @brief Start the engine task/thread or run the main loop
+ * 
+ * Platform-specific behavior:
+ * - FreeRTOS: Creates task and starts scheduler (never returns)
+ * - Zephyr: Creates thread (returns, threads continue)
+ * - Native/Bare metal: Runs infinite loop (never returns)
+ * 
+ * @return 0 on success, negative on error
+ */
+int lq_engine_run(void);
+
 /* ============================================================================
  * Mutex API
  * ============================================================================ */

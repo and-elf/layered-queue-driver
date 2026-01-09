@@ -1,0 +1,41 @@
+/*
+ * BLDC Motor Controller System Description
+ * 
+ * This device tree describes the complete system:
+ * - BLDC motor output driver (3-phase PWM)
+ * - CANopen protocol driver
+ * - Signal mappings (auto-generated from EDS during build)
+ */
+
+/ {
+    /* BLDC Motor Output - 3-phase PWM driver */
+    bldc_motor: bldc-output@0 {
+        compatible = "lq,verified-output-bldc";
+        label = "BLDC Motor";
+        
+        /* 3-phase PWM outputs */
+        pwm-phase-a = <&pwm0 0>;
+        pwm-phase-b = <&pwm0 1>;
+        pwm-phase-c = <&pwm0 2>;
+        
+        /* Motor parameters */
+        pole-pairs = <7>;
+        max-rpm = <10000>;
+        max-current-ma = <30000>;
+        rated-voltage-mv = <24000>;
+        
+        /* Control mode */
+        control-mode = "velocity";  /* velocity, position, torque */
+    };
+    
+    /* CANopen Protocol Driver */
+    /* This will be merged with auto-generated PDO mappings from EDS */
+    canopen: canopen-protocol@0 {
+        compatible = "lq,protocol-canopen";
+        node-id = <5>;
+        can-interface = "can0";
+        
+        /* Device identity - will be filled from EDS */
+        /* PDO mappings - will be generated from EDS */
+    };
+};

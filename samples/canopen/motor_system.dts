@@ -1,0 +1,43 @@
+/*
+ * BLDC Motor Control System - Device Tree
+ * 
+ * Complete system description including CANopen protocol.
+ * The 'eds' property tells the build system to auto-populate
+ * PDO mappings and signal IDs from the EDS file.
+ */
+
+/ {
+    /* CANopen protocol - EDS provides PDO mappings */
+    canopen: canopen-device@1 {
+        compatible = "lq,protocol-canopen";
+        eds = "example_motor.eds";  /* Auto-generates mappings */
+        node-id = <5>;  /* Can override EDS default */
+        
+        /* Build system will populate:
+         *   - TPDO/RPDO mappings
+         *   - Signal IDs
+         *   - Device identity
+         * from the EDS file at compile time.
+         */
+    };
+    
+    /* BLDC motor output driver */
+    bldc_motor: bldc-output@0 {
+        compatible = "lq,verified-output";
+        label = "BLDC Motor Driver";
+        
+        /* Motor physical parameters */
+        pole-pairs = <7>;
+        max-rpm = <10000>;
+        max-current-ma = <30000>;  /* 30A */
+        rated-voltage-mv = <24000>; /* 24V */
+        
+        /* Control mode */
+        mode = "velocity";  /* velocity, position, torque */
+        
+        /* Safety limits */
+        enable-overcurrent-protection;
+        enable-overtemperature-protection;
+        max-temp-dc = <1200>;  /* 120.0°C */
+    };
+};

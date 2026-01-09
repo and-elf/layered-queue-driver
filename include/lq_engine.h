@@ -15,6 +15,7 @@
 #include "lq_event.h"
 #include "lq_mid_driver.h"
 #include "lq_common.h"
+#include "lq_platform.h"  /* For lq_platform_get_time_us */
 #include "lq_remap.h"
 #include "lq_scale.h"
 #include "lq_verified_output.h"

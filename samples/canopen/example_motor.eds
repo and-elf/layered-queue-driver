@@ -1,0 +1,300 @@
+[DeviceInfo]
+VendorName=Example Motors Inc
+ProductName=BLDC Motor Driver 3000
+VendorNumber=0x12345678
+ProductNumber=0x00003000
+RevisionNumber=1.2.3
+OrderCode=BLDC3000-CAN
+BaudRate_10=1
+BaudRate_20=1
+BaudRate_50=1
+BaudRate_125=1
+BaudRate_250=1
+BaudRate_500=1
+BaudRate_800=1
+BaudRate_1000=1
+SimpleBootUpMaster=0
+SimpleBootUpSlave=1
+GroupMessaging=0
+CompactPDO=0
+LSS_Supported=1
+
+[DeviceComissioning]
+NodeID=0x01
+NodeName=BLDC_Driver
+Baudrate=3
+NetNumber=1
+NetworkName=MotorNetwork
+
+[DummyUsage]
+Dummy0001=0
+Dummy0002=0
+Dummy0003=0
+Dummy0004=0
+Dummy0005=1
+Dummy0006=1
+Dummy0007=1
+
+[Comments]
+Lines=0
+
+[MandatoryObjects]
+SupportedObjects=3
+1=0x1000
+2=0x1001
+3=0x1018
+
+[1000]
+ParameterName=Device Type
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00000000
+PDOMapping=0
+
+[1001]
+ParameterName=Error Register
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=0x00
+PDOMapping=1
+
+[1018]
+ParameterName=Identity Object
+ObjectType=0x9
+SubNumber=0x5
+
+[1018sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=4
+PDOMapping=0
+
+[1018sub1]
+ParameterName=Vendor ID
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x12345678
+PDOMapping=0
+
+[1018sub2]
+ParameterName=Product Code
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00003000
+PDOMapping=0
+
+[1018sub3]
+ParameterName=Revision Number
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00010203
+PDOMapping=0
+
+[1018sub4]
+ParameterName=Serial Number
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00000001
+PDOMapping=0
+
+[OptionalObjects]
+SupportedObjects=14
+1=0x1003
+2=0x1005
+3=0x1014
+4=0x1017
+5=0x1400
+6=0x1600
+7=0x1800
+8=0x1A00
+9=0x6040
+10=0x6041
+11=0x6042
+12=0x6060
+13=0x606C
+14=0x6502
+
+[1400]
+ParameterName=RPDO1 Communication Parameter
+ObjectType=0x9
+SubNumber=0x3
+
+[1400sub0]
+ParameterName=Highest SubIndex Supported
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=2
+PDOMapping=0
+
+[1400sub1]
+ParameterName=COB-ID
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x200
+PDOMapping=0
+
+[1400sub2]
+ParameterName=Transmission Type
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
+DefaultValue=255
+PDOMapping=0
+
+[1600]
+ParameterName=RPDO1 Mapping
+ObjectType=0x9
+SubNumber=0x3
+
+[1600sub0]
+ParameterName=Number of Mapped Objects
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
+DefaultValue=2
+PDOMapping=0
+
+[1600sub1]
+ParameterName=Mapping Entry 1
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x60400010
+PDOMapping=0
+; 0x6040 Controlword, 16 bits
+
+[1600sub2]
+ParameterName=Mapping Entry 2
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x60600008
+PDOMapping=0
+; 0x6060 Modes of Operation, 8 bits
+
+[1800]
+ParameterName=TPDO1 Communication Parameter
+ObjectType=0x9
+SubNumber=0x3
+
+[1800sub0]
+ParameterName=Highest SubIndex Supported
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=2
+PDOMapping=0
+
+[1800sub1]
+ParameterName=COB-ID
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x180
+PDOMapping=0
+
+[1800sub2]
+ParameterName=Transmission Type
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
+DefaultValue=254
+PDOMapping=0
+
+[1A00]
+ParameterName=TPDO1 Mapping
+ObjectType=0x9
+SubNumber=0x4
+
+[1A00sub0]
+ParameterName=Number of Mapped Objects
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
+DefaultValue=3
+PDOMapping=0
+
+[1A00sub1]
+ParameterName=Mapping Entry 1
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x60410010
+PDOMapping=0
+; 0x6041 Statusword, 16 bits
+
+[1A00sub2]
+ParameterName=Mapping Entry 2
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x606C0020
+PDOMapping=0
+; 0x606C Velocity Actual Value, 32 bits
+
+[1A00sub3]
+ParameterName=Mapping Entry 3
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x65020020
+PDOMapping=0
+; 0x6502 Supported Drive Modes, 32 bits
+
+[6040]
+ParameterName=Controlword
+ObjectType=0x7
+DataType=0x0006
+AccessType=rw
+DefaultValue=0x0000
+PDOMapping=1
+
+[6041]
+ParameterName=Statusword
+ObjectType=0x7
+DataType=0x0006
+AccessType=ro
+DefaultValue=0x0000
+PDOMapping=1
+
+[6042]
+ParameterName=Target Velocity
+ObjectType=0x7
+DataType=0x0003
+AccessType=rw
+DefaultValue=0
+PDOMapping=1
+
+[6060]
+ParameterName=Modes of Operation
+ObjectType=0x7
+DataType=0x0002
+AccessType=rw
+DefaultValue=0
+PDOMapping=1
+
+[606C]
+ParameterName=Velocity Actual Value
+ObjectType=0x7
+DataType=0x0004
+AccessType=ro
+DefaultValue=0
+PDOMapping=1
+
+[6502]
+ParameterName=Supported Drive Modes
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00000001
+PDOMapping=1
