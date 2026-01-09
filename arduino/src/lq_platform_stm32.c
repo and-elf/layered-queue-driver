@@ -1,1 +1,0 @@
-../../src/platform/lq_platform_stm32.c

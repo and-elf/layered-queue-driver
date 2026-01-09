@@ -1,1 +1,0 @@
-../../src/platform/lq_platform_esp32.c

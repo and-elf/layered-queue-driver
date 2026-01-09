@@ -23,9 +23,16 @@ Platform-independent BLDC motor control library for Arduino. Supports complement
 
 ### Manual Installation
 
-1. Download this repository as ZIP
-2. In Arduino IDE: **Sketch → Include Library → Add .ZIP Library**
-3. Select the downloaded ZIP file
+**Note**: This library uses symlinks to share code with the main repository. On Windows, you may need to enable Developer Mode or configure Git to handle symlinks.
+
+1. Clone or download this repository
+2. Copy the `arduino/` folder to your Arduino libraries folder:
+   - Windows: `Documents\Arduino\libraries\LayeredQueue_BLDC\`
+   - macOS: `~/Documents/Arduino/libraries/LayeredQueue_BLDC/`
+   - Linux: `~/Arduino/libraries/LayeredQueue_BLDC/`
+3. Restart Arduino IDE
+
+**Windows users**: If symlinks don't work, see [BUILD_NOTES.md](BUILD_NOTES.md) for solutions.
 
 ### PlatformIO
 
@@ -250,8 +257,19 @@ Flexible - any GPIO can be used (see example for recommended pins)
 
 Apache-2.0 License
 
+## Library Architecture
+
+This Arduino library is a **thin wrapper** around the main repository's BLDC driver:
+
+- **Core logic**: Shared via symlinks from `../src/drivers/lq_bldc.c`
+- **Platform code**: Included from `../src/platform/lq_platform_*.c` based on target board
+- **Wrapper**: Arduino-friendly C++ class in this directory
+
+See [BUILD_NOTES.md](BUILD_NOTES.md) for details on how the library is structured and maintained.
+
 ## Support
 
-- GitHub: https://github.com/yourusername/layered-queue-driver
-- Examples: See `examples/` folder
-- Docs: See main repository documentation
+- **Arduino Questions**: See [GETTING_STARTED.md](GETTING_STARTED.md)
+- **Build Issues**: See [BUILD_NOTES.md](BUILD_NOTES.md)
+- **Main Repository**: https://github.com/yourusername/layered-queue-driver
+- **GitHub Issues**: Report bugs and request features
