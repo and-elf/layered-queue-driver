@@ -83,8 +83,8 @@ function(add_lq_application TARGET_NAME)
         set(EDS_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${APP_EDS}")
     endif()
 
-    # Output directory
-    set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+    # Output directory - each target gets its own subdirectory
+    set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}")
 
     # Determine if EDS expansion is needed
     if(APP_EDS)
@@ -141,6 +141,11 @@ function(add_lq_application TARGET_NAME)
     )
 
     add_dependencies(${TARGET_NAME} ${TARGET_NAME}_codegen)
+
+    # Set output directory to bin/ to avoid conflicts with GEN_DIR
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin"
+    )
 
     # Include generated headers
     target_include_directories(${TARGET_NAME} PRIVATE ${GEN_DIR})
