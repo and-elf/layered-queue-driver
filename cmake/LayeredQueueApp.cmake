@@ -250,7 +250,7 @@ function(add_lq_application TARGET_NAME)
         # Generate comprehensive HIL tests from DTS
         add_custom_command(
             OUTPUT ${HIL_DIR}/comprehensive_hil_tests.dts
-                   ${HIL_DIR}/test_runner.c
+                   ${HIL_DIR}/test_runner.cpp
                    ${HIL_DIR}/${TARGET_NAME}_hil_sut
             COMMAND ${CMAKE_COMMAND} -E make_directory ${HIL_DIR}
             # Step 1: Generate comprehensive HIL test DTS
@@ -261,48 +261,80 @@ function(add_lq_application TARGET_NAME)
             COMMAND ${SCRIPT_DIR}/hil_test_gen.py
                 ${HIL_DIR}/comprehensive_hil_tests.dts
                 ${HIL_DIR}
-            # Step 3: Build SUT binary with coverage
-            COMMAND ${CMAKE_C_COMPILER}
-                ${GEN_DIR}/main.c
-                ${GEN_DIR}/lq_generated.c
-                -I${CMAKE_SOURCE_DIR}/include
-                -I${GEN_DIR}
-                -DLQ_PLATFORM_NATIVE=1
-                -lpthread
-                $<$<CONFIG:Debug>:--coverage>
-                -o ${HIL_DIR}/${TARGET_NAME}_hil_sut
             DEPENDS ${GEN_OUTPUTS}
                     ${SCRIPT_DIR}/generate_comprehensive_hil_tests.py
                     ${SCRIPT_DIR}/hil_test_gen.py
             COMMENT "Generating comprehensive HIL tests for ${TARGET_NAME}"
         )
         
-        # Build HIL test runner executable
-        add_custom_command(
-            OUTPUT ${HIL_DIR}/${TARGET_NAME}_hil_test_runner
-            COMMAND ${CMAKE_CXX_COMPILER}
-                ${HIL_DIR}/test_runner.c
-                ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
-                ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
-                ${CMAKE_SOURCE_DIR}/src/drivers/lq_j1939.c
-                -I${CMAKE_SOURCE_DIR}/include
-                -lpthread
-                -lgtest
-                -lstdc++
-                -o ${HIL_DIR}/${TARGET_NAME}_hil_test_runner
-            DEPENDS ${HIL_DIR}/test_runner.c
-                    ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
-            COMMENT "Building HIL test runner for ${TARGET_NAME}"
+        # Build SUT binary with coverage (as executable target)
+        add_executable(${TARGET_NAME}_hil_sut
+            ${GEN_DIR}/main.c
+            ${GEN_DIR}/lq_generated.c
         )
         
-        # Target to build HIL tests
-        add_custom_target(${TARGET_NAME}_hil_tests
-            DEPENDS ${HIL_DIR}/${TARGET_NAME}_hil_sut
-                    ${HIL_DIR}/${TARGET_NAME}_hil_test_runner
+        target_include_directories(${TARGET_NAME}_hil_sut PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${GEN_DIR}
         )
+        
+        target_compile_definitions(${TARGET_NAME}_hil_sut PRIVATE
+            LQ_PLATFORM_NATIVE=1
+        )
+        
+        target_link_libraries(${TARGET_NAME}_hil_sut PRIVATE
+            layered_queue
+            Threads::Threads
+        )
+        
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR ENABLE_COVERAGE)
+            target_compile_options(${TARGET_NAME}_hil_sut PRIVATE --coverage)
+            target_link_options(${TARGET_NAME}_hil_sut PRIVATE --coverage)
+        endif()
+        
+        set_target_properties(${TARGET_NAME}_hil_sut PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${HIL_DIR}"
+        )
+        
+        add_dependencies(${TARGET_NAME}_hil_sut ${TARGET_NAME}_codegen)
+        
+        # Build HIL test runner executable
+        add_executable(${TARGET_NAME}_hil_test_runner
+            ${HIL_DIR}/test_runner.cpp
+        )
+        
+        # Ensure test runner source is generated first
+        set_source_files_properties(${HIL_DIR}/test_runner.cpp PROPERTIES GENERATED TRUE)
+        
+        target_sources(${TARGET_NAME}_hil_test_runner PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
+            ${CMAKE_SOURCE_DIR}/src/drivers/lq_j1939.c
+        )
+        
+        target_include_directories(${TARGET_NAME}_hil_test_runner PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+        )
+        
+        target_link_libraries(${TARGET_NAME}_hil_test_runner PRIVATE
+            Threads::Threads
+            GTest::gtest_main
+        )
+        
+        set_target_properties(${TARGET_NAME}_hil_test_runner PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${HIL_DIR}"
+        )
+        
+        add_custom_target(${TARGET_NAME}_hil_tests_dts
+            DEPENDS ${HIL_DIR}/comprehensive_hil_tests.dts
+                    ${HIL_DIR}/test_runner.cpp
+        )
+        
+        add_dependencies(${TARGET_NAME}_hil_test_runner ${TARGET_NAME}_hil_tests_dts)
+        add_dependencies(${TARGET_NAME}_hil_sut layered_queue ${TARGET_NAME}_hil_tests_dts)
         
         # Add dependency to main target
-        add_dependencies(${TARGET_NAME} ${TARGET_NAME}_hil_tests)
+        add_dependencies(${TARGET_NAME} ${TARGET_NAME}_hil_sut ${TARGET_NAME}_hil_test_runner)
         
         message(STATUS "    Comprehensive HIL tests will be generated")
         message(STATUS "    Expected coverage: 90-100% of generated code")
