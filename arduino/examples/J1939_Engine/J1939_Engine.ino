@@ -43,9 +43,8 @@ void loop() {
     engine_torque_pct = 45;
     
     // Encode J1939 EEC1 message
-    // Parameters: buffer, speed, torque, driver_demand, actual_pct, source_addr
-    lq_j1939_encode_eec1(eec1_msg, engine_speed_rpm, engine_torque_pct, 
-                         50, 48, 0x00);
+    // Parameters: speed, torque, output buffer
+    lq_j1939_encode_eec1(engine_speed_rpm, engine_torque_pct, eec1_msg);
     
     // Send on CAN bus (uncomment when you have CAN hardware)
     // CAN.beginPacket(0x0CF00400, 8, false); // PGN 61444, extended ID
@@ -67,13 +66,9 @@ void loop() {
     // Simulate temperature changing
     coolant_temp_c = 20 + (millis() / 10000) % 80; // 20-100°C
     
-    // Encode J1939 ET1 message
-    lq_j1939_encode_et1(et1_msg, coolant_temp_c, -40, 80, 30);
-    
-    // Send on CAN bus (uncomment when you have CAN hardware)
-    // CAN.beginPacket(0x0CFEF200, 8, false); // PGN 65266
-    // CAN.write(et1_msg, 8);
-    // CAN.endPacket();
+    // ET1 encoding not yet implemented - use manual encoding
+    // For now, just print the value
+    // TODO: Add lq_j1939_encode_et1() function
     
     Serial.print("ET1: Coolant=");
     Serial.print(coolant_temp_c);

@@ -14,7 +14,7 @@
 
 // Motor configuration
 struct lq_bldc_config motor_config;
-struct lq_bldc_ctx motor;
+struct lq_bldc_motor motor;
 
 void setup() {
   Serial.begin(115200);
@@ -23,10 +23,10 @@ void setup() {
   Serial.println("LayeredQueue - Basic BLDC Motor Example");
   
   // Configure motor
-  motor_config.pole_pairs = 7;        // Number of pole pairs in your motor
-  motor_config.pwm_frequency = 20000; // 20 kHz PWM
-  motor_config.deadtime_ns = 500;     // 500ns deadtime
-  motor_config.max_duty = 950;        // 95% max duty cycle
+  motor_config.pole_pairs = 7;            // Number of pole pairs in your motor
+  motor_config.pwm_frequency_hz = 20000;  // 20 kHz PWM
+  motor_config.deadtime_ns = 500;         // 500ns deadtime
+  motor_config.max_duty_cycle = 9500;     // 95% max duty cycle (0-10000 scale)
   
   // Initialize motor
   if (lq_bldc_init(&motor, &motor_config) != 0) {
@@ -63,13 +63,15 @@ void loop() {
       }
     }
     
-    // Set motor speed and 50% throttle
-    lq_bldc_set_speed(&motor, speed_rpm);
-    lq_bldc_set_throttle(&motor, 500); // 0-1000 scale (50%)
+    // Set motor power (0-100%)
+    uint8_t power = (speed_rpm * 100) / 2000;  // Scale RPM to 0-100%
+    lq_bldc_set_power(&motor, power);
     
     Serial.print("Speed: ");
     Serial.print(speed_rpm);
-    Serial.println(" RPM");
+    Serial.print(" RPM, Power: ");
+    Serial.print(power);
+    Serial.println("%");
   }
   
   // Update motor commutation (call frequently!)
