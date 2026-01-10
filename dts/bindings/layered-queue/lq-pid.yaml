@@ -68,31 +68,6 @@ properties:
       (v1.x - DEPRECATED) Output signal ID for PID result.
       In v2.0, output IDs are auto-assigned.
 
-properties:
-  setpoint-signal-id:
-    type: int
-    required: true
-    description: |
-      Signal ID for desired setpoint (target value).
-      Example: Desired temperature = 75°C
-
-  measurement-signal-id:
-    type: int
-    required: true
-    description: |
-      Signal ID for measured feedback (actual value).
-      Example: Actual temperature from sensor = 72°C
-      
-      Typically comes from verified-output or direct sensor.
-
-  output-signal-id:
-    type: int
-    required: true
-    description: |
-      Signal ID for PID control output.
-      This value drives the actuator to reach setpoint.
-      Example: Heater power = 0-1000 (0-100%)
-
   kp:
     type: int
     required: true
