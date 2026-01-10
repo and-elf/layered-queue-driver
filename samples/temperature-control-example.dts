@@ -21,33 +21,12 @@
 
 / {
     /* ========================================================================
-     * Signal Definitions
-     * ======================================================================== */
-    
-    /* Hardware inputs */
-    #define SIGNAL_TEMP_ADC         0   /* Raw temperature ADC (0-4095) */
-    #define SIGNAL_HEATER_FB        1   /* Heater feedback pin (0=off, 1=on) */
-    
-    /* Processed signals */
-    #define SIGNAL_TEMP_CELSIUS     10  /* Temperature in °C (0-150) */
-    #define SIGNAL_TEMP_SETPOINT    11  /* Desired temperature (75°C) */
-    
-    /* Control signals */
-    #define SIGNAL_PID_OUTPUT       20  /* PID controller output (0-1000) */
-    #define SIGNAL_HEATER_CMD       21  /* Heater command (0=off, 1=on) */
-    #define SIGNAL_HEATER_VERIFIED  22  /* Verified heater status */
-    
-    /* Fault signals */
-    #define SIGNAL_HEATER_FAULT     30  /* 0=OK, 1=verification failed */
-    
-    /* ========================================================================
      * Hardware Input Layer
      * ======================================================================== */
     
     /* Temperature sensor ADC */
     temp_adc: lq-adc@0 {
         compatible = "lq,adc-source";
-        signal-id = <SIGNAL_TEMP_ADC>;
         adc-channel = <0>;
         sample-rate-hz = <10>;          /* 10 Hz sampling */
         staleness-us = <200000>;        /* 200ms timeout */
@@ -56,7 +35,6 @@
     /* Heater feedback GPIO (verify heater is actually on) */
     heater_feedback: lq-gpio@0 {
         compatible = "lq,gpio-source";
-        signal-id = <SIGNAL_HEATER_FB>;
         gpio-pin = <15>;                /* GPIO pin 15 */
         sample-rate-hz = <100>;         /* 100 Hz verification */
         staleness-us = <20000>;         /* 20ms timeout */
@@ -69,8 +47,7 @@
     /* Convert temperature ADC (0-4095) to Celsius (0-150°C) */
     temp_scale: lq-scale@0 {
         compatible = "lq,scale";
-        input-signal-id = <SIGNAL_TEMP_ADC>;
-        output-signal-id = <SIGNAL_TEMP_CELSIUS>;
+        source = <&temp_adc>;
         scale-factor = <37>;            /* 37/1000 = 0.037 °C per count */
         offset = <0>;
         clamp-min = <0>;
@@ -86,7 +63,6 @@
      */
     temp_setpoint: lq-constant@0 {
         compatible = "lq,constant";
-        signal-id = <SIGNAL_TEMP_SETPOINT>;
         value = <75>;                   /* Target: 75°C */
     };
     
@@ -106,9 +82,8 @@
     temp_pid: lq-pid@0 {
         compatible = "lq,pid-controller";
         
-        setpoint-signal-id = <SIGNAL_TEMP_SETPOINT>;     /* Target: 75°C */
-        measurement-signal-id = <SIGNAL_TEMP_CELSIUS>;   /* Actual temp */
-        output-signal-id = <SIGNAL_PID_OUTPUT>;          /* Heater power */
+        setpoint = <&temp_setpoint>;
+        measurement = <&temp_scale>;
         
         /* PID gains (scaled by 1000) */
         kp = <20000>;                   /* Kp = 20.0 */
@@ -139,8 +114,7 @@
      */
     heater_threshold: lq-comparator@0 {
         compatible = "lq,comparator";
-        input-signal-id = <SIGNAL_PID_OUTPUT>;
-        output-signal-id = <SIGNAL_HEATER_CMD>;
+        input = <&temp_pid>;
         threshold = <500>;              /* ON if power > 50% */
         hysteresis = <100>;             /* ±10% hysteresis to avoid chatter */
     };
@@ -160,9 +134,8 @@
     heater_verified: lq-verified-output@0 {
         compatible = "lq,verified-output";
         
-        command-signal-id = <SIGNAL_HEATER_CMD>;         /* What we want */
-        verification-signal-id = <SIGNAL_HEATER_FB>;     /* What we got */
-        output-signal-id = <SIGNAL_HEATER_VERIFIED>;     /* Verified status */
+        command = <&heater_threshold>;
+        verification = <&heater_feedback>;
         
         output-type = "gpio";
         
@@ -185,8 +158,7 @@
      */
     heater_fault_monitor: lq-fault-monitor@0 {
         compatible = "lq,fault-monitor";
-        input-signal-id = <SIGNAL_HEATER_VERIFIED>;
-        fault-output-signal-id = <SIGNAL_HEATER_FAULT>;
+        input = <&heater_verified>;
         
         /* Check for FAULT status from verified output */
         check-status;
@@ -204,7 +176,7 @@
     /* Transmit temperature */
     temp_output: lq-cyclic-output@0 {
         compatible = "lq,cyclic-j1939";
-        signal-id = <SIGNAL_TEMP_CELSIUS>;
+        source = <&temp_scale>;
         pgn = <0xFEEE00>;               /* Engine temperature PGN */
         period-us = <100000>;           /* 10 Hz */
         priority = <6>;
@@ -213,7 +185,7 @@
     /* Transmit PID output for tuning/diagnostics */
     pid_output: lq-cyclic-output@1 {
         compatible = "lq,cyclic-j1939";
-        signal-id = <SIGNAL_PID_OUTPUT>;
+        source = <&temp_pid>;
         pgn = <0xFEF100>;               /* Diagnostic PGN */
         period-us = <100000>;           /* 10 Hz */
         priority = <6>;
@@ -222,7 +194,7 @@
     /* Transmit fault status */
     fault_output: lq-cyclic-output@2 {
         compatible = "lq,cyclic-j1939";
-        signal-id = <SIGNAL_HEATER_FAULT>;
+        source = <&heater_fault_monitor>;
         pgn = <0xFECA00>;               /* Diagnostic message PGN */
         period-us = <100000>;           /* 10 Hz */
         priority = <3>;                 /* High priority for faults */

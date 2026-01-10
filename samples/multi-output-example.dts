@@ -22,7 +22,6 @@
     temp_sensor: lq-hw-adc-input@0 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <0>;
         adc-channel = <0>;
         adc-device = <&adc0>;
         isr-priority = <3>;
@@ -33,7 +32,6 @@
     speed_sensor: lq-hw-adc-input@1 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <1>;
         adc-channel = <1>;
         adc-device = <&adc0>;
         isr-priority = <3>;
@@ -44,7 +42,6 @@
     pressure_sensor: lq-hw-adc-input@2 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <2>;
         adc-channel = <2>;
         adc-device = <&adc0>;
         isr-priority = <4>;
@@ -60,7 +57,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <0>;       /* Temperature */
+        source = <&temp_sensor>;
         output-type = "gpio";
         target-id = <5>;              /* GPIO pin 5 */
         period-us = <100000>;         /* Update every 100ms */
@@ -72,7 +69,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <0>;       /* Temperature */
+        source = <&temp_sensor>;
         output-type = "pwm";
         target-id = <2>;              /* PWM channel 2 */
         period-us = <50000>;          /* Update every 50ms */
@@ -84,7 +81,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <1>;       /* Speed */
+        source = <&speed_sensor>;
         output-type = "dac";
         target-id = <0>;              /* DAC channel 0 */
         period-us = <20000>;          /* Update every 20ms */
@@ -96,7 +93,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <1>;       /* Speed */
+        source = <&speed_sensor>;
         output-type = "spi";
         target-id = <1>;              /* SPI device 1 (CS1) */
         period-us = <100000>;         /* Update every 100ms */
@@ -109,7 +106,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <2>;       /* Pressure */
+        source = <&pressure_sensor>;
         output-type = "i2c";
         target-id = <0x5010>;         /* I2C addr 0x50, register 0x10 */
         period-us = <200000>;         /* Update every 200ms */
@@ -121,7 +118,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <0>;       /* Temperature */
+        source = <&temp_sensor>;
         output-type = "uart";
         target-id = <0>;              /* UART port 0 */
         period-us = <1000000>;        /* Update every 1 second */
@@ -134,7 +131,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <2>;       /* Pressure */
+        source = <&pressure_sensor>;
         output-type = "modbus";
         target-id = <0x010100>;       /* Slave 1, register 0x0100 */
         period-us = <500000>;         /* Update every 500ms */
@@ -146,7 +143,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <1>;       /* Speed (treated as RPM) */
+        source = <&speed_sensor>;
         output-type = "j1939";
         target-id = <0xF004>;         /* PGN for engine speed */
         period-us = <100000>;         /* 10 Hz */
@@ -158,7 +155,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <0>;       /* Temperature */
+        source = <&temp_sensor>;
         output-type = "canopen";
         target-id = <0x180>;          /* TPDO1 base (COB-ID) */
         period-us = <200000>;         /* 5 Hz */

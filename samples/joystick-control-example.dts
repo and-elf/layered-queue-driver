@@ -38,7 +38,6 @@
     joystick_x: lq-hw-adc-input@0 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <0>;
         adc-channel = <0>;
         stale-us = <50000>;  /* 50ms timeout */
     };
@@ -47,7 +46,6 @@
     joystick_y: lq-hw-adc-input@1 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <1>;
         adc-channel = <1>;
         stale-us = <50000>;
     };
@@ -56,7 +54,6 @@
     trigger: lq-hw-adc-input@2 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <2>;
         adc-channel = <2>;
         stale-us = <50000>;
     };
@@ -70,8 +67,7 @@
         compatible = "lq,remap";
         status = "okay";
         
-        input-signal-id = <0>;   /* joystick_x */
-        output-signal-id = <10>; /* steering function */
+        input = <&joystick_x>;
         function-name = "steering";
         
         /* Apply deadzone to eliminate drift */
@@ -83,8 +79,7 @@
         compatible = "lq,remap";
         status = "okay";
         
-        input-signal-id = <1>;   /* joystick_y */
-        output-signal-id = <11>; /* throttle function */
+        input = <&joystick_y>;
         function-name = "throttle";
         
         /* Invert Y-axis (up = positive throttle) */
@@ -97,8 +92,7 @@
         compatible = "lq,remap";
         status = "okay";
         
-        input-signal-id = <2>;   /* trigger */
-        output-signal-id = <12>; /* fire function */
+        input = <&trigger>;
         function-name = "fire";
     };
     
@@ -111,8 +105,7 @@
         compatible = "lq,scale";
         status = "okay";
         
-        input-signal-id = <10>;  /* steering function */
-        output-signal-id = <20>; /* normalized steering */
+        input = <&remap_steering>;
         
         /* scale = 1000/32768 ≈ 31 */
         scale-factor = <31>;
@@ -128,8 +121,7 @@
         compatible = "lq,scale";
         status = "okay";
         
-        input-signal-id = <11>;  /* throttle function */
-        output-signal-id = <21>; /* normalized throttle */
+        input = <&remap_throttle>;
         
         /* Map -32768..32767 to 0..2000 */
         scale-factor = <31>;
@@ -145,8 +137,7 @@
         compatible = "lq,scale";
         status = "okay";
         
-        input-signal-id = <12>;  /* fire function */
-        output-signal-id = <22>; /* normalized fire */
+        input = <&remap_fire>;
         
         /* scale = 1000/4095 ≈ 244 */
         scale-factor = <244>;
@@ -166,7 +157,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <20>;  /* normalized steering */
+        source = <&scale_steering>;
         output-type = "j1939";
         target-id = <0xCF00400>; /* PGN for steering command */
         period-us = <20000>;      /* 20ms / 50Hz */
@@ -177,7 +168,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <21>;  /* normalized throttle */
+        source = <&scale_throttle>;
         output-type = "j1939";
         target-id = <0xCF00500>; /* PGN for throttle command */
         period-us = <20000>;      /* 20ms / 50Hz */
@@ -188,7 +179,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <22>;  /* normalized fire */
+        source = <&scale_fire>;
         output-type = "j1939";
         target-id = <0xCF00600>; /* PGN for fire command */
         period-us = <20000>;      /* 20ms / 50Hz */

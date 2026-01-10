@@ -15,7 +15,6 @@
     sensor_a: lq-hw-adc-input@0 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <0>;
         adc-channel = <0>;
         stale-us = <10000>;  /* 10ms */
     };
@@ -23,7 +22,6 @@
     sensor_b: lq-hw-adc-input@1 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <1>;
         adc-channel = <1>;
         stale-us = <10000>;
     };
@@ -33,8 +31,7 @@
         compatible = "lq,mid-merge";
         status = "okay";
         
-        output-signal-id = <10>;
-        input-signal-ids = <0 1>;
+        sources = <&sensor_a &sensor_b>;
         voting-method = "median";
         tolerance = <100>;
         stale-us = <10000>;
@@ -45,8 +42,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <10>;           /* Monitor merged sensor */
-        fault-output-signal-id = <20>;    /* Output fault flag */
+        input = <&merged_sensor>;
         
         /* Detect if merged sensor is stale */
         check-staleness;
@@ -66,7 +62,6 @@
     temp_sensor: lq-hw-adc-input@2 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <2>;
         adc-channel = <2>;
         stale-us = <100000>;  /* 100ms */
     };
@@ -75,8 +70,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <2>;
-        fault-output-signal-id = <21>;
+        input = <&temp_sensor>;
         
         /* Temperature must be in range 0-150°C (ADC counts) */
         check-range;
@@ -99,7 +93,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <10>;
+        source = <&merged_sensor>;
         output-type = "j1939";
         target-id = <0xFEF1>;    /* PGN for sensor data */
         period-us = <100000>;    /* 100ms / 10Hz */
@@ -110,7 +104,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <20>;  /* Sensor fault flag */
+        source = <&sensor_fault_monitor>;
         output-type = "j1939";
         target-id = <0xFECA>;     /* PGN for diagnostic messages */
         period-us = <1000000>;    /* 1s / 1Hz */

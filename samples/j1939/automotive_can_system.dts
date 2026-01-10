@@ -25,7 +25,6 @@
     rpm_adc_1: rpm-adc-primary {
         compatible = "lq,hw-adc-input";
         label = "rpm_adc_1";
-        signal_id = <0>;
         stale_us = <100000>;  /* 100ms */
         hw_instance = <1>;
         hw_channel = <0>;
@@ -34,7 +33,6 @@
     rpm_adc_2: rpm-adc-secondary {
         compatible = "lq,hw-adc-input";
         label = "rpm_adc_2";
-        signal_id = <1>;
         stale_us = <100000>;
         hw_instance = <1>;
         hw_channel = <1>;
@@ -43,7 +41,6 @@
     oil_pressure_adc: oil-pressure-sensor {
         compatible = "lq,hw-adc-input";
         label = "oil_pressure_adc";
-        signal_id = <2>;
         stale_us = <500000>;
         hw_instance = <1>;
         hw_channel = <2>;
@@ -52,7 +49,6 @@
     coolant_temp_adc: coolant-temp-sensor {
         compatible = "lq,hw-adc-input";
         label = "coolant_temp_adc";
-        signal_id = <3>;
         stale_us = <500000>;
         hw_instance = <1>;
         hw_channel = <3>;
@@ -62,7 +58,6 @@
     rpm_can: rpm-from-transmission-ecu {
         compatible = "lq,hw-can-input";
         label = "rpm_can";
-        signal_id = <10>;
         pgn = <65265>;  /* J1939 EEC1 - Electronic Engine Controller 1 */
         stale_us = <200000>;
         hw_instance = <1>;
@@ -71,7 +66,6 @@
     vehicle_speed_can: vehicle-speed-from-abs {
         compatible = "lq,hw-can-input";
         label = "vehicle_speed_can";
-        signal_id = <11>;
         pgn = <65265>;  /* J1939 EEC1 contains vehicle speed */
         stale_us = <200000>;
         hw_instance = <1>;
@@ -80,7 +74,6 @@
     fuel_rate_can: fuel-rate-from-injection-ecu {
         compatible = "lq,hw-can-input";
         label = "fuel_rate_can";
-        signal_id = <12>;
         pgn = <65266>;  /* J1939 EEC2 - Electronic Engine Controller 2 */
         stale_us = <1000000>;
         hw_instance = <1>;
@@ -94,8 +87,7 @@
     rpm_voted: rpm-voter {
         compatible = "lq,mid-merge";
         label = "rpm_voted";
-        output_signal_id = <20>;
-        input_signal_ids = <0 1 10>;  /* 2x ADC + 1x CAN */
+        sources = <&rpm_adc_1 &rpm_adc_2 &rpm_can>;
         voting_method = "median";
         tolerance = <50>;  /* 50 RPM tolerance */
         stale_us = <150000>;
@@ -109,8 +101,7 @@
     rpm_error_detect: rpm-error-detector {
         compatible = "lq,error-detector";
         label = "rpm_error_detect";
-        input_signal_id = <20>;
-        error_signal_id = <30>;
+        input = <&rpm_voted>;
         
         /* Trigger error if voted value is INCONSISTENT */
         error_conditions = "status != OK";
@@ -120,8 +111,7 @@
     coolant_overtemp: coolant-overtemp-detector {
         compatible = "lq,error-detector";
         label = "coolant_overtemp";
-        input_signal_id = <3>;
-        error_signal_id = <31>;
+        input = <&coolant_temp_adc>;
         
         /* Trigger if temp > 110°C (adjustable threshold) */
         error_conditions = "value > 110000";
@@ -133,8 +123,7 @@
     oil_pressure_low: oil-pressure-low-detector {
         compatible = "lq,error-detector";
         label = "oil_pressure_low";
-        input_signal_id = <2>;
-        error_signal_id = <32>;
+        input = <&oil_pressure_adc>;
         
         /* Trigger if pressure < 20 kPa */
         error_conditions = "value < 20000";
@@ -151,7 +140,7 @@
         label = "dm1_output";
         
         /* Monitor these error signals */
-        error_signal_ids = <30 31 32>;
+        error_sources = <&rpm_error_detect &coolant_overtemp &oil_pressure_low>;
         
         /* DM1 message configuration */
         pgn = <65226>;  /* J1939 DM1 PGN */
@@ -176,7 +165,7 @@
     eec1_output: engine-controller-1 {
         compatible = "lq,cyclic-output";
         label = "eec1_output";
-        source_signal_id = <20>;  /* Voted RPM */
+        source = <&rpm_voted>;
         output_type = "j1939";
         target_id = <65265>;  /* PGN 0xFEF1 - EEC1 */
         period_us = <100000>; /* 10Hz (100ms) */
@@ -189,7 +178,7 @@
     et1_output: engine-temp {
         compatible = "lq,cyclic-output";
         label = "et1_output";
-        source_signal_id = <3>;  /* Coolant temp */
+        source = <&coolant_temp_adc>;
         output_type = "j1939";
         target_id = <65262>;  /* PGN 0xFEEE - ET1 */
         period_us = <1000000>; /* 1Hz (1s) */
@@ -202,7 +191,7 @@
     efl_p1_output: engine-oil-pressure {
         compatible = "lq,cyclic-output";
         label = "efl_p1_output";
-        source_signal_id = <2>;  /* Oil pressure */
+        source = <&oil_pressure_adc>;
         output_type = "j1939";
         target_id = <65263>;  /* PGN 0xFEEF - EFL/P1 */
         period_us = <1000000>; /* 1Hz (1s) */
@@ -215,7 +204,7 @@
     eec2_output: engine-controller-2 {
         compatible = "lq,cyclic-output";
         label = "eec2_output";
-        source_signal_id = <12>;  /* Fuel rate from CAN */
+        source = <&fuel_rate_can>;
         output_type = "j1939";
         target_id = <65266>;  /* PGN 0xFEF2 - EEC2 */
         period_us = <100000>; /* 10Hz (100ms) */

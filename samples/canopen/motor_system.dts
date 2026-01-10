@@ -46,7 +46,7 @@
         compatible = "lq,cyclic-output";
         output-type = "canopen";
         cob-id = <0x185>;  /* TPDO1: 0x180 + node-id(5) */
-        source-signal = <100>;  /* Motor statusword */
+        source = <100>;  /* Motor statusword */
         period-ms = <1000>;
         label = "motor_status_tx";
     };

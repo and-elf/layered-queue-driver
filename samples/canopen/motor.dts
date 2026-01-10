@@ -77,7 +77,7 @@
         compatible = "lq,cyclic-output";
         output-type = "canopen";
         cob-id = <0x185>;  /* Same as TPDO1 */
-        source-signal = <100>;  /* Statusword (will be packed with velocity/modes) */
+        source = <100>;  /* Statusword (will be packed with velocity/modes) */
         period-ms = <1000>;  /* Match event-timer-ms */
         label = "motor_status_periodic";
     };

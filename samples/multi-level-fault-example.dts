@@ -30,7 +30,6 @@
     temp_sensor: lq-hw-adc-input@0 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <0>;
         adc-channel = <0>;
         stale-us = <100000>;  /* 100ms */
     };
@@ -40,8 +39,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <0>;
-        fault-output-signal-id = <10>;
+        input = <&temp_sensor>;
         
         check-staleness;
         stale-timeout-us = <500000>;  /* 500ms timeout */
@@ -55,8 +53,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <0>;
-        fault-output-signal-id = <11>;
+        input = <&temp_sensor>;
         
         check-range;
         max-value = <1100>;  /* 110.0°C in decidegrees */
@@ -70,8 +67,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <0>;
-        fault-output-signal-id = <12>;
+        input = <&temp_sensor>;
         
         check-range;
         max-value = <1200>;  /* 120.0°C */
@@ -85,8 +81,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <0>;
-        fault-output-signal-id = <13>;
+        input = <&temp_sensor>;
         
         check-range;
         max-value = <1300>;  /* 130.0°C */
@@ -99,7 +94,6 @@
     temp_sensor_b: lq-hw-adc-input@1 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        signal-id = <1>;
         adc-channel = <1>;
         stale-us = <100000>;
     };
@@ -109,8 +103,7 @@
         compatible = "lq,mid-merge";
         status = "okay";
         
-        output-signal-id = <5>;
-        input-signal-ids = <0 1>;
+        sources = <&temp_sensor &temp_sensor_b>;
         voting-method = "median";
         tolerance = <50>;  /* 5.0°C */
         stale-us = <100000>;
@@ -121,8 +114,7 @@
         compatible = "lq,fault-monitor";
         status = "okay";
         
-        input-signal-id = <5>;
-        fault-output-signal-id = <14>;
+        input = <&merged_temp>;
         
         check-status;  /* Detects voting inconsistencies */
         
@@ -135,7 +127,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <5>;  /* Merged temperature */
+        source = <&merged_temp>;
         output-type = "j1939";
         target-id = <0xFEEE>;    /* PGN for engine temperature */
         period-us = <100000>;    /* 100ms / 10Hz */
@@ -146,7 +138,7 @@
         compatible = "lq,cyclic-output";
         status = "okay";
         
-        source-signal-id = <13>;  /* Critical fault flag */
+        source = <&temp_critical_monitor>;
         output-type = "j1939";
         target-id = <0xFECA>;     /* PGN for DM1 diagnostics */
         period-us = <1000000>;    /* 1s / 1Hz */

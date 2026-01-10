@@ -21,28 +21,11 @@
 
 / {
     /* ========================================================================
-     * Signal Definitions
-     * ======================================================================== */
-    
-    /* Hardware inputs */
-    #define SIGNAL_TEMP_ADC         0   /* Raw temperature ADC value */
-    #define SIGNAL_THROTTLE_ADC     1   /* Raw throttle pedal ADC */
-    
-    /* Processed signals */
-    #define SIGNAL_TEMP_CELSIUS     10  /* Temperature in °C */
-    #define SIGNAL_THROTTLE_PCT     11  /* Throttle percentage */
-    #define SIGNAL_MOTOR_CMD        20  /* Final motor command */
-    
-    /* Fault signals */
-    #define SIGNAL_TEMP_FAULT       30  /* 0=OK, 1=warning, 2=critical */
-    
-    /* ========================================================================
      * Hardware Input Layer - ADC Sampling
      * ======================================================================== */
     
     temp_adc: lq-adc@0 {
         compatible = "lq,adc-source";
-        signal-id = <SIGNAL_TEMP_ADC>;
         adc-channel = <0>;
         sample-rate-hz = <10>;          /* 10 Hz temperature sampling */
         staleness-us = <200000>;        /* 200ms timeout */
@@ -50,7 +33,6 @@
     
     throttle_adc: lq-adc@1 {
         compatible = "lq,adc-source";
-        signal-id = <SIGNAL_THROTTLE_ADC>;
         adc-channel = <1>;
         sample-rate-hz = <100>;         /* 100 Hz throttle sampling */
         staleness-us = <20000>;         /* 20ms timeout */
@@ -66,8 +48,7 @@
      */
     temp_scale: lq-scale@0 {
         compatible = "lq,scale";
-        input-signal-id = <SIGNAL_TEMP_ADC>;
-        output-signal-id = <SIGNAL_TEMP_CELSIUS>;
+        source = <&temp_adc>;
         scale-factor = <37>;            /* 37/1000 = 0.037 °C per ADC count */
         offset = <0>;
         clamp-min = <0>;                /* Min 0°C */
@@ -83,8 +64,7 @@
      */
     throttle_scale: lq-scale@1 {
         compatible = "lq,scale";
-        input-signal-id = <SIGNAL_THROTTLE_ADC>;
-        output-signal-id = <SIGNAL_THROTTLE_PCT>;
+        source = <&throttle_adc>;
         scale-factor = <488>;           /* 488/1000 * 4095 ≈ 2000 */
         offset = <0>;
         clamp-min = <0>;
@@ -100,8 +80,7 @@
      */
     temp_fault_warning: lq-fault-monitor@0 {
         compatible = "lq,fault-monitor";
-        input-signal-id = <SIGNAL_TEMP_CELSIUS>;
-        fault-output-signal-id = <SIGNAL_TEMP_FAULT>;
+        input = <&temp_scale>;
         
         check-range;
         min-value = <0>;
@@ -122,8 +101,7 @@
      */
     temp_fault_critical: lq-fault-monitor@1 {
         compatible = "lq,fault-monitor";
-        input-signal-id = <SIGNAL_TEMP_CELSIUS>;
-        fault-output-signal-id = <SIGNAL_TEMP_FAULT>;
+        input = <&temp_scale>;
         
         check-range;
         min-value = <0>;
@@ -147,8 +125,7 @@
     /* Copy throttle to motor command signal */
     motor_cmd_copy: lq-scale@2 {
         compatible = "lq,scale";
-        input-signal-id = <SIGNAL_THROTTLE_PCT>;
-        output-signal-id = <SIGNAL_MOTOR_CMD>;
+        source = <&throttle_scale>;
         scale-factor = <1000>;          /* 1:1 copy */
         offset = <0>;
     };
@@ -156,7 +133,7 @@
     /* Transmit motor command via CAN */
     motor_output: lq-cyclic-output@0 {
         compatible = "lq,cyclic-j1939";
-        signal-id = <SIGNAL_MOTOR_CMD>;
+        source = <&motor_cmd_copy>;
         pgn = <0xCF00300>;              /* Motor control PGN */
         period-us = <10000>;            /* 100 Hz (10ms period) */
         priority = <3>;
@@ -165,7 +142,7 @@
     /* Transmit temperature for monitoring */
     temp_output: lq-cyclic-output@1 {
         compatible = "lq,cyclic-j1939";
-        signal-id = <SIGNAL_TEMP_CELSIUS>;
+        source = <&temp_scale>;
         pgn = <0xFEEE00>;               /* Engine temperature PGN */
         period-us = <100000>;           /* 10 Hz (100ms period) */
         priority = <6>;
@@ -174,7 +151,7 @@
     /* Transmit fault status */
     fault_output: lq-cyclic-output@2 {
         compatible = "lq,cyclic-j1939";
-        signal-id = <SIGNAL_TEMP_FAULT>;
+        source = <&temp_fault_warning>;
         pgn = <0xFECA00>;               /* Diagnostic message PGN */
         period-us = <100000>;           /* 10 Hz */
         priority = <6>;
