@@ -62,7 +62,7 @@ static int enqueue_pending(struct lq_crosscheck_ctx *ctx,
     pending->timestamp_ms = timestamp_ms;
     pending->waiting = true;
     
-    ctx->pending_tail = (ctx->pending_tail + 1) % LQ_CROSSCHECK_QUEUE_SIZE;
+    ctx->pending_tail = (uint8_t)((ctx->pending_tail + 1) % LQ_CROSSCHECK_QUEUE_SIZE);
     ctx->pending_count++;
     
     return 0;
@@ -73,7 +73,7 @@ static void dequeue_pending(struct lq_crosscheck_ctx *ctx)
 {
     if (ctx->pending_count > 0) {
         ctx->pending[ctx->pending_head].waiting = false;
-        ctx->pending_head = (ctx->pending_head + 1) % LQ_CROSSCHECK_QUEUE_SIZE;
+        ctx->pending_head = (uint8_t)((ctx->pending_head + 1) % LQ_CROSSCHECK_QUEUE_SIZE);
         ctx->pending_count--;
     }
 }
@@ -167,7 +167,7 @@ int lq_crosscheck_send_event(struct lq_crosscheck_ctx *ctx,
         .magic_start = LQ_CROSSCHECK_MAGIC_START,
         .sequence = ctx->tx_sequence,
         .event_type = event->type,
-        .flags = event->flags,
+        .flags = (uint8_t)event->flags,
         .target_id = event->target_id,
         .value = event->value,
         .magic_end = LQ_CROSSCHECK_MAGIC_END,
