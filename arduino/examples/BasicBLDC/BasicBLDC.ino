@@ -28,8 +28,8 @@ void setup() {
   motor_config.deadtime_ns = 500;         // 500ns deadtime
   motor_config.max_duty_cycle = 9500;     // 95% max duty cycle (0-10000 scale)
   
-  // Initialize motor
-  if (lq_bldc_init(&motor, &motor_config) != 0) {
+  // Initialize motor with ID 0
+  if (lq_bldc_init(&motor, &motor_config, 0) != 0) {
     Serial.println("ERROR: Failed to initialize motor!");
     while (1) { delay(100); }
   }

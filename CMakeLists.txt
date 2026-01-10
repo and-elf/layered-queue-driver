@@ -357,12 +357,12 @@ function(add_arduino_examples_for_board BOARD_FQBN BOARD_NAME)
         
         # Skip platform-specific examples for wrong board
         set(SKIP_EXAMPLE FALSE)
-        if(${BOARD_NAME} STREQUAL "avr")
+        if(${BOARD_NAME} MATCHES "avr")
             # AVR can't build ESP32/SAMD specific examples
             if(${EXAMPLE_NAME} MATCHES "ESP32" OR ${EXAMPLE_NAME} MATCHES "SAMD")
                 set(SKIP_EXAMPLE TRUE)
             endif()
-        elseif(${BOARD_NAME} STREQUAL "esp32")
+        elseif(${BOARD_NAME} MATCHES "esp32")
             # ESP32 can't build SAMD specific examples
             if(${EXAMPLE_NAME} MATCHES "SAMD")
                 set(SKIP_EXAMPLE TRUE)
