@@ -22,8 +22,7 @@
     temp_sensor: lq-hw-adc-input@0 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        adc-channel = <0>;
-        adc-device = <&adc0>;
+        io-channels = <&adc0 0>;  /* ADC0 channel 0 */
         isr-priority = <3>;
         stale-us = <50000>;  /* 50ms */
     };
@@ -32,8 +31,7 @@
     speed_sensor: lq-hw-adc-input@1 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        adc-channel = <1>;
-        adc-device = <&adc0>;
+        io-channels = <&adc0 1>;  /* ADC0 channel 1 */
         isr-priority = <3>;
         stale-us = <20000>;  /* 20ms */
     };
@@ -42,8 +40,7 @@
     pressure_sensor: lq-hw-adc-input@2 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        adc-channel = <2>;
-        adc-device = <&adc0>;
+        io-channels = <&adc0 2>;  /* ADC0 channel 2 */
         isr-priority = <4>;
         stale-us = <100000>;  /* 100ms */
     };

@@ -33,7 +33,7 @@
     canopen: canopen-protocol@0 {
         compatible = "lq,protocol-canopen";
         node-id = <5>;
-        can-interface = "can0";
+        can-controller = <&can0>;
         
         /* Device identity - will be filled from EDS */
         /* PDO mappings - will be generated from EDS */

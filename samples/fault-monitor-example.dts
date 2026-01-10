@@ -15,14 +15,14 @@
     sensor_a: lq-hw-adc-input@0 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        adc-channel = <0>;
+        io-channels = <&adc0 0>;  /* ADC0 channel 0 */
         stale-us = <10000>;  /* 10ms */
     };
     
     sensor_b: lq-hw-adc-input@1 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        adc-channel = <1>;
+        io-channels = <&adc0 1>;  /* ADC0 channel 1 */
         stale-us = <10000>;
     };
     
@@ -62,7 +62,7 @@
     temp_sensor: lq-hw-adc-input@2 {
         compatible = "lq,hw-adc-input";
         status = "okay";
-        adc-channel = <2>;
+        io-channels = <&adc0 2>;  /* ADC0 channel 2 */
         stale-us = <100000>;  /* 100ms */
     };
     

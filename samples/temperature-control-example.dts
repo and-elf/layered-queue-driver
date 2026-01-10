@@ -27,7 +27,7 @@
     /* Temperature sensor ADC */
     temp_adc: lq-adc@0 {
         compatible = "lq,adc-source";
-        adc-channel = <0>;
+        io-channels = <&adc0 0>;        /* ADC0 channel 0 */
         sample-rate-hz = <10>;          /* 10 Hz sampling */
         staleness-us = <200000>;        /* 200ms timeout */
     };
@@ -35,7 +35,7 @@
     /* Heater feedback GPIO (verify heater is actually on) */
     heater_feedback: lq-gpio@0 {
         compatible = "lq,gpio-source";
-        gpio-pin = <15>;                /* GPIO pin 15 */
+        gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
         sample-rate-hz = <100>;         /* 100 Hz verification */
         staleness-us = <20000>;         /* 20ms timeout */
     };

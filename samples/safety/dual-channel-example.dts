@@ -187,8 +187,7 @@
     /* Monitor crosscheck fail GPIO as input */
     crosscheck_fail_input: lq-hw-gpio-input@26 {
         compatible = "lq,hw-gpio-input";
-        gpio-pin = <26>;
-        active-high;
+        gpios = <&gpio0 26 GPIO_ACTIVE_HIGH>;
         label = "crosscheck_fail_status";
     };
 

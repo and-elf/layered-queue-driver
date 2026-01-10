@@ -2,11 +2,14 @@
 
 ## Unified Phandle-Based API (v2.0)
 
-The Layered Queue Driver now uses a unified, phandle-based API that eliminates manual signal ID tracking and provides consistent property names across all node types.
+The Layered Queue Driver now uses a unified, phandle-based API that:
+- Eliminates manual signal ID tracking
+- Provides consistent property names across all node types
+- Uses Zephyr-style hardware phandles for peripherals (ADC, GPIO, SPI, etc.)
 
 ## Key Changes
 
-### Before (v1.x - Manual Signal IDs)
+### Signal References: Before (v1.x - Manual Signal IDs)
 
 ```dts
 temp_sensor: lq-hw-adc@0 {
@@ -24,7 +27,7 @@ monitor: lq-fault-monitor@0 {
 };
 ```
 
-### After (v2.0 - Phandle References)
+### Signal References: After (v2.0 - Phandle References)
 
 ```dts
 temp_sensor: lq-hw-adc@0 {
@@ -39,6 +42,44 @@ monitor: lq-fault-monitor@0 {
     input = <&temp_scaled>;   /* Unified property name */
 };
 ```
+
+### Hardware References: Zephyr-Style Phandles (v2.0)
+
+We now use standard Zephyr device tree bindings for hardware peripherals:
+
+```dts
+/* ADC channels - use io-channels property */
+temp_sensor: lq-hw-adc@0 {
+    io-channels = <&adc0 0>;  /* ADC0, channel 0 */
+};
+
+/* GPIO pins - use gpios property with flags */
+status_led: lq-hw-gpio@0 {
+    gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+};
+
+/* SPI devices - use spi-device phandle */
+external_sensor: lq-hw-spi@0 {
+    spi-device = <&spi0>;
+    data-ready-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+};
+
+/* CAN controllers - use can-controller phandle */
+canopen: canopen-protocol@0 {
+    can-controller = <&can0>;
+};
+
+/* I2C/Sensor devices - reference actual sensor nodes */
+temp_i2c: lq-hw-sensor@0 {
+    sensor-device = <&tmp117_engine>;
+};
+```
+
+**Benefits:**
+- Board portability: Change `&adc0` to `&adc1` to retarget
+- Type safety: Invalid phandles caught at parse time
+- Zephyr integration: Works seamlessly with Zephyr device tree
+- Documentation: Hardware connections are explicit
 
 ## Unified Property Names
 
