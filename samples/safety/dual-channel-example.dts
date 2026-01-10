@@ -32,7 +32,6 @@
     speed_sensor_1: lq-hw-adc@0 {
         compatible = "lq,hw-adc";
         channel = <0>;
-        signal-id = <0>;
         label = "speed_sensor_primary";
     };
 
@@ -40,7 +39,6 @@
     speed_sensor_2: lq-hw-adc@1 {
         compatible = "lq,hw-adc";
         channel = <1>;
-        signal-id = <1>;
         label = "speed_sensor_secondary";
     };
 
@@ -48,7 +46,6 @@
     temp_sensor: lq-hw-adc@2 {
         compatible = "lq,hw-adc";
         channel = <2>;
-        signal-id = <2>;
         label = "temperature_sensor";
     };
 
@@ -56,7 +53,6 @@
     brake_pedal: lq-hw-adc@3 {
         compatible = "lq,hw-adc";
         channel = <3>;
-        signal-id = <3>;
         label = "brake_pedal_position";
     };
 
@@ -67,8 +63,7 @@
     /* Voter: Select median of two speed sensors */
     speed_voted: lq-mid-merge@0 {
         compatible = "lq,mid-merge";
-        input-signal-ids = <0 1>;  /* speed_sensor_1, speed_sensor_2 */
-        output-signal-id = <10>;
+        sources = <&speed_sensor_1 &speed_sensor_2>;
         algorithm = "median";
         tolerance = <50>;  /* ±50 counts allowed difference */
         label = "speed_voted";
@@ -77,8 +72,7 @@
     /* Scale temperature to decidegrees C */
     temp_scaled: lq-scale@0 {
         compatible = "lq,scale";
-        source-signal = <2>;
-        output-signal = <11>;
+        source = <&temp_sensor>;
         scale-factor = <100>;
         offset = <0>;
         label = "temperature_celsius";
@@ -91,8 +85,7 @@
     /* Overspeed detection */
     overspeed_monitor: lq-fault-monitor@0 {
         compatible = "lq,fault-monitor";
-        input-signal = <10>;  /* speed_voted */
-        fault-output-signal = <20>;
+        input = <&speed_voted>;
         check-range;
         min-value = <0>;
         max-value = <5000>;  /* Max speed threshold */
@@ -104,8 +97,7 @@
     /* Overtemperature detection */
     overtemp_monitor: lq-fault-monitor@1 {
         compatible = "lq,fault-monitor";
-        input-signal = <11>;  /* temp_scaled */
-        fault-output-signal = <21>;
+        input = <&temp_scaled>;
         check-range;
         min-value = <-400>;   /* -40.0°C */
         max-value = <1500>;   /* 150.0°C */
@@ -117,8 +109,7 @@
     /* Speed sensor disagreement */
     speed_disagreement: lq-fault-monitor@2 {
         compatible = "lq,fault-monitor";
-        input-signal = <10>;  /* speed_voted */
-        fault-output-signal = <22>;
+        input = <&speed_voted>;
         check-status;  /* Monitor merge status flags */
         expected-response-ms = <50>;
         label = "speed_sensor_disagreement";
@@ -133,7 +124,7 @@
         compatible = "lq,cyclic-output";
         output-type = "j1939";
         target-id = <0xFEF1>;  /* Engine Speed PGN */
-        source-signal = <10>;  /* speed_voted */
+        source = <&speed_voted>;
         period-ms = <100>;
         expected-response-ms = <150>;
         label = "speed_can_output";
@@ -144,7 +135,7 @@
         compatible = "lq,cyclic-output";
         output-type = "gpio";
         target-id = <12>;  /* GPIO 12 - brake light */
-        source-signal = <3>;  /* brake_pedal */
+        source = <&brake_pedal>;
         period-ms = <50>;
         expected-response-ms = <100>;
         label = "brake_light";
@@ -155,7 +146,7 @@
         compatible = "lq,cyclic-output";
         output-type = "j1939";
         target-id = <0xFECA>;  /* DM1 - Active faults */
-        source-signal = <20>;  /* overspeed_fault */
+        source = <&overspeed_monitor>;
         period-ms = <1000>;
         expected-response-ms = <1100>;
         label = "fault_can_output";
@@ -197,7 +188,6 @@
     crosscheck_fail_input: lq-hw-gpio-input@26 {
         compatible = "lq,hw-gpio-input";
         gpio-pin = <26>;
-        signal-id = <30>;
         active-high;
         label = "crosscheck_fail_status";
     };
@@ -205,8 +195,7 @@
     /* If crosscheck fails, enter safe state */
     safe_state_trigger: lq-fault-monitor@10 {
         compatible = "lq,fault-monitor";
-        input-signal = <30>;  /* crosscheck_fail_status */
-        fault-output-signal = <31>;
+        input = <&crosscheck_fail_input>;
         check-range;
         min-value = <0>;
         max-value = <0>;  /* Trigger if GPIO goes high */

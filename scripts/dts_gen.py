@@ -222,19 +222,23 @@ def generate_device_tree_content(eds_data, label, address):
 
 
 def parse_property_value(value):
-    """Parse DTS property value - handle <>, "", arrays"""
+    """Parse DTS property value - handle <>, "", arrays, phandles"""
     value = value.strip().rstrip(';')
     
-    # Phandle reference: <&sensor>
-    if value.startswith('<&'):
-        return value[2:-1]
+    # Phandle reference: <&sensor> or <&sensor1 &sensor2>
+    if value.startswith('<') and '&' in value:
+        inner = value[1:-1].strip()
+        # Multiple phandles: <&s1 &s2 &s3>
+        if ' ' in inner:
+            refs = [ref.strip()[1:] if ref.strip().startswith('&') else ref.strip() 
+                   for ref in inner.split()]
+            return refs
+        # Single phandle: <&sensor>
+        return inner[1:] if inner.startswith('&') else inner
     
     # Array of integers: <1 2 3>
     if value.startswith('<') and value.endswith('>'):
         inner = value[1:-1].strip()
-        # Check if it contains phandle
-        if '&' in inner:
-            return inner
         nums = inner.split()
         if len(nums) == 1:
             try:
@@ -297,6 +301,117 @@ def simple_dts_parser(dts_content):
                 node.properties[bool_prop] = True
         
         nodes.append(node)
+    
+    return nodes
+
+def resolve_phandles_and_assign_ids(nodes):
+    """
+    Resolve phandle references to signal IDs and auto-assign IDs.
+    
+    Unified property names:
+    - source: single input (scale, remap, PID)
+    - sources: multiple inputs (merge/voter)
+    - input: monitoring input (fault-monitor)
+    - output: explicit output signal (optional, auto-assigned if not specified)
+    
+    Backward compatibility:
+    - signal-id, source-signal, input-signal, etc. still work
+    """
+    # Build label->node map
+    label_map = {node.label: node for node in nodes}
+    
+    # Initialize signal_id attribute for all nodes
+    for node in nodes:
+        node.signal_id = None
+    
+    # Auto-assign signal IDs in order
+    signal_id = 0
+    for node in nodes:
+        # Skip if already has explicit signal-id
+        if 'signal_id' in node.properties:
+            node.signal_id = node.properties['signal_id']
+            signal_id = max(signal_id, node.signal_id + 1)
+        # Hardware inputs and processing nodes get signal IDs
+        elif (node.compatible.startswith('lq,hw-') or 
+              node.compatible in ['lq,scale', 'lq,remap', 'lq,pid', 'lq,mid-merge']):
+            node.signal_id = signal_id
+            node.properties['signal_id'] = signal_id
+            signal_id += 1
+        # Fault monitors create output signals
+        elif node.compatible == 'lq,fault-monitor':
+            if 'fault_output_signal_id' not in node.properties:
+                node.properties['fault_output_signal_id'] = signal_id
+                # Also set signal_id for the fault monitor node itself
+                node.signal_id = signal_id
+                signal_id += 1
+    
+    # Resolve phandle references
+    for node in nodes:
+        # Unified: source (single input)
+        if 'source' in node.properties:
+            ref = node.properties['source']
+            if isinstance(ref, str) and ref in label_map:
+                if label_map[ref].signal_id is not None:
+                    node.properties['source_signal'] = label_map[ref].signal_id
+        # Backward compat: source-signal
+        elif 'source_signal' in node.properties:
+            ref = node.properties['source_signal']
+            if isinstance(ref, str) and ref in label_map:
+                if label_map[ref].signal_id is not None:
+                    node.properties['source_signal'] = label_map[ref].signal_id
+        
+        # Unified: sources (multiple inputs)
+        if 'sources' in node.properties:
+            refs = node.properties['sources']
+            if not isinstance(refs, list):
+                refs = [refs]
+            ids = []
+            for ref in refs:
+                if isinstance(ref, str) and ref in label_map:
+                    if label_map[ref].signal_id is not None:
+                        ids.append(label_map[ref].signal_id)
+                elif isinstance(ref, int):
+                    ids.append(ref)
+            node.properties['input_signal_ids'] = ids
+        # Backward compat: input-signal-ids
+        elif 'input_signal_ids' in node.properties:
+            refs = node.properties['input_signal_ids']
+            if not isinstance(refs, list):
+                refs = [refs]
+            ids = []
+            for ref in refs:
+                if isinstance(ref, str) and ref in label_map:
+                    if label_map[ref].signal_id is not None:
+                        ids.append(label_map[ref].signal_id)
+                elif isinstance(ref, int):
+                    ids.append(ref)
+            node.properties['input_signal_ids'] = ids
+        
+        # Unified: input (fault monitor, etc)
+        if 'input' in node.properties:
+            ref = node.properties['input']
+            if isinstance(ref, str) and ref in label_map:
+                if label_map[ref].signal_id is not None:
+                    node.properties['input_signal'] = label_map[ref].signal_id
+        # Backward compat: input-signal
+        elif 'input_signal' in node.properties:
+            ref = node.properties['input_signal']
+            if isinstance(ref, str) and ref in label_map:
+                if label_map[ref].signal_id is not None:
+                    node.properties['input_signal'] = label_map[ref].signal_id
+        
+        # Unified: output (explicit output signal)
+        if 'output' in node.properties:
+            ref = node.properties['output']
+            if isinstance(ref, str) and ref in label_map:
+                if label_map[ref].signal_id is not None:
+                    node.properties['output_signal'] = label_map[ref].signal_id
+        # Backward compat: output-signal
+        elif 'output_signal' in node.properties:
+            ref = node.properties['output_signal']
+            if isinstance(ref, str) and ref in label_map:
+                if label_map[ref].signal_id is not None:
+                    node.properties['output_signal'] = label_map[ref].signal_id
     
     return nodes
 
@@ -1417,6 +1532,9 @@ def main():
         dts_content = f.read()
     
     nodes = simple_dts_parser(dts_content)
+    
+    # Resolve phandle references and auto-assign signal IDs
+    nodes = resolve_phandles_and_assign_ids(nodes)
     
     # Generate files
     generate_header(nodes, output_dir / 'lq_generated.h')

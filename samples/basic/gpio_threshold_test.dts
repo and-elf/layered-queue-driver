@@ -14,15 +14,13 @@
     temp_sensor: lq-hw-adc@0 {
         compatible = "lq,hw-adc";
         channel = <0>;
-        signal-id = <0>;
         label = "temperature_raw";
     };
 
     /* Scale raw ADC value to temperature in decidegrees C */
     temp_scaled: lq-scale@0 {
         compatible = "lq,scale";
-        source-signal = <0>;     /* temp_sensor raw */
-        output-signal = <1>;     /* temp_scaled */
+        source = <&temp_sensor>;
         scale-factor = <100>;    /* ADC units to decidegrees */
         offset = <0>;
         label = "temperature_scaled";
@@ -31,8 +29,7 @@
     /* Fault monitor: if temperature > 3000 (300.0°C), set alarm signal */
     overtemp_monitor: lq-fault-monitor@0 {
         compatible = "lq,fault-monitor";
-        input-signal = <1>;      /* temp_scaled */
-        fault-output-signal = <2>;  /* alarm signal */
+        input = <&temp_scaled>;
         check-range;
         min-value = <0>;
         max-value = <3000>;      /* Max 300.0°C */
@@ -46,7 +43,7 @@
         compatible = "lq,cyclic-output";
         output-type = "gpio";
         target-id = <13>;        /* GPIO pin 13 (LED) */
-        source-signal = <2>;     /* alarm signal (0=OK, >0=fault) */
+        source = <&overtemp_monitor>;
         period-ms = <100>;       /* Check every 100ms */
         expected-response-ms = <150>;  /* Should respond within period + margin */
         label = "alarm_led";

@@ -137,65 +137,63 @@ void spi_poll_task(void)
 
 ### 2. Device Tree Configuration
 
-Define the complete pipeline in device tree (see [samples/automotive/app.dts](samples/automotive/app.dts) for complete example):
+**NEW in v2.0:** Unified phandle-based API - no manual signal ID tracking! (see [docs/dts-api-migration.md](docs/dts-api-migration.md))
+
+Define the complete pipeline in device tree:
 
 ```dts
 / {
-    /* Engine configuration */
-    engine: lq-engine {
-        compatible = "lq,engine";
+    config {
+        compatible = "lq,config";
         max-signals = <32>;
-        max-merges = <8>;
         max-cyclic-outputs = <16>;
     };
     
-    /* Hardware inputs - ISRs auto-generated */
-    rpm_adc: lq-hw-adc-input@0 {
-        compatible = "lq,hw-adc-input";
-        signal-id = <0>;
-        adc-channel = <0>;
+    /* Hardware inputs - signal IDs auto-assigned */
+    rpm_adc: lq-hw-adc@0 {
+        compatible = "lq,hw-adc";
+        channel = <0>;
         stale-us = <5000>;
     };
     
-    rpm_spi: lq-hw-spi-input@0 {
-        compatible = "lq,hw-spi-input";
-        signal-id = <1>;
-        spi-device = <&spi0>;
+    rpm_spi: lq-hw-spi@1 {
+        compatible = "lq,hw-spi";
+        device = <&spi0>;
         stale-us = <5000>;
     };
     
-    /* Redundancy management */
-    rpm_merge: lq-mid-merge@0 {
+    /* Redundancy management - phandle references */
+    rpm_merged: lq-mid-merge@0 {
         compatible = "lq,mid-merge";
-        output-signal-id = <10>;
-        input-signal-ids = <0 1>;
-        voting-method = "median";
+        sources = <&rpm_adc &rpm_spi>;  /* Reference nodes directly */
+        algorithm = "median";
         tolerance = <50>;
     };
     
-    /* Cyclic outputs - dispatch auto-generated */
-    rpm_output: lq-cyclic-output@0 {
+    /* Cyclic outputs - reference signal sources */
+    rpm_can: lq-cyclic-output@0 {
         compatible = "lq,cyclic-output";
-        source-signal-id = <10>;
+        source = <&rpm_merged>;      /* Phandle instead of ID */
         output-type = "j1939";
-        target-id = <0xFEF1>;  /* J1939 PGN */
-        period-us = <100000>;  /* 10Hz */
-    };
-        
-        gpio_warning: lq-output@1 {
-            compatible = "lq,gpio-output";
-            source = <&engine_sensor>;
-            pin = <5>;
-            trigger-status = <1>;  /* >= DEGRADED */
-        };
+        target-id = <0xFEF1>;        /* J1939 Engine Speed PGN */
+        period-ms = <100>;           /* 10Hz */
     };
     
-    /* Synchronized updates */
-    sync_groups {
-        snapshot: lq-sync-group@0 {
-            period-us = <100000>;
-            members = <&can_speed &gpio_warning>;
-        };
+    /* Fault detection */
+    overspeed: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        input = <&rpm_merged>;
+        check-range;
+        max-value = <6000>;
+    };
+    
+    /* Warning output when fault detected */
+    warning_led: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-output";
+        source = <&overspeed>;       /* Output fault status */
+        output-type = "gpio";
+        target-id = <13>;
+        period-ms = <50>;
     };
 };
 ```
