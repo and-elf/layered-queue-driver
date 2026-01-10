@@ -34,6 +34,41 @@ description: |
 compatible: "lq,pid-controller"
 
 properties:
+  setpoint:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Setpoint source node phandle (desired value).
+      Example: setpoint = <&temp_setpoint>;
+
+  measurement:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Measurement feedback node phandle (actual value).
+      Example: measurement = <&temp_sensor>;
+      Usually comes from a verified output or sensor.
+
+  setpoint-signal-id:
+    type: int
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Setpoint signal ID (desired value).
+      Use 'setpoint' phandle property instead for v2.0.
+
+  measurement-signal-id:
+    type: int
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Measurement signal ID (actual value).
+      Use 'measurement' phandle property instead for v2.0.
+
+  output-signal-id:
+    type: int
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Output signal ID for PID result.
+      In v2.0, output IDs are auto-assigned.
+
+properties:
   setpoint-signal-id:
     type: int
     required: true

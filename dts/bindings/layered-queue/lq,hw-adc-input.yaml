@@ -15,21 +15,32 @@ compatible: "lq,hw-adc-input"
 properties:
   signal-id:
     type: int
-    required: true
+    required: false
     description: |
-      Signal ID in the engine's signal array.
-      This is where ingested samples will be stored.
+      (v1.x - DEPRECATED) Signal ID in the engine's signal array.
+      In v2.0, signal IDs are auto-assigned in node definition order.
+      Only specify this for backward compatibility.
+
+  io-channels:
+    type: phandle-array
+    description: |
+      (v2.0 - PREFERRED) ADC controller and channel using standard Zephyr binding.
+      Format: <&adc_controller channel_number>
+      Example: io-channels = <&adc0 2>;
+      
+      This follows the standard Zephyr io-channels specification.
 
   adc-channel:
     type: int
-    required: true
-    description: ADC channel number (hardware specific)
+    description: |
+      (v1.x - DEPRECATED) ADC channel number.
+      Use io-channels property instead for v2.0.
 
   adc-device:
     type: phandle
     description: |
-      Reference to the ADC device node.
-      If omitted, uses the default ADC device.
+      (v1.x - DEPRECATED) Reference to the ADC device node.
+      Use io-channels property instead for v2.0.
 
   isr-priority:
     type: int

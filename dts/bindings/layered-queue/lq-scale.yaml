@@ -28,15 +28,33 @@ description: |
 compatible: "lq,scale"
 
 properties:
+  source:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Source node phandle to scale.
+      Example: source = <&temp_adc>;
+      
+      This is the recommended way to reference signals in v2.0.
+
+  input:
+    type: phandle
+    description: |
+      (v2.0 - ALTERNATIVE) Alias for 'source' property.
+      Some nodes may prefer 'input' for semantic clarity.
+
   input-signal-id:
     type: int
-    required: true
-    description: Source signal ID to scale
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Source signal ID to scale.
+      Use 'source' phandle property instead for v2.0.
 
   output-signal-id:
     type: int
-    required: true
-    description: Destination signal ID (scaled result)
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Destination signal ID (scaled result).
+      In v2.0, output IDs are auto-assigned.
 
   scale-factor:
     type: int

@@ -29,6 +29,42 @@ description: |
 compatible: "lq,verified-output"
 
 properties:
+  command:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Command source node phandle.
+      Example: command = <&pid_output>;
+      This is what we want the output to be.
+
+  verification:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Verification feedback node phandle.
+      Example: verification = <&position_sensor>;
+      This is what the output actually is (measured).
+
+  command-signal-id:
+    type: int
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Command signal ID.
+      Use 'command' phandle property instead for v2.0.
+
+  verification-signal-id:
+    type: int
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Verification signal ID.
+      Use 'verification' phandle property instead for v2.0.
+
+  output-signal-id:
+    type: int
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Output signal ID for verified result.
+      In v2.0, output IDs are auto-assigned.
+
+properties:
   command-signal-id:
     type: int
     required: true

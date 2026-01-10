@@ -13,12 +13,19 @@ description: |
 compatible: "lq,cyclic-output"
 
 properties:
+  source:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Source node phandle to read and transmit.
+      Example: source = <&merge_result>;
+      Typically points to a merge or validator output.
+
   source-signal-id:
     type: int
-    required: true
+    required: false
     description: |
-      Signal ID to read and transmit.
-      Typically a merge or validator output.
+      (v1.x - DEPRECATED) Signal ID to read and transmit.
+      Use 'source' phandle property instead for v2.0.
 
   output-type:
     type: string

@@ -1,4 +1,6 @@
 name: layered-queue
 build:
-  cmake: drivers
-  kconfig: drivers/layered_queue/Kconfig
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .

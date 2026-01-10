@@ -1,0 +1,40 @@
+# Example: How to integrate layered-queue-driver into your Zephyr project
+# Add this to your project's west.yml manifest
+
+manifest:
+  projects:
+    # Your existing Zephyr project dependencies...
+    
+    # Add the layered queue driver module
+    - name: layered-queue-driver
+      url: https://github.com/your-org/layered-queue-driver
+      revision: main
+      path: modules/layered-queue
+
+  self:
+    path: application
+
+# Then in your application's prj.conf:
+# CONFIG_LQ_DRIVER=y
+# CONFIG_LQ_MAX_SIGNALS=64
+# CONFIG_LQ_MAX_CYCLIC_OUTPUTS=32
+
+# And create an overlay file (e.g., app.overlay):
+# / {
+#     temp_sensor: lq-hw-adc {
+#         compatible = "lq,hw-adc-input";
+#         label = "TEMP_SENSOR";
+#         io-channels = <&adc0 2>;
+#     };
+#     
+#     temp_scaled: lq-scale {
+#         compatible = "lq-scale";
+#         label = "TEMP_CELSIUS";
+#         source = <&temp_sensor>;
+#         scale-factor = <100>;
+#         offset = <-27315>;
+#     };
+# };
+
+# Build with:
+# west build -b your_board application

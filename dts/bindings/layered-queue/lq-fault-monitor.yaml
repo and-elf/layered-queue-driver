@@ -19,15 +19,25 @@ description: |
 compatible: "lq,fault-monitor"
 
 properties:
+  input:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Node phandle to monitor for faults.
+      Example: input = <&temp_scaled>;
+
   input-signal-id:
     type: int
-    required: true
-    description: Signal ID to monitor
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Signal ID to monitor.
+      Use 'input' phandle property instead for v2.0.
 
   fault-output-signal-id:
     type: int
-    required: true
-    description: Signal ID for fault output (0=OK, 1=FAULT)
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Signal ID for fault output (0=OK, 1=FAULT).
+      In v2.0, output IDs are auto-assigned.
 
   check-staleness:
     type: boolean

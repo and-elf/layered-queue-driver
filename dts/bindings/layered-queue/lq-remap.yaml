@@ -20,14 +20,25 @@ description: |
 compatible: "lq,remap"
 
 properties:
+  input:
+    type: phandle
+    description: |
+      (v2.0 - PREFERRED) Input source node phandle to remap.
+      Example: input = <&joystick_x>;
+
   input-signal-id:
     type: int
-    required: true
-    description: Source signal ID to remap
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Source signal ID to remap.
+      Use 'input' phandle property instead for v2.0.
 
   output-signal-id:
     type: int
-    required: true
+    required: false
+    description: |
+      (v1.x - DEPRECATED) Output signal ID.
+      In v2.0, output IDs are auto-assigned.
     description: Destination signal ID (the remapped function)
 
   function-name:

@@ -16,18 +16,26 @@ description: |
 compatible: "lq,mid-merge"
 
 properties:
+  sources:
+    type: phandles
+    description: |
+      (v2.0 - PREFERRED) Array of source node phandles to merge.
+      Example: sources = <&sensor_a &sensor_b &sensor_c>;
+      Must have at least 2 sources for voting to work.
+
   output-signal-id:
     type: int
-    required: true
+    required: false
     description: |
-      Signal ID where merge result is stored.
-      This creates a new internal signal.
+      (v1.x - DEPRECATED) Signal ID where merge result is stored.
+      In v2.0, output IDs are auto-assigned.
 
   input-signal-ids:
     type: array
-    required: true
+    required: false
     description: |
-      Array of input signal IDs to merge.
+      (v1.x - DEPRECATED) Array of input signal IDs to merge.
+      Use 'sources' phandle array instead for v2.0.
       All inputs must be valid for merge to succeed.
 
   voting-method:
