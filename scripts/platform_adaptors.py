@@ -37,6 +37,40 @@ class PlatformAdaptor:
         raise NotImplementedError("Subclass must implement generate_platform_header")
 
 
+class BaremetalAdaptor(PlatformAdaptor):
+    """Baremetal/Native platform adaptor - minimal stub implementation"""
+    
+    def __init__(self):
+        super().__init__("baremetal")
+    
+    def generate_isr_wrapper(self, node, signal_id):
+        """No platform-specific ISR needed for baremetal"""
+        return ""
+    
+    def generate_peripheral_init(self, nodes):
+        """Minimal peripheral init - user provides platform-specific code"""
+        code = """
+/* Baremetal/Native Platform Initialization
+ * 
+ * This is a stub - implement platform-specific initialization in your code.
+ * For native builds, you typically don't need hardware init.
+ * For baremetal targets, add your peripheral init here.
+ */
+void lq_platform_init(void) {
+    // Add your platform-specific initialization here
+}
+"""
+        return code
+    
+    def generate_platform_header(self):
+        """Minimal header includes"""
+        return """
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+"""
+
+
 class STM32Adaptor(PlatformAdaptor):
     """STM32 HAL adaptor - generates real interrupt handlers"""
     
@@ -828,6 +862,8 @@ void lq_platform_peripherals_init(void)
 def get_platform_adaptor(platform):
     """Factory function to get the appropriate platform adaptor"""
     adaptors = {
+        'baremetal': BaremetalAdaptor,
+        'native': BaremetalAdaptor,  # Alias for baremetal
         'stm32': STM32Adaptor,
         'samd': SAMDAdaptor,
         'esp32': ESP32Adaptor,
