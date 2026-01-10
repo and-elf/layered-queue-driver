@@ -240,9 +240,74 @@ function(add_lq_application TARGET_NAME)
         message(STATUS "  Target: ${TARGET_NAME} (executable)")
     endif()
     
-    # HIL Tests (only for standalone mode - omitted for now)
+    # HIL Tests (comprehensive test generation for 90-100% coverage)
     if(APP_ENABLE_HIL_TESTS AND NOT IS_ZEPHYR)
-        message(STATUS "  HIL Tests: Enabled (not implemented in Zephyr mode)")
+        message(STATUS "  HIL Tests: Enabled - generating comprehensive coverage tests")
+        
+        # Output directory for HIL test artifacts
+        set(HIL_DIR "${GEN_DIR}/hil")
+        
+        # Generate comprehensive HIL tests from DTS
+        add_custom_command(
+            OUTPUT ${HIL_DIR}/comprehensive_hil_tests.dts
+                   ${HIL_DIR}/test_runner.c
+                   ${HIL_DIR}/${TARGET_NAME}_hil_sut
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${HIL_DIR}
+            # Step 1: Generate comprehensive HIL test DTS
+            COMMAND ${SCRIPT_DIR}/generate_comprehensive_hil_tests.py
+                ${PARSED_DTS}
+                ${HIL_DIR}
+            # Step 2: Generate C test runner from test DTS
+            COMMAND ${SCRIPT_DIR}/hil_test_gen.py
+                ${HIL_DIR}/comprehensive_hil_tests.dts
+                ${HIL_DIR}
+            # Step 3: Build SUT binary with coverage
+            COMMAND ${CMAKE_C_COMPILER}
+                ${GEN_DIR}/main.c
+                ${GEN_DIR}/lq_generated.c
+                -I${CMAKE_SOURCE_DIR}/include
+                -I${GEN_DIR}
+                -DLQ_PLATFORM_NATIVE=1
+                -lpthread
+                $<$<CONFIG:Debug>:--coverage>
+                -o ${HIL_DIR}/${TARGET_NAME}_hil_sut
+            DEPENDS ${GEN_OUTPUTS}
+                    ${SCRIPT_DIR}/generate_comprehensive_hil_tests.py
+                    ${SCRIPT_DIR}/hil_test_gen.py
+            COMMENT "Generating comprehensive HIL tests for ${TARGET_NAME}"
+        )
+        
+        # Build HIL test runner executable
+        add_custom_command(
+            OUTPUT ${HIL_DIR}/${TARGET_NAME}_hil_test_runner
+            COMMAND ${CMAKE_CXX_COMPILER}
+                ${HIL_DIR}/test_runner.c
+                ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
+                ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil_platform.c
+                ${CMAKE_SOURCE_DIR}/src/drivers/lq_j1939.c
+                -I${CMAKE_SOURCE_DIR}/include
+                -lpthread
+                -lgtest
+                -lstdc++
+                -o ${HIL_DIR}/${TARGET_NAME}_hil_test_runner
+            DEPENDS ${HIL_DIR}/test_runner.c
+                    ${CMAKE_SOURCE_DIR}/src/drivers/lq_hil.c
+            COMMENT "Building HIL test runner for ${TARGET_NAME}"
+        )
+        
+        # Target to build HIL tests
+        add_custom_target(${TARGET_NAME}_hil_tests
+            DEPENDS ${HIL_DIR}/${TARGET_NAME}_hil_sut
+                    ${HIL_DIR}/${TARGET_NAME}_hil_test_runner
+        )
+        
+        # Add dependency to main target
+        add_dependencies(${TARGET_NAME} ${TARGET_NAME}_hil_tests)
+        
+        message(STATUS "    Comprehensive HIL tests will be generated")
+        message(STATUS "    Expected coverage: 90-100% of generated code")
+    elseif(APP_ENABLE_HIL_TESTS AND IS_ZEPHYR)
+        message(STATUS "  HIL Tests: Not supported in Zephyr mode")
     endif()
 
 endfunction()
