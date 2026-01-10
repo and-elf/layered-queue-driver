@@ -1,0 +1,218 @@
+/*
+ * Dual-Channel Safety System Example (SIL3/ASIL-D)
+ * 
+ * Two identical MCUs run this same configuration:
+ * - MCU1 and MCU2 independently process inputs
+ * - Each generates identical output events
+ * - Events are cross-checked via UART
+ * - Any mismatch triggers fail-safe GPIO
+ * - Both MCUs monitor fail GPIO to enter safe state
+ * 
+ * Hardware Setup:
+ *   MCU1 TX (UART1) <---> MCU2 RX (UART1)
+ *   MCU1 RX (UART1) <---> MCU2 TX (UART1)
+ *   MCU1 GPIO25 (output) --+-- MCU2 GPIO26 (input)
+ *   MCU2 GPIO25 (output) --+
+ *   
+ *   Fail GPIO is wired-OR: either MCU can trigger fail-safe
+ */
+
+/ {
+    config {
+        compatible = "lq,config";
+        max-signals = <16>;
+        max-cyclic-outputs = <8>;
+    };
+
+    /* ========================================
+     * Hardware Inputs (identical on both MCUs)
+     * ======================================== */
+
+    /* Primary speed sensor (ADC channel 0) */
+    speed_sensor_1: lq-hw-adc@0 {
+        compatible = "lq,hw-adc";
+        channel = <0>;
+        signal-id = <0>;
+        label = "speed_sensor_primary";
+    };
+
+    /* Secondary speed sensor (ADC channel 1) */
+    speed_sensor_2: lq-hw-adc@1 {
+        compatible = "lq,hw-adc";
+        channel = <1>;
+        signal-id = <1>;
+        label = "speed_sensor_secondary";
+    };
+
+    /* Temperature sensor (ADC channel 2) */
+    temp_sensor: lq-hw-adc@2 {
+        compatible = "lq,hw-adc";
+        channel = <2>;
+        signal-id = <2>;
+        label = "temperature_sensor";
+    };
+
+    /* Brake pedal position (ADC channel 3) */
+    brake_pedal: lq-hw-adc@3 {
+        compatible = "lq,hw-adc";
+        channel = <3>;
+        signal-id = <3>;
+        label = "brake_pedal_position";
+    };
+
+    /* ========================================
+     * Signal Processing
+     * ======================================== */
+
+    /* Voter: Select median of two speed sensors */
+    speed_voted: lq-mid-merge@0 {
+        compatible = "lq,mid-merge";
+        input-signal-ids = <0 1>;  /* speed_sensor_1, speed_sensor_2 */
+        output-signal-id = <10>;
+        algorithm = "median";
+        tolerance = <50>;  /* ±50 counts allowed difference */
+        label = "speed_voted";
+    };
+
+    /* Scale temperature to decidegrees C */
+    temp_scaled: lq-scale@0 {
+        compatible = "lq,scale";
+        source-signal = <2>;
+        output-signal = <11>;
+        scale-factor = <100>;
+        offset = <0>;
+        label = "temperature_celsius";
+    };
+
+    /* ========================================
+     * Fault Monitors
+     * ======================================== */
+
+    /* Overspeed detection */
+    overspeed_monitor: lq-fault-monitor@0 {
+        compatible = "lq,fault-monitor";
+        input-signal = <10>;  /* speed_voted */
+        fault-output-signal = <20>;
+        check-range;
+        min-value = <0>;
+        max-value = <5000>;  /* Max speed threshold */
+        fault-level = <3>;   /* Critical fault */
+        expected-response-ms = <20>;  /* Fast detection required */
+        label = "overspeed_fault";
+    };
+
+    /* Overtemperature detection */
+    overtemp_monitor: lq-fault-monitor@1 {
+        compatible = "lq,fault-monitor";
+        input-signal = <11>;  /* temp_scaled */
+        fault-output-signal = <21>;
+        check-range;
+        min-value = <-400>;   /* -40.0°C */
+        max-value = <1500>;   /* 150.0°C */
+        fault-level = <2>;
+        expected-response-ms = <100>;
+        label = "overtemp_fault";
+    };
+
+    /* Speed sensor disagreement */
+    speed_disagreement: lq-fault-monitor@2 {
+        compatible = "lq,fault-monitor";
+        input-signal = <10>;  /* speed_voted */
+        fault-output-signal = <22>;
+        check-status;  /* Monitor merge status flags */
+        expected-response-ms = <50>;
+        label = "speed_sensor_disagreement";
+    };
+
+    /* ========================================
+     * Outputs
+     * ======================================== */
+
+    /* Speed output via CAN (J1939) */
+    speed_output: lq-cyclic-output@0 {
+        compatible = "lq,cyclic-output";
+        output-type = "j1939";
+        target-id = <0xFEF1>;  /* Engine Speed PGN */
+        source-signal = <10>;  /* speed_voted */
+        period-ms = <100>;
+        expected-response-ms = <150>;
+        label = "speed_can_output";
+    };
+
+    /* Brake status output (GPIO) */
+    brake_output: lq-cyclic-output@1 {
+        compatible = "lq,cyclic-output";
+        output-type = "gpio";
+        target-id = <12>;  /* GPIO 12 - brake light */
+        source-signal = <3>;  /* brake_pedal */
+        period-ms = <50>;
+        expected-response-ms = <100>;
+        label = "brake_light";
+    };
+
+    /* Fault status output (CAN) */
+    fault_status: lq-cyclic-output@2 {
+        compatible = "lq,cyclic-output";
+        output-type = "j1939";
+        target-id = <0xFECA>;  /* DM1 - Active faults */
+        source-signal = <20>;  /* overspeed_fault */
+        period-ms = <1000>;
+        expected-response-ms = <1100>;
+        label = "fault_can_output";
+    };
+
+    /* ========================================
+     * Dual-Channel Event Crosscheck (SIL3/ASIL-D)
+     * ======================================== */
+
+    crosscheck: lq-event-crosscheck@0 {
+        compatible = "lq,event-crosscheck";
+        
+        /* UART configuration for inter-MCU communication */
+        uart-id = <1>;              /* UART1 */
+        baud-rate = <115200>;       /* Fast enough for real-time */
+        
+        /* Timeout configuration */
+        timeout-ms = <50>;          /* Max 50ms for other MCU to respond */
+        
+        /* Fail-safe GPIO */
+        fail-gpio = <25>;           /* GPIO 25 - wired-OR to other MCU */
+        fail-gpio-active-high;      /* High = fail-safe triggered */
+        
+        /* Monitor fail GPIO as input */
+        monitor-gpio = <26>;        /* GPIO 26 - input from other MCU */
+        
+        /* Events to crosscheck (optional - default is all events) */
+        /* If specified, only these event types are verified */
+        crosscheck-event-types = "j1939", "gpio";
+        
+        label = "dual_channel_crosscheck";
+    };
+
+    /* ========================================
+     * Fail-Safe Monitor
+     * ======================================== */
+
+    /* Monitor crosscheck fail GPIO as input */
+    crosscheck_fail_input: lq-hw-gpio-input@26 {
+        compatible = "lq,hw-gpio-input";
+        gpio-pin = <26>;
+        signal-id = <30>;
+        active-high;
+        label = "crosscheck_fail_status";
+    };
+
+    /* If crosscheck fails, enter safe state */
+    safe_state_trigger: lq-fault-monitor@10 {
+        compatible = "lq,fault-monitor";
+        input-signal = <30>;  /* crosscheck_fail_status */
+        fault-output-signal = <31>;
+        check-range;
+        min-value = <0>;
+        max-value = <0>;  /* Trigger if GPIO goes high */
+        fault-level = <4>;  /* Critical - enter safe state */
+        wake-function = "enter_safe_state";
+        expected-response-ms = <10>;  /* Immediate response */
+        label = "safe_state_trigger";
+    };
+};

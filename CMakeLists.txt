@@ -90,6 +90,7 @@ add_library(layered_queue
     src/drivers/lq_dtc.c
     src/drivers/lq_pid.c
     src/drivers/lq_bldc.c
+    src/lq_event_crosscheck.c
     src/platform/lq_platform_stubs.c
     ${PLATFORM_SOURCES}
 )

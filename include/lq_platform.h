@@ -58,6 +58,15 @@ static inline void lq_platform_delay_ms(uint32_t ms) {
 }
 
 /**
+ * @brief Get tick count in milliseconds (alias for uptime)
+ * Used by event crosscheck timeout tracking
+ * @return Milliseconds since system start
+ */
+static inline uint32_t lq_get_tick_ms(void) {
+    return lq_platform_uptime_get();
+}
+
+/**
  * @brief Start the engine task/thread or run the main loop
  * 
  * Platform-specific behavior:

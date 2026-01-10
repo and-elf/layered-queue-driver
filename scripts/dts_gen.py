@@ -375,6 +375,7 @@ def generate_source(nodes, output_path):
     merges = []
     fault_monitors = []
     cyclic_outputs = []
+    crosscheck_nodes = []
     
     for node in nodes:
         if node.compatible == 'lq,engine':
@@ -387,6 +388,8 @@ def generate_source(nodes, output_path):
             fault_monitors.append(node)
         elif node.compatible == 'lq,cyclic-output':
             cyclic_outputs.append(node)
+        elif node.compatible == 'lq,event-crosscheck':
+            crosscheck_nodes.append(node)
     
     # Calculate maximum signal ID
     max_signal_id = 0
@@ -435,6 +438,10 @@ def generate_source(nodes, output_path):
             f.write("#include \"lq_j1939.h\"\n")
         if 'canopen' in output_types_used:
             f.write("#include \"lq_canopen.h\"\n")
+        
+        # Add crosscheck include if enabled
+        if crosscheck_nodes:
+            f.write("#include \"lq_event_crosscheck.h\"\n")
         
         # Add platform includes if any CAN-based output is used
         if any(t in output_types_used for t in ['j1939', 'canopen', 'can']):
@@ -597,6 +604,12 @@ def generate_source(nodes, output_path):
         
         f.write("};\n\n")
         
+        # Generate crosscheck context if enabled
+        if crosscheck_nodes:
+            crosscheck = crosscheck_nodes[0]  # Use first crosscheck node
+            f.write("/* Event crosscheck context (dual-channel safety) */\n")
+            f.write("static struct lq_crosscheck_ctx g_crosscheck_ctx;\n\n")
+        
         # Generate ISR handlers for hardware inputs
         for node in hw_inputs:
             signal_id = node.properties.get('signal_id', 0)
@@ -649,6 +662,34 @@ def generate_source(nodes, output_path):
         f.write("    ret = lq_hw_input_init(64);\n")
         f.write("    if (ret != 0) return ret;\n")
         f.write("    \n")
+        
+        # Add crosscheck initialization if enabled
+        if crosscheck_nodes:
+            crosscheck = crosscheck_nodes[0]
+            uart_id = crosscheck.properties.get('uart_id', 1)
+            timeout_ms = crosscheck.properties.get('timeout_ms', 50)
+            fail_gpio = crosscheck.properties.get('fail_gpio', 25)
+            
+            f.write("    /* Initialize event crosscheck (dual-channel safety) */\n")
+            f.write(f"    ret = lq_crosscheck_init(&g_crosscheck_ctx, {uart_id}, {timeout_ms}, {fail_gpio});\n")
+            f.write("    if (ret != 0) return ret;\n")
+            f.write("    \n")
+        
+        f.write("    /* Platform-specific peripheral init */\n")
+        f.write("    #ifdef LQ_PLATFORM_INIT\n")
+        f.write("    lq_platform_peripherals_init();\n")
+        f.write("    #endif\n")
+        f.write("    \n")
+        f.write("    return 0;\n")
+        f.write("}\n\n")
+        f.write("    /* Initialize engine */\n")
+        f.write("    int ret = lq_engine_init(&g_lq_engine);\n")
+        f.write("    if (ret != 0) return ret;\n")
+        f.write("    \n")
+        f.write("    /* Hardware input layer */\n")
+        f.write("    ret = lq_hw_input_init(64);\n")
+        f.write("    if (ret != 0) return ret;\n")
+        f.write("    \n")
         f.write("    /* Platform-specific peripheral init */\n")
         f.write("    #ifdef LQ_PLATFORM_INIT\n")
         f.write("    lq_platform_peripherals_init();\n")
@@ -660,6 +701,15 @@ def generate_source(nodes, output_path):
         # Generate output dispatch function
         f.write("/* Output event dispatcher */\n")
         f.write("void lq_generated_dispatch_outputs(void) {\n")
+        
+        # Add crosscheck send hook if enabled
+        if crosscheck_nodes:
+            f.write("    /* Send events to other MCU for dual-channel verification */\n")
+            f.write("    for (size_t i = 0; i < g_lq_engine.out_event_count; i++) {\n")
+            f.write("        lq_crosscheck_send_event(&g_crosscheck_ctx, &g_lq_engine.out_events[i]);\n")
+            f.write("    }\n")
+            f.write("    \n")
+        
         f.write("    /* Dispatch output events to appropriate protocol drivers/hardware */\n")
         f.write("    for (size_t i = 0; i < g_lq_engine.out_event_count; i++) {\n")
         f.write("        struct lq_output_event *evt = &g_lq_engine.out_events[i];\n")

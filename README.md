@@ -591,6 +591,7 @@ genhtml coverage_filtered.info --output-directory coverage_html
 **Safety and Diagnostics:**
 - [Fault Monitoring](docs/fault-monitoring.md) - Fault detection and response
 - [Safety Concept - Wake Functions](docs/safety-concept-wake-functions.md) - Safety-critical patterns
+- [Dual-Channel Safety (SIL3/ASIL-D)](docs/dual-channel-safety.md) - **NEW**: Redundant dual-MCU architecture with event crosschecking for safety-critical applications
 
 ## Use Cases
 
@@ -618,6 +619,7 @@ genhtml coverage_filtered.info --output-directory coverage_html
 - **Timeout detection**: Automatic staleness flagging
 - **Consistency checking**: Tolerance-based disagreement detection
 - **Testable**: Pure functions enable comprehensive unit testing
+- **Dual-Channel Safety**: SIL3/ASIL-D dual-MCU architecture with event crosschecking (see [docs/dual-channel-safety.md](docs/dual-channel-safety.md))
 
 ## Platform Support
 
