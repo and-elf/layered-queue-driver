@@ -125,10 +125,10 @@ TEST_F(GeneratedSystemTest, RPM_MERGE_MedianVoting) {
     
     /* Median of [1000, 1100] - with 2 values, median is average */
     /* Status might be INCONSISTENT if values differ, or OK depending on implementation */
-    EXPECT_NE(g_lq_engine.signals[10].status, LQ_EVENT_ERROR);
-    EXPECT_TRUE(g_lq_engine.signals[10].value == 1000 || 
-                g_lq_engine.signals[10].value == 1100 ||
-                g_lq_engine.signals[10].value == 1050);
+    EXPECT_NE(g_lq_engine.signals[4].status, LQ_EVENT_ERROR);
+    EXPECT_TRUE(g_lq_engine.signals[4].value == 1000 || 
+                g_lq_engine.signals[4].value == 1100 ||
+                g_lq_engine.signals[4].value == 1050);
 }
 
 TEST_F(GeneratedSystemTest, RPM_MERGE_IdenticalInputs) {
@@ -140,8 +140,8 @@ TEST_F(GeneratedSystemTest, RPM_MERGE_IdenticalInputs) {
     
     lq_process_merges(&g_lq_engine, now);
     
-    EXPECT_EQ(g_lq_engine.signals[10].value, 2000);
-    EXPECT_EQ(g_lq_engine.signals[10].status, LQ_EVENT_OK);
+    EXPECT_EQ(g_lq_engine.signals[4].value, 2000);
+    EXPECT_EQ(g_lq_engine.signals[4].status, LQ_EVENT_OK);
 }
 
 TEST_F(GeneratedSystemTest, RPM_MERGE_ToleranceViolation) {
@@ -154,7 +154,7 @@ TEST_F(GeneratedSystemTest, RPM_MERGE_ToleranceViolation) {
     lq_process_merges(&g_lq_engine, now);
     
     /* Should detect inconsistency */
-    EXPECT_EQ(g_lq_engine.signals[10].status, LQ_EVENT_INCONSISTENT);
+    EXPECT_EQ(g_lq_engine.signals[4].status, LQ_EVENT_INCONSISTENT);
 }
 
 TEST_F(GeneratedSystemTest, RPM_MERGE_WithinTolerance) {
@@ -166,7 +166,7 @@ TEST_F(GeneratedSystemTest, RPM_MERGE_WithinTolerance) {
     
     lq_process_merges(&g_lq_engine, now);
     
-    EXPECT_EQ(g_lq_engine.signals[10].status, LQ_EVENT_OK);
+    EXPECT_EQ(g_lq_engine.signals[4].status, LQ_EVENT_OK);
 }
 
 TEST_F(GeneratedSystemTest, RPM_MERGE_OneInputError) {
@@ -179,7 +179,7 @@ TEST_F(GeneratedSystemTest, RPM_MERGE_OneInputError) {
     lq_process_merges(&g_lq_engine, now);
     
     /* Should still produce output from good input */
-    EXPECT_NE(g_lq_engine.signals[10].status, LQ_EVENT_ERROR);
+    EXPECT_NE(g_lq_engine.signals[4].status, LQ_EVENT_ERROR);
 }
 
 /* ========================================================================
@@ -332,8 +332,8 @@ TEST_F(GeneratedSystemTest, EndToEnd_AllInputs) {
     lq_process_merges(&g_lq_engine, now);
     
     /* Verify merge outputs computed */
-    EXPECT_NE(g_lq_engine.signals[10].status, LQ_EVENT_ERROR);
-    EXPECT_TRUE(g_lq_engine.signals[10].updated);
+    EXPECT_NE(g_lq_engine.signals[4].status, LQ_EVENT_ERROR);
+    EXPECT_TRUE(g_lq_engine.signals[4].updated);
 }
 
 TEST_F(GeneratedSystemTest, EndToEnd_FullCycle) {
@@ -347,5 +347,5 @@ TEST_F(GeneratedSystemTest, EndToEnd_FullCycle) {
     lq_engine_step(&g_lq_engine, now, nullptr, 0);
     
     /* Verify system completed cycle */
-    EXPECT_NE(g_lq_engine.signals[10].status, LQ_EVENT_ERROR);
+    EXPECT_NE(g_lq_engine.signals[4].status, LQ_EVENT_ERROR);
 }

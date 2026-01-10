@@ -774,7 +774,7 @@ def generate_source(nodes, output_path):
                     input_ids = [input_ids]
                 
                 f.write(f"        [{i}] = {{\n")
-                f.write(f"            .output_signal = {node.properties.get('output_signal_id', 0)},\n")
+                f.write(f"            .output_signal = {node.signal_id},\n")
                 f.write(f"            .input_signals = {{{', '.join(map(str, input_ids))}}},\n")
                 f.write(f"            .num_inputs = {len(input_ids)},\n")
                 f.write(f"            .voting_method = {vote_method},\n")
