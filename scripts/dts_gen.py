@@ -415,6 +415,141 @@ def resolve_phandles_and_assign_ids(nodes):
     
     return nodes
 
+def calculate_resource_counts(nodes):
+    """
+    Analyze devicetree nodes and calculate exact resource requirements.
+    Returns a dict with all counts needed for configuration.
+    """
+    counts = {
+        'num_signals': 0,
+        'num_hw_inputs': 0,
+        'num_scales': 0,
+        'num_remaps': 0,
+        'num_merges': 0,
+        'num_fault_monitors': 0,
+        'num_cyclic_outputs': 0,
+        'num_pid_controllers': 0,
+        'num_verified_outputs': 0,
+        'max_merge_inputs': 0,
+        'max_output_events': 0,
+        'hw_ringbuffer_size': 128,  # Default, can be overridden by engine node
+    }
+    
+    # Check for engine node with overrides
+    engine_nodes = [n for n in nodes if n.compatible == 'lq,engine']
+    if engine_nodes:
+        eng = engine_nodes[0]
+        if 'hw_ringbuffer_size' in eng.properties:
+            counts['hw_ringbuffer_size'] = eng.properties['hw_ringbuffer_size']
+    
+    # Count nodes by type
+    for node in nodes:
+        if node.compatible.startswith('lq,hw-'):
+            counts['num_hw_inputs'] += 1
+        elif node.compatible == 'lq-scale' or node.compatible == 'lq,scale':
+            counts['num_scales'] += 1
+        elif node.compatible == 'lq,remap':
+            counts['num_remaps'] += 1
+        elif node.compatible == 'lq,mid-merge':
+            counts['num_merges'] += 1
+            # Track max merge input count
+            input_ids = node.properties.get('input_signal_ids', [])
+            if isinstance(input_ids, int):
+                input_ids = [input_ids]
+            counts['max_merge_inputs'] = max(counts['max_merge_inputs'], len(input_ids))
+        elif node.compatible == 'lq,fault-monitor':
+            counts['num_fault_monitors'] += 1
+        elif node.compatible == 'lq,cyclic-output':
+            counts['num_cyclic_outputs'] += 1
+        elif node.compatible == 'lq,pid' or node.compatible == 'lq,pid-controller':
+            counts['num_pid_controllers'] += 1
+        elif node.compatible == 'lq,verified-output':
+            counts['num_verified_outputs'] += 1
+    
+    # Calculate total signal count (max signal ID + 1)
+    max_signal_id = 0
+    for node in nodes:
+        if hasattr(node, 'signal_id') and node.signal_id is not None:
+            max_signal_id = max(max_signal_id, node.signal_id)
+        # Also check explicit signal IDs in properties
+        for prop in ['signal_id', 'output_signal_id', 'fault_output_signal_id']:
+            if prop in node.properties:
+                max_signal_id = max(max_signal_id, node.properties[prop])
+    
+    counts['num_signals'] = max_signal_id + 1
+    
+    # Estimate max output events (cyclic outputs * 2 for safety margin)
+    counts['max_output_events'] = max(counts['num_cyclic_outputs'] * 2, 16)
+    
+    return counts
+
+
+def generate_config_header(counts, output_path):
+    """Generate lq_config.h with exact resource counts from devicetree"""
+    
+    # Calculate memory savings vs default Kconfig values
+    default_signals = 32
+    default_cyclic = 16
+    default_merges = 8
+    
+    signal_saving_pct = int((1 - counts['num_signals'] / default_signals) * 100) if counts['num_signals'] < default_signals else 0
+    
+    with open(output_path, 'w') as f:
+        f.write("""/*
+ * AUTO-GENERATED FILE - DO NOT EDIT
+ * Generated from devicetree by scripts/dts_gen.py
+ * 
+ * This file defines exact resource counts based on your devicetree.
+ * No manual Kconfig tuning needed - memory automatically optimized!
+ * 
+ * Signal array memory: {num_signals} signals (vs default {default_signals})
+ * Savings: ~{signal_saving_pct}% reduction in static allocation
+ */
+
+#ifndef LQ_CONFIG_H_
+#define LQ_CONFIG_H_
+
+/* Signal counts - auto-calculated from DTS */
+#define LQ_MAX_SIGNALS              {num_signals}
+
+/* Driver instance counts - exact counts from DTS */
+#define LQ_MAX_HW_INPUTS            {num_hw_inputs}
+#define LQ_MAX_SCALES               {num_scales}
+#define LQ_MAX_REMAPS               {num_remaps}
+#define LQ_MAX_MERGES               {num_merges}
+#define LQ_MAX_FAULT_MONITORS       {num_fault_monitors}
+#define LQ_MAX_CYCLIC_OUTPUTS       {num_cyclic_outputs}
+#define LQ_MAX_PID_CONTROLLERS      {num_pid_controllers}
+#define LQ_MAX_VERIFIED_OUTPUTS     {num_verified_outputs}
+
+/* Buffer sizes - calculated from actual usage */
+#define LQ_MAX_MERGE_INPUTS         {max_merge_inputs}
+#define LQ_MAX_OUTPUT_EVENTS        {max_output_events}
+#define LQ_HW_RINGBUFFER_SIZE       {hw_ringbuffer_size}
+
+/* DTS generation metadata */
+#define LQ_CONFIG_FROM_DTS          1
+#define LQ_CONFIG_SIGNAL_COUNT      {num_signals}
+
+#endif /* LQ_CONFIG_H_ */
+""".format(
+            num_signals=counts['num_signals'],
+            default_signals=default_signals,
+            signal_saving_pct=signal_saving_pct,
+            num_hw_inputs=counts['num_hw_inputs'],
+            num_scales=counts['num_scales'],
+            num_remaps=counts['num_remaps'],
+            num_merges=counts['num_merges'],
+            num_fault_monitors=counts['num_fault_monitors'],
+            num_cyclic_outputs=counts['num_cyclic_outputs'],
+            num_pid_controllers=counts['num_pid_controllers'],
+            num_verified_outputs=counts['num_verified_outputs'],
+            max_merge_inputs=counts['max_merge_inputs'],
+            max_output_events=counts['max_output_events'],
+            hw_ringbuffer_size=counts['hw_ringbuffer_size']
+        ))
+
+
 def generate_header(nodes, output_path):
     """Generate lq_generated.h with declarations"""
     
@@ -1535,6 +1670,17 @@ def main():
     
     # Resolve phandle references and auto-assign signal IDs
     nodes = resolve_phandles_and_assign_ids(nodes)
+    
+    # Calculate resource counts from devicetree
+    resource_counts = calculate_resource_counts(nodes)
+    
+    # Generate configuration header with exact counts
+    generate_config_header(resource_counts, output_dir / 'lq_config.h')
+    print(f"Generated {output_dir}/lq_config.h")
+    print(f"  Signals: {resource_counts['num_signals']}, "
+          f"HW Inputs: {resource_counts['num_hw_inputs']}, "
+          f"Merges: {resource_counts['num_merges']}, "
+          f"Cyclic Outputs: {resource_counts['num_cyclic_outputs']}")
     
     # Generate files
     generate_header(nodes, output_dir / 'lq_generated.h')

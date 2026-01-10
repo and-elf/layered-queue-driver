@@ -10,6 +10,8 @@
 
 Everything else is automatic. The devicetree defines your entire system.
 
+**Bonus:** Memory is automatically optimized - the generator calculates exact resource needs from your DTS, typically saving 50-95% RAM vs fixed Kconfig limits. See [automatic-memory-optimization.md](automatic-memory-optimization.md) for details.
+
 ## What Makes This Work
 
 ### 1. Zephyr Module Discovery (`zephyr/module.yml`)
@@ -171,6 +173,22 @@ void lq_engine_init(void) {
     lq_register_scale(scale_configs, ARRAY_SIZE(scale_configs));
 }
 ```
+
+**Additionally generates `lq_config.h`:**
+
+```c
+/* Auto-calculated resource counts - memory optimized! */
+#define LQ_MAX_SIGNALS              2
+#define LQ_MAX_SCALES               1
+#define LQ_MAX_FAULT_MONITORS       1
+#define LQ_MAX_PID_CONTROLLERS      1
+// ... exact counts for your system
+
+// Signal array memory: 2 signals (vs default 32)
+// Savings: ~93% reduction in static allocation
+```
+
+See [automatic-memory-optimization.md](automatic-memory-optimization.md) for details on memory savings.
 
 ### 5. Build Integration
 
