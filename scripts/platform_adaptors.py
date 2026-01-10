@@ -10,7 +10,7 @@ Supported platforms:
 - Atmel SAMD (ASF4)
 - ESP32
 - NRF52
-- Generic bare-metal
+- AVR
 
 Each adaptor generates:
 - Real interrupt handlers mapped to vector table
@@ -144,6 +144,9 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         """Generate STM32 peripheral initialization"""
         adc_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-adc-input']
         spi_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-spi-input']
+        gpio_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-gpio-input']
+        i2c_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-i2c-input']
+        uart_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-uart-input']
         
         code = """
 /* STM32 Peripheral Initialization */
@@ -153,12 +156,39 @@ void lq_platform_peripherals_init(void)
     
 """
         
+        # GPIO initialization
+        if gpio_nodes:
+            code += "    /* GPIO Configuration */\n"
+            for node in gpio_nodes:
+                gpio_port = node.properties.get('hw_port', 'A')
+                gpio_pin = node.properties.get('hw_pin', 0)
+                # Automatically determine direction from node type
+                if node.compatible == 'lq,hw-gpio-input':
+                    gpio_mode = 'INPUT'
+                else:  # Output nodes (lq,gpio-output, etc.)
+                    gpio_mode = 'OUTPUT_PP'
+                code += f"""    /* Configure GPIO{gpio_port}{gpio_pin} as {gpio_mode} for {node.label} */
+    GPIO_InitTypeDef GPIO_InitStruct = {{0}};
+    GPIO_InitStruct.Pin = GPIO_PIN_{gpio_pin};
+    GPIO_InitStruct.Mode = GPIO_MODE_{gpio_mode};
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIO{gpio_port}, &GPIO_InitStruct);
+"""
+        
         # ADC initialization
         if adc_nodes:
-            code += "    /* ADC Configuration */\n"
+            code += "\n    /* ADC Configuration */\n"
             for node in adc_nodes:
                 adc_instance = node.properties.get('hw_instance', 1)
                 code += f"    HAL_ADC_Start_DMA(&hadc{adc_instance}, (uint32_t*)&adc_buffer, 1);\n"
+        
+        # I2C initialization
+        if i2c_nodes:
+            code += "\n    /* I2C Configuration */\n"
+            for node in i2c_nodes:
+                i2c_instance = node.properties.get('hw_instance', 1)
+                i2c_addr = node.properties.get('i2c_address', 0x50)
+                code += f"    /* I2C{i2c_instance} ready for device at address 0x{i2c_addr:02X} ({node.label}) */\n"
         
         # SPI initialization
         if spi_nodes:
@@ -166,6 +196,13 @@ void lq_platform_peripherals_init(void)
             for node in spi_nodes:
                 spi_instance = node.properties.get('hw_instance', 1)
                 code += f"    HAL_SPI_Receive_IT(&hspi{spi_instance}, (uint8_t*)&spi_rx_buffer, 2);\n"
+        
+        # UART initialization
+        if uart_nodes:
+            code += "\n    /* UART Configuration */\n"
+            for node in uart_nodes:
+                uart_instance = node.properties.get('hw_instance', 2)
+                code += f"    HAL_UART_Receive_IT(&huart{uart_instance}, (uint8_t*)&uart_rx_buffer, 1);\n"
         
         # CAN initialization
         can_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-can-input']
@@ -253,15 +290,52 @@ void lq_spi_read_{node.label}(void)
         return ""
     
     def generate_peripheral_init(self, hw_inputs):
-        return """
+        gpio_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-gpio-input']
+        i2c_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-i2c-input']
+        uart_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-uart-input']
+        adc_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-adc-input']
+        
+        code = """
 /* SAMD Peripheral Initialization */
 void lq_platform_peripherals_init(void)
 {
-    /* ADC and SPI already initialized by atmel_start_init() */
-    /* Just enable channels as needed */
-    adc_sync_enable_channel(&ADC_0, 0);
-}
+    /* Note: atmel_start_init() should be called before this */
+    
 """
+        
+        # GPIO initialization
+        if gpio_nodes:
+            code += "    /* GPIO Configuration */\n"
+            for node in gpio_nodes:
+                gpio_pin = node.properties.get('hw_pin', 0)
+                # Automatically determine direction from node type
+                if node.compatible == 'lq,hw-gpio-input':
+                    gpio_mode = 'INPUT'
+                else:
+                    gpio_mode = 'OUTPUT'
+                code += f"    gpio_set_pin_direction({gpio_pin}, GPIO_DIRECTION_{gpio_mode});\n"
+        
+        # ADC initialization
+        if adc_nodes:
+            code += "\n    /* ADC Configuration */\n"
+            for node in adc_nodes:
+                channel = node.properties.get('hw_channel', 0)
+                code += f"    adc_sync_enable_channel(&ADC_0, {channel});\n"
+        
+        # I2C initialization
+        if i2c_nodes:
+            code += "\n    /* I2C Configuration */\n"
+            for node in i2c_nodes:
+                i2c_addr = node.properties.get('i2c_address', 0x50)
+                code += f"    /* I2C ready for device at address 0x{i2c_addr:02X} ({node.label}) */\n"
+        
+        # UART initialization
+        if uart_nodes:
+            code += "\n    /* UART Configuration */\n"
+            code += "    usart_sync_enable(&USART_0);\n"
+        
+        code += "}\n"
+        return code
 
 
 class ESP32Adaptor(PlatformAdaptor):
@@ -345,6 +419,10 @@ void lq_can_receive_{node.label}(void)
     
     def generate_peripheral_init(self, hw_inputs):
         adc_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-adc-input']
+        gpio_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-gpio-input']
+        i2c_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-i2c-input']
+        uart_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-uart-input']
+        spi_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-spi-input']
         
         code = """
 /* ESP32 Peripheral Initialization */
@@ -352,16 +430,65 @@ void lq_platform_peripherals_init(void)
 {
 """
         
+        # GPIO initialization
+        if gpio_nodes:
+            code += "    /* GPIO Configuration */\n"
+            for node in gpio_nodes:
+                gpio_pin = node.properties.get('hw_pin', 0)
+                # Automatically determine direction from node type
+                if node.compatible == 'lq,hw-gpio-input':
+                    code += f"    gpio_set_direction(GPIO_NUM_{gpio_pin}, GPIO_MODE_INPUT);\n"
+                    code += f"    gpio_set_pull_mode(GPIO_NUM_{gpio_pin}, GPIO_PULLUP_ONLY);\n"
+                else:  # Output nodes
+                    code += f"    gpio_set_direction(GPIO_NUM_{gpio_pin}, GPIO_MODE_OUTPUT);\n"
+            code += "\n"
+        
+        # ADC initialization
         if adc_nodes:
-            code += """    /* ADC Configuration */
-    adc1_config_width(ADC_WIDTH_BIT_12);
-"""
+            code += "    /* ADC Configuration */\n"
+            code += "    adc1_config_width(ADC_WIDTH_BIT_12);\n"
             for node in adc_nodes:
                 channel = node.properties.get('hw_channel', 0)
                 code += f"    adc1_config_channel_atten(ADC1_CHANNEL_{channel}, ADC_ATTEN_DB_11);\n"
+            code += "\n"
         
-        code += """
-    /* SPI Configuration */
+        # I2C initialization
+        if i2c_nodes:
+            i2c_instance = i2c_nodes[0].properties.get('hw_instance', 0)
+            code += f"""    /* I2C Configuration */
+    i2c_config_t i2c_conf = {{
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = GPIO_NUM_21,
+        .scl_io_num = GPIO_NUM_22,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 100000,
+    }};
+    i2c_param_config(I2C_NUM_{i2c_instance}, &i2c_conf);
+    i2c_driver_install(I2C_NUM_{i2c_instance}, I2C_MODE_MASTER, 0, 0, 0);
+
+"""
+        
+        # UART initialization
+        if uart_nodes:
+            uart_instance = uart_nodes[0].properties.get('hw_instance', 1)
+            code += f"""    /* UART Configuration */
+    uart_config_t uart_config = {{
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    }};
+    uart_param_config(UART_NUM_{uart_instance}, &uart_config);
+    uart_set_pin(UART_NUM_{uart_instance}, 17, 16, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    uart_driver_install(UART_NUM_{uart_instance}, 256, 0, 0, NULL, 0);
+
+"""
+        
+        # SPI initialization
+        if spi_nodes:
+            code += """    /* SPI Configuration */
     spi_bus_config_t bus_cfg = {
         .mosi_io_num = 23,
         .miso_io_num = 19,
@@ -379,8 +506,13 @@ void lq_platform_peripherals_init(void)
     
     spi_bus_initialize(HSPI_HOST, &bus_cfg, 1);
     spi_bus_add_device(HSPI_HOST, &dev_cfg, &spi_handle);
-    
-    /* CAN (TWAI) Configuration */
+
+"""
+        
+        # CAN initialization
+        can_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-can-input']
+        if can_nodes:
+            code += """    /* CAN (TWAI) Configuration */
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_21, GPIO_NUM_22, TWAI_MODE_NORMAL);
     twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
     twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
@@ -389,8 +521,9 @@ void lq_platform_peripherals_init(void)
     if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK) {
         twai_start();
     }
-}
 """
+        
+        code += "}\n"
         return code
 
 
@@ -476,16 +609,34 @@ void lq_can_receive_{node.label}(void)
     
     def generate_peripheral_init(self, hw_inputs):
         adc_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-adc-input']
+        gpio_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-gpio-input']
+        i2c_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-i2c-input']
+        uart_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-uart-input']
+        spi_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-spi-input']
         
         code = """
 /* NRF52 Peripheral Initialization */
 void lq_platform_peripherals_init(void)
 {
+    ret_code_t err_code;
+    
 """
         
+        # GPIO initialization
+        if gpio_nodes:
+            code += "    /* GPIO Configuration */\n"
+            for node in gpio_nodes:
+                gpio_pin = node.properties.get('hw_pin', 0)
+                # Automatically determine direction from node type
+                if node.compatible == 'lq,hw-gpio-input':
+                    code += f"    nrf_gpio_cfg_input({gpio_pin}, NRF_GPIO_PIN_PULLUP);\n"
+                else:  # Output nodes
+                    code += f"    nrf_gpio_cfg_output({gpio_pin});\n"
+            code += "\n"
+        
+        # ADC initialization
         if adc_nodes:
             code += """    /* SAADC Configuration */
-    ret_code_t err_code;
     nrf_saadc_channel_config_t channel_config =
         NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);
     
@@ -501,10 +652,43 @@ void lq_platform_peripherals_init(void)
             
             code += """    err_code = nrf_drv_saadc_buffer_convert(adc_buffer, 1);
     APP_ERROR_CHECK(err_code);
+
 """
         
-        code += """
-    /* SPI Configuration */
+        # I2C initialization (TWI on nRF52)
+        if i2c_nodes:
+            i2c_instance = i2c_nodes[0].properties.get('hw_instance', 0)
+            code += f"""    /* TWI (I2C) Configuration */
+    nrf_drv_twi_config_t twi_config = NRF_DRV_TWI_DEFAULT_CONFIG;
+    twi_config.scl = 27;
+    twi_config.sda = 26;
+    twi_config.frequency = NRF_DRV_TWI_FREQ_100K;
+    
+    static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE({i2c_instance});
+    err_code = nrf_drv_twi_init(&m_twi, &twi_config, NULL, NULL);
+    APP_ERROR_CHECK(err_code);
+    nrf_drv_twi_enable(&m_twi);
+
+"""
+        
+        # UART initialization
+        if uart_nodes:
+            uart_instance = uart_nodes[0].properties.get('hw_instance', 0)
+            code += f"""    /* UART Configuration */
+    nrf_drv_uart_config_t uart_config = NRF_DRV_UART_DEFAULT_CONFIG;
+    uart_config.pseltxd = 6;
+    uart_config.pselrxd = 8;
+    uart_config.baudrate = NRF_UART_BAUDRATE_115200;
+    
+    static const nrf_drv_uart_t m_uart = NRF_DRV_UART_INSTANCE({uart_instance});
+    err_code = nrf_drv_uart_init(&m_uart, &uart_config, NULL);
+    APP_ERROR_CHECK(err_code);
+
+"""
+        
+        # SPI initialization
+        if spi_nodes:
+            code += """    /* SPI Configuration */
     nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
     spi_config.ss_pin   = 4;
     spi_config.miso_pin = 28;
@@ -513,19 +697,20 @@ void lq_platform_peripherals_init(void)
     
     err_code = nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL);
     APP_ERROR_CHECK(err_code);
-}
 """
+        
+        code += "}\n"
         return code
 
 
-class BaremetalAdaptor(PlatformAdaptor):
-    """Generic bare-metal adaptor with register access"""
+class AVRAdaptor(PlatformAdaptor):
+    """AVR adaptor with direct register access"""
     
     def __init__(self):
-        super().__init__("Baremetal")
+        super().__init__("AVR")
     
     def generate_platform_header(self):
-        return """/* Generic Bare-metal Platform */
+        return """/* AVR Platform */
 #include <stdint.h>
 #include "lq_platform.h"
 #include "lq_hw_input.h"
@@ -572,22 +757,72 @@ void SPI_IRQHandler(void)
         return ""
     
     def generate_peripheral_init(self, hw_inputs):
-        return """
-/* Bare-metal Peripheral Initialization */
+        gpio_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-gpio-input']
+        i2c_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-i2c-input']
+        uart_nodes = [n for n in hw_inputs if n.compatible == 'lq,hw-uart-input']
+        
+        code = """
+/* AVR Peripheral Initialization */
 void lq_platform_peripherals_init(void)
 {
     /* Enable peripheral clocks */
-    /* Configure GPIO pins */
-    /* Configure ADC */
+    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN;
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_SPI1EN | RCC_APB2ENR_USART1EN;
+    RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
+    
+"""
+        
+        # GPIO initialization
+        if gpio_nodes:
+            code += "    /* GPIO Configuration */\n"
+            for node in gpio_nodes:
+                gpio_port = node.properties.get('hw_port', 'A')
+                gpio_pin = node.properties.get('hw_pin', 0)
+                # Automatically determine direction from node type
+                if node.compatible == 'lq,hw-gpio-input':
+                    code += f"    GPIO{gpio_port}->CRL &= ~(0xF << ({gpio_pin}*4));\n"
+                    code += f"    GPIO{gpio_port}->CRL |= (0x8 << ({gpio_pin}*4));  /* Input pull-up */\n"
+                else:  # Output nodes
+                    code += f"    GPIO{gpio_port}->CRL &= ~(0xF << ({gpio_pin}*4));\n"
+                    code += f"    GPIO{gpio_port}->CRL |= (0x3 << ({gpio_pin}*4));  /* Output 50MHz push-pull */\n"
+            code += "\n"
+        
+        code += """    /* Configure ADC */
     ADC_CR1 = 0x00000100;  /* SCAN mode */
     ADC_CR2 = 0x00000001;  /* ADON - ADC ON */
     
-    /* Configure SPI */
+"""
+        
+        # I2C initialization
+        if i2c_nodes:
+            code += """    /* Configure I2C */
+    I2C1->CR1 = 0x0000;     /* Disable I2C */
+    I2C1->CR2 = 0x0024;     /* 36 MHz peripheral clock */
+    I2C1->CCR = 0x00B4;     /* 100kHz standard mode */
+    I2C1->TRISE = 0x0025;   /* Max rise time */
+    I2C1->CR1 = 0x0001;     /* Enable I2C */
+    
+"""
+        
+        code += """    /* Configure SPI */
     SPI_CR1 = 0x0304;  /* Master mode, CPOL=0, CPHA=0 */
     
-    /* Enable interrupts in NVIC */
+"""
+        
+        # UART initialization
+        if uart_nodes:
+            code += """    /* Configure UART */
+    USART1->BRR = 0x0271;   /* 115200 baud @ 72MHz */
+    USART1->CR1 = 0x200C;   /* Enable TX, RX, USART */
+    
+"""
+        
+        code += """    /* Enable interrupts in NVIC */
+    NVIC_EnableIRQ(ADC_IRQn);
+    NVIC_EnableIRQ(SPI1_IRQn);
 }
 """
+        return code
 
 
 def get_platform_adaptor(platform):
@@ -597,7 +832,7 @@ def get_platform_adaptor(platform):
         'samd': SAMDAdaptor,
         'esp32': ESP32Adaptor,
         'nrf52': NRF52Adaptor,
-        'baremetal': BaremetalAdaptor,
+        'avr': AVRAdaptor,
     }
     
     adaptor_class = adaptors.get(platform.lower())

@@ -560,6 +560,38 @@ genhtml coverage_filtered.info --output-directory coverage_html
 - Coverage badge updates on main branch
 - HTML reports available as workflow artifacts
 
+## Documentation
+
+**Porting and Hardware Setup:**
+- [Peripheral Initialization Guide](docs/peripheral-initialization.md) - **Required for non-Zephyr platforms**. Explains how to initialize GPIOs, ADC, SPI, I2C, UART, CAN, and timers for STM32, ESP32, nRF52, and bare-metal targets.
+
+**Architecture and Design:**
+- [Architecture Overview](docs/architecture.md) - System design and component interactions
+- [Layered Architecture Guide](docs/layered-architecture-guide.md) - Input → Processing → Output flow
+- [Clean Architecture](docs/clean-architecture.md) - Separation of concerns and testing
+
+**Platform Integration:**
+- [Platform Adaptors](docs/platform-adaptors.md) - STM32, SAMD, ESP32, nRF52, AVR code generation
+- [Platform Portability](docs/platform-portability.md) - Cross-compiler and toolchain support
+- [FreeRTOS Integration](docs/freertos-integration.md) - Using the driver with FreeRTOS
+
+**Device Tree:**
+- [Device Tree Guide](docs/devicetree-guide.md) - Comprehensive DTS syntax reference
+- [DTC Diagnostics](docs/dtc-diagnostics.md) - Device tree compiler troubleshooting
+
+**Testing:**
+- [Testing Guide](docs/testing.md) - Unit tests and test-driven development
+- [HIL Testing](docs/HIL_TESTING.md) - Hardware-in-the-loop test automation
+- [Test Coverage](docs/test-coverage.md) - Coverage analysis and reporting
+
+**CAN and J1939:**
+- [CAN Quick Start](docs/CAN_QUICKSTART.md) - Basic CAN output configuration
+- [J1939 Guide](docs/can-j1939-guide.md) - SAE J1939 protocol integration
+
+**Safety and Diagnostics:**
+- [Fault Monitoring](docs/fault-monitoring.md) - Fault detection and response
+- [Safety Concept - Wake Functions](docs/safety-concept-wake-functions.md) - Safety-critical patterns
+
 ## Use Cases
 
 - **Automotive**: Engine monitoring, brake systems, transmission control, body control modules
