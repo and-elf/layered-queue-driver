@@ -26,12 +26,26 @@
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak))
 #endif
-int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len) {
+int lq_can_send(uint8_t device_index, uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len) {
+    (void)device_index;
     (void)can_id;
     (void)is_extended;
     (void)data;
     (void)len;
     return 0;  /* Stub - no actual transmission */
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak))
+#endif
+int lq_can_recv(uint8_t device_index, uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len, uint32_t timeout_ms) {
+    (void)device_index;
+    (void)can_id;
+    (void)is_extended;
+    (void)data;
+    (void)len;
+    (void)timeout_ms;
+    return -1;  /* Stub - no actual reception */
 }
 
 /* =============================================================================

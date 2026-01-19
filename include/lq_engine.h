@@ -97,12 +97,13 @@ struct lq_signal {
 struct lq_cyclic_ctx {
     enum lq_output_type type;     /**< CAN / J1939 / CANopen / etc */
     uint32_t target_id;           /**< PGN, COB-ID, or other protocol ID */
-    
+    uint8_t device_index;         /**< Device index (e.g., 0 for can0, 1 for can1) */
+
     uint8_t source_signal;        /**< Index into engine signals array */
-    
+
     uint64_t period_us;           /**< Transmission period (microseconds) */
     uint64_t next_deadline;       /**< Next scheduled transmission time */
-    
+
     uint32_t flags;               /**< Protocol-specific flags */
     bool enabled;                 /**< Enable/disable output */
 };
@@ -467,13 +468,14 @@ static inline void lq_cyclic_process(
     
     const struct lq_signal *sig = &e->signals[c->source_signal];
     struct lq_output_event *evt = &e->out_events[e->out_event_count++];
-    
+
     evt->type = c->type;
     evt->target_id = c->target_id;
+    evt->device_index = c->device_index;
     evt->value = sig->value;
     evt->flags = c->flags;
     evt->timestamp = now;
-    
+
     c->next_deadline += c->period_us;
 }
 

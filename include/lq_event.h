@@ -71,6 +71,7 @@ struct lq_event {
 struct lq_output_event {
     enum lq_output_type type;     /**< Output protocol/bus type */
     uint32_t target_id;           /**< Protocol-specific ID (PGN, COB-ID, etc) */
+    uint8_t device_index;         /**< Device index (e.g., 0 for can0, 1 for can1) */
     int32_t value;                /**< Value to transmit */
     uint32_t flags;               /**< Protocol-specific flags */
     uint64_t timestamp;           /**< Generation timestamp */

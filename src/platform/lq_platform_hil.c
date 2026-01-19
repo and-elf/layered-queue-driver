@@ -239,50 +239,55 @@ int lq_adc_read(uint8_t channel, uint16_t *value) {
 
 /**
  * @brief Send CAN message (HIL intercept)
- * 
+ *
  * In HIL mode, this sends CAN messages to the HIL tester for verification
  * instead of transmitting on real hardware.
  */
-int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len) {
+int lq_can_send(uint8_t device_index, uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len) {
     if (!lq_hil_is_active()) {
         return -ENODEV;
     }
-    
+
     struct lq_hil_can_msg msg;
-    
+
     msg.hdr.type = LQ_HIL_MSG_CAN;
     msg.hdr.timestamp_us = lq_platform_get_time_us();
-    msg.hdr.channel = 0;  /* Default CAN bus */
-    
+    msg.hdr.channel = device_index;  /* CAN bus index */
+
     msg.can_id = can_id;
     msg.is_extended = is_extended;
     msg.dlc = len;
     memcpy(msg.data, data, len);
-    
+
     return lq_hil_sut_send_can(NULL, &msg);
 }
 
 /**
  * @brief Receive CAN message (HIL intercept)
- * 
+ *
  * In HIL mode, this receives CAN messages injected by the HIL tester.
  */
-int lq_can_recv(uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len, uint32_t timeout_ms) {
+int lq_can_recv(uint8_t device_index, uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len, uint32_t timeout_ms) {
     if (!lq_hil_is_active()) {
         return -ENODEV;
     }
-    
+
     struct lq_hil_can_msg msg;
-    
+
     if (lq_hil_sut_recv_can(NULL, &msg, timeout_ms) != 0) {
         return -EAGAIN;
     }
-    
+
+    /* Filter by device_index (channel) */
+    if (msg.hdr.channel != device_index) {
+        return -EAGAIN;
+    }
+
     *can_id = msg.can_id;
     *is_extended = msg.is_extended;
     *len = msg.dlc;
     memcpy(data, msg.data, msg.dlc);
-    
+
     return 0;
 }
 

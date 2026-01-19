@@ -630,6 +630,25 @@ def generate_source(nodes, output_path):
     for node in nodes:
         if node.compatible == 'lq,engine':
             engine_node = node
+        # Generalized input/output support
+        elif node.compatible in ['lq,input', 'lq,output']:
+            # For now, treat as hardware input/output (CAN only)
+            # If device property references a CAN device, treat as CAN input/output
+            dev = node.properties.get('device')
+            if dev and (isinstance(dev, str) and 'can' in dev.lower()):
+                # Extract device index from device name (e.g., can0=0, can1=1, can2=2)
+                import re
+                match = re.search(r'can(\d+)', dev.lower())
+                device_index = int(match.group(1)) if match else 0
+                node.properties['device_index'] = device_index
+
+                if node.compatible == 'lq,input':
+                    node.compatible = 'lq,hw-can-input'
+                    hw_inputs.append(node)
+                elif node.compatible == 'lq,output':
+                    node.compatible = 'lq,cyclic-output'
+                    cyclic_outputs.append(node)
+            # TODO: Add support for ADC, UART, etc. in future
         elif node.compatible.startswith('lq,hw-'):
             hw_inputs.append(node)
         elif node.compatible == 'lq,mid-merge':
@@ -724,7 +743,7 @@ def generate_source(nodes, output_path):
         f.write(" * or link with lq_platform_stubs.c for default no-op implementations */\n")
         
         if any(t in output_types_used for t in ['j1939', 'canopen', 'can']):
-            f.write("extern int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);\n")
+            f.write("extern int lq_can_send(uint8_t device_index, uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);\n")
         
         if 'gpio' in output_types_used:
             f.write("extern int lq_gpio_set(uint8_t pin, bool state);\n")
@@ -844,6 +863,7 @@ def generate_source(nodes, output_path):
                 f.write(f"        [{i}] = {{\n")
                 f.write(f"            .type = {output_type},\n")
                 f.write(f"            .target_id = {node.properties.get('target_id', 0)},\n")
+                f.write(f"            .device_index = {node.properties.get('device_index', 0)},\n")
                 f.write(f"            .source_signal = {node.properties.get('source_signal_id', 0)},\n")
                 f.write(f"            .period_us = {node.properties.get('period_us', 100000)},\n")
                 f.write(f"            .next_deadline = {node.properties.get('deadline_offset_us', 0)},\n")
@@ -969,7 +989,7 @@ def generate_source(nodes, output_path):
             f.write("                \n")
             f.write("                /* Build CAN ID from PGN (target_id) */\n")
             f.write("                uint32_t can_id = lq_j1939_build_id_from_pgn(evt->target_id, 6, 0);\n")
-            f.write("                lq_can_send(can_id, true, data, 8);\n")
+            f.write("                lq_can_send(evt->device_index, can_id, true, data, 8);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -983,7 +1003,7 @@ def generate_source(nodes, output_path):
             f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
             f.write("                \n")
             f.write("                /* target_id is COB-ID */\n")
-            f.write("                lq_can_send(evt->target_id, false, data, 4);\n")
+            f.write("                lq_can_send(evt->device_index, evt->target_id, false, data, 4);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -1042,7 +1062,7 @@ def generate_source(nodes, output_path):
             f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
             f.write("                \n")
             f.write("                /* target_id is COB-ID */\n")
-            f.write("                lq_can_send(evt->target_id, false, data, 4);\n")
+            f.write("                lq_can_send(evt->device_index, evt->target_id, false, data, 4);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -1056,7 +1076,7 @@ def generate_source(nodes, output_path):
             f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
             f.write("                \n")
             f.write("                bool extended = (evt->flags & 1) != 0;\n")
-            f.write("                lq_can_send(evt->target_id, extended, data, 8);\n")
+            f.write("                lq_can_send(evt->device_index, evt->target_id, extended, data, 8);\n")
             f.write("                break;\n")
             f.write("            }\n")
         

@@ -197,7 +197,7 @@ int lq_engine_run(void)
         lq_generated_dispatch_outputs();
         
         /* Sleep for 10ms between cycles */
-        k_sleep(K_MSEC(10));
+        lq_platform_sleep_ms(10);
     }
     
     return 0;

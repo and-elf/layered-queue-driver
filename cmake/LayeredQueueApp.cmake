@@ -105,11 +105,7 @@ function(add_lq_application TARGET_NAME)
     endif()
 
     # Output directory for generated files
-    if(IS_ZEPHYR)
-        set(GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    else()
-        set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}")
-    endif()
+    set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}")
 
     # Stage 1: EDS expansion (if EDS file provided)
     if(APP_EDS)
@@ -181,6 +177,21 @@ function(add_lq_application TARGET_NAME)
             ${GEN_DIR}/main.c
             ${GEN_DIR}/lq_generated.c
             ${APP_SOURCES}
+            # Add layered-queue library sources directly
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_engine.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_hw_input.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_remap.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_scale.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_pid.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_verified_output.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_util.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_zephyr.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_can_zephyr.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_gpio_zephyr.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_pwm_zephyr.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_i2c_zephyr.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_uart_zephyr.c
+
         )
         
         target_include_directories(app PRIVATE
@@ -197,6 +208,15 @@ function(add_lq_application TARGET_NAME)
         endif()
         message(STATUS "  Platform: ${APP_PLATFORM}")
         message(STATUS "  Target: app (Zephyr)")
+        
+        # HIL Tests in Zephyr mode: Create separate native build
+        if(APP_ENABLE_HIL_TESTS)
+            message(STATUS "  HIL Tests: Enabled")
+            message(STATUS "    A separate native HIL test build is required")
+            message(STATUS "    Call: add_lq_hil_tests(GEN_DIR \${CMAKE_SOURCE_DIR}/src/generated)")
+            message(STATUS "          cmake -S hil -B build/hil && cmake --build build/hil")
+            message(STATUS "          cd build/hil && ctest --output-on-failure")
+        endif()
     else()
         # Standalone mode: create new executable
         add_executable(${TARGET_NAME}
@@ -342,4 +362,155 @@ function(add_lq_application TARGET_NAME)
         message(STATUS "  HIL Tests: Not supported in Zephyr mode")
     endif()
 
+endfunction()
+
+#
+# add_lq_hil_tests: Set up native HIL tests with Google Test for Zephyr projects
+#
+# This creates a separate native build for Hardware-in-Loop testing using the
+# layered-queue-driver's comprehensive test generation and Google Test framework.
+#
+# Usage:
+#   add_lq_hil_tests(
+#     GEN_DIR <path>          # Directory containing generated code (lq_generated.c, etc.)
+#     [LQ_DIR <path>]         # Path to layered-queue-driver (default: auto-detected)
+#   )
+#
+# This function should be called from a separate CMakeLists.txt for the HIL build,
+# not from the main Zephyr build.
+#
+function(add_lq_hil_tests)
+    cmake_parse_arguments(HIL "" "GEN_DIR;LQ_DIR" "" ${ARGN})
+    
+    if(NOT HIL_GEN_DIR)
+        message(FATAL_ERROR "add_lq_hil_tests: GEN_DIR is required")
+    endif()
+    
+    # Auto-detect LQ_DIR if not provided
+    if(NOT HIL_LQ_DIR)
+        set(HIL_LQ_DIR ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/..)
+    endif()
+    
+    set(SCRIPT_DIR ${HIL_LQ_DIR}/scripts)
+    
+    # Ensure C++ is enabled for Google Test
+    enable_language(CXX)
+    set(CMAKE_CXX_STANDARD 17)
+    
+    # Find dependencies
+    find_package(GTest REQUIRED)
+    find_package(Threads REQUIRED)
+    
+    # Note: enable_testing() should be called at top level by the user
+    
+    # Generate comprehensive HIL tests from the generated test DTS
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/comprehensive_hil_tests.dts
+               ${CMAKE_BINARY_DIR}/test_runner.cpp
+        COMMAND ${SCRIPT_DIR}/generate_comprehensive_hil_tests.py
+            ${HIL_GEN_DIR}/lq_generated_test.dts
+            ${CMAKE_BINARY_DIR}
+        COMMAND ${SCRIPT_DIR}/hil_test_gen.py
+            ${CMAKE_BINARY_DIR}/comprehensive_hil_tests.dts
+            ${CMAKE_BINARY_DIR}
+        DEPENDS ${HIL_GEN_DIR}/lq_generated_test.dts
+                ${SCRIPT_DIR}/generate_comprehensive_hil_tests.py
+                ${SCRIPT_DIR}/hil_test_gen.py
+        COMMENT "Generating comprehensive HIL tests"
+    )
+    
+    # Build the layered-queue library for native platform
+    add_library(lq_lib STATIC
+        ${HIL_LQ_DIR}/src/drivers/lq_engine.c
+        ${HIL_LQ_DIR}/src/drivers/lq_hw_input.c
+        ${HIL_LQ_DIR}/src/drivers/lq_remap.c
+        ${HIL_LQ_DIR}/src/drivers/lq_scale.c
+        ${HIL_LQ_DIR}/src/drivers/lq_pid.c
+        ${HIL_LQ_DIR}/src/drivers/lq_verified_output.c
+        ${HIL_LQ_DIR}/src/drivers/lq_util.c
+        ${HIL_LQ_DIR}/src/drivers/lq_hil.c
+        ${HIL_LQ_DIR}/src/drivers/lq_hil_platform.c
+        ${HIL_LQ_DIR}/src/platform/lq_platform_native.c
+        ${HIL_LQ_DIR}/src/platform/lq_platform_stubs.c
+    )
+    
+    target_include_directories(lq_lib PUBLIC ${HIL_LQ_DIR}/include)
+    target_compile_definitions(lq_lib PUBLIC LQ_PLATFORM_NATIVE=1)
+    
+    # Build System Under Test (SUT) - the generated application
+    add_executable(app_hil_sut
+        ${HIL_GEN_DIR}/main.c
+        ${HIL_GEN_DIR}/lq_generated.c
+    )
+    
+    target_include_directories(app_hil_sut PRIVATE
+        ${HIL_LQ_DIR}/include
+        ${HIL_GEN_DIR}
+    )
+    
+    target_compile_definitions(app_hil_sut PRIVATE LQ_PLATFORM_NATIVE=1)
+    target_link_libraries(app_hil_sut PRIVATE lq_lib pthread)
+    
+    # Enable coverage for SUT if requested
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR ENABLE_COVERAGE)
+        target_compile_options(app_hil_sut PRIVATE --coverage)
+        target_link_options(app_hil_sut PRIVATE --coverage)
+    endif()
+    
+    # Build HIL test runner with Google Test
+    add_executable(app_hil_test_runner ${CMAKE_BINARY_DIR}/test_runner.cpp)
+    
+    set_source_files_properties(${CMAKE_BINARY_DIR}/test_runner.cpp PROPERTIES GENERATED TRUE)
+    
+    target_sources(app_hil_test_runner PRIVATE
+        ${HIL_LQ_DIR}/src/drivers/lq_hil.c
+        ${HIL_LQ_DIR}/src/drivers/lq_hil_platform.c
+    )
+    
+    target_include_directories(app_hil_test_runner PRIVATE
+        ${HIL_LQ_DIR}/include
+        ${HIL_GEN_DIR}
+    )
+    
+    target_link_libraries(app_hil_test_runner PRIVATE
+        Threads::Threads
+        GTest::gtest_main
+    )
+    
+    # Custom target to ensure HIL tests are generated
+    add_custom_target(hil_tests_generated
+        DEPENDS ${CMAKE_BINARY_DIR}/comprehensive_hil_tests.dts
+                ${CMAKE_BINARY_DIR}/test_runner.cpp
+    )
+    
+    add_dependencies(app_hil_test_runner hil_tests_generated)
+    
+    # CTest setup: Use test fixtures to manage SUT lifecycle
+    # Fixture setup: Start SUT in background
+    add_test(
+        NAME hil_setup_sut
+        COMMAND bash -c "LQ_HIL_MODE=sut $<TARGET_FILE:app_hil_sut> > /dev/null 2>&1 & echo $! > ${CMAKE_BINARY_DIR}/sut.pid && sleep 1"
+    )
+    set_tests_properties(hil_setup_sut PROPERTIES FIXTURES_SETUP hil_fixture)
+    
+    # Main test: Run HIL tests with Google Test
+    add_test(
+        NAME hil_comprehensive_tests
+        COMMAND bash -c "LQ_HIL_MODE=test $<TARGET_FILE:app_hil_test_runner> --sut-pid=$(cat ${CMAKE_BINARY_DIR}/sut.pid)"
+    )
+    set_tests_properties(hil_comprehensive_tests PROPERTIES FIXTURES_REQUIRED hil_fixture)
+    
+    # Fixture cleanup: Stop SUT
+    add_test(
+        NAME hil_cleanup_sut
+        COMMAND bash -c "if [ -f ${CMAKE_BINARY_DIR}/sut.pid ]; then kill $(cat ${CMAKE_BINARY_DIR}/sut.pid) 2>/dev/null || true; rm -f ${CMAKE_BINARY_DIR}/sut.pid; fi"
+    )
+    set_tests_properties(hil_cleanup_sut PROPERTIES FIXTURES_CLEANUP hil_fixture)
+    
+    message(STATUS "=== Layered Queue HIL Tests (Google Test) ===")
+    message(STATUS "Generated code: ${HIL_GEN_DIR}")
+    message(STATUS "Targets:")
+    message(STATUS "  - app_hil_sut: System Under Test")
+    message(STATUS "  - app_hil_test_runner: Google Test runner")
+    message(STATUS "Run: ctest --output-on-failure")
 endfunction()

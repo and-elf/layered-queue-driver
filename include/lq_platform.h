@@ -308,16 +308,18 @@ int lq_adc_read(uint8_t channel, uint16_t *value);
 
 /**
  * @brief Send CAN message
+ * @param device_index Platform-specific CAN device index (e.g., 0 for can0, 1 for can1)
  * @param can_id CAN identifier
  * @param is_extended true for 29-bit extended ID, false for 11-bit standard
  * @param data Message data bytes
  * @param len Data length (0-8)
  * @return 0 on success, negative errno on failure
  */
-int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);
+int lq_can_send(uint8_t device_index, uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);
 
 /**
  * @brief Receive CAN message
+ * @param device_index Platform-specific CAN device index (e.g., 0 for can0, 1 for can1)
  * @param can_id Pointer to store CAN identifier
  * @param is_extended Pointer to store ID type flag
  * @param data Buffer for message data (must be >=8 bytes)
@@ -325,7 +327,7 @@ int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t 
  * @param timeout_ms Receive timeout in milliseconds (0xFFFFFFFF = forever)
  * @return 0 on success, negative errno on failure
  */
-int lq_can_recv(uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len, uint32_t timeout_ms);
+int lq_can_recv(uint8_t device_index, uint32_t *can_id, bool *is_extended, uint8_t *data, uint8_t *len, uint32_t timeout_ms);
 
 /**
  * @brief Set GPIO output
