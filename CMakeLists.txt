@@ -91,6 +91,7 @@ add_library(layered_queue
     src/drivers/lq_dtc.c
     src/drivers/lq_pid.c
     src/drivers/lq_bldc.c
+    src/drivers/lq_gpio_pattern.c
     src/lq_event_crosscheck.c
     src/platform/lq_platform_stubs.c
     ${PLATFORM_SOURCES}
@@ -170,6 +171,7 @@ if(BUILD_TESTS)
         tests/canopen_test.cpp
         tests/uds_test.cpp
         tests/isotp_test.cpp
+        tests/gpio_pattern_test.cpp
         # tests/config_test.cpp  # TODO: Fix compilation issue with lq_config_registry
         tests/engine_test.cpp
         tests/hw_input_test.cpp

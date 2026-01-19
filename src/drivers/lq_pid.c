@@ -7,7 +7,7 @@
 /**
  * @brief Clamp value to range
  */
-static int32_t clamp(int64_t value, int32_t min, int32_t max)
+static int32_t lq_clamp(int64_t value, int32_t min, int32_t max)
 {
     if (value < min) return min;
     if (value > max) return max;
@@ -107,7 +107,7 @@ static void process_single_pid(
     int64_t output = p_term + i_term + d_term;
 
     /* Clamp output to limits */
-    int32_t clamped_output = clamp(output, ctx->output_min, ctx->output_max);
+    int32_t clamped_output = lq_clamp(output, ctx->output_min, ctx->output_max);
 
     /* Update output signal */
     output_sig->value = clamped_output;

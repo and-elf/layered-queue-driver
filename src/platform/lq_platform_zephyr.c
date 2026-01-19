@@ -6,6 +6,7 @@
  */
 
 #include "lq_platform.h"
+#include "lq_engine.h"
 
 #ifdef __ZEPHYR__
 
@@ -171,6 +172,35 @@ void lq_log(lq_log_level_t level, const char *module, const char *fmt, ...)
     va_end(args);
     
     printk("\n");
+}
+
+/* ============================================================================
+ * Engine runner - main loop for Zephyr
+ * ============================================================================ */
+
+/* Forward declarations */
+extern struct lq_engine g_lq_engine;
+extern void lq_generated_dispatch_outputs(void);
+
+int lq_engine_run(void)
+{
+    printk("Running layered-queue engine on Zephyr\n");
+    
+    /* Main engine loop */
+    while (1) {
+        uint64_t now = lq_platform_get_time_us();
+        
+        /* Run engine processing - updates signals and creates output events */
+        lq_engine_step(&g_lq_engine, now, NULL, 0);
+        
+        /* Dispatch output events to hardware/protocol drivers */
+        lq_generated_dispatch_outputs();
+        
+        /* Sleep for 10ms between cycles */
+        k_sleep(K_MSEC(10));
+    }
+    
+    return 0;
 }
 
 #endif /* __ZEPHYR__ */

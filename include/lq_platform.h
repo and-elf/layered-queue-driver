@@ -201,11 +201,9 @@ int lq_sem_init(lq_sem_t *sem, uint32_t initial_count, uint32_t max_count);
 int lq_sem_take(lq_sem_t *sem, uint32_t timeout_ms);
 
 /**
-#ifndef __ZEPHYR__
-typedef struct {
-    volatile int32_t value;
-} lq_atomic_t;
-#endifn success, negative errno on failure
+ * @brief Give (increment) a semaphore
+ * @param sem Pointer to semaphore structure
+ * @return 0 on success, negative errno on failure
  */
 int lq_sem_give(lq_sem_t *sem);
 
@@ -219,9 +217,11 @@ void lq_sem_destroy(lq_sem_t *sem);
  * Atomic API
  * ============================================================================ */
 
+#ifndef __ZEPHYR__
 typedef struct {
     volatile int32_t value;
 } lq_atomic_t;
+#endif
 
 /**
  * @brief Atomically set a value

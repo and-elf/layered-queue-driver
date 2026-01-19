@@ -1,0 +1,172 @@
+# SPDX-License-Identifier: Apache-2.0
+# GPIO Pattern driver - generates periodic patterns on GPIO pins
+
+description: |
+  GPIO Pattern Driver for blinking LEDs and generating periodic patterns.
+
+  This driver can generate various patterns on GPIO pins:
+  - Static on/off
+  - Simple blink (50% duty cycle)
+  - PWM-like patterns with configurable duty cycle
+  - Custom bit patterns (up to 32 bits)
+
+  Patterns can be:
+  1. Free-running (always active)
+  2. Signal-controlled (driven by FMI or other signal sources)
+
+  Common use cases:
+  - Status LEDs (heartbeat, error indicators)
+  - Simple PWM for brightness control
+  - Diagnostic patterns
+  - User feedback (button press confirmation)
+  - FMI-driven indicators (error conditions, modes)
+
+  Example 1: Simple heartbeat LED (1Hz blink)
+    heartbeat_led: heartbeat-led {
+      compatible = "lq,gpio-pattern";
+      gpios = <&gpiog 13 GPIO_ACTIVE_HIGH>;
+      pattern-type = "blink";
+      frequency = <1>;
+    };
+
+  Example 2: Error indicator with custom pattern (3 quick flashes)
+    error_led: error-led {
+      compatible = "lq,gpio-pattern";
+      gpios = <&gpiog 14 GPIO_ACTIVE_HIGH>;
+      pattern-type = "custom";
+      pattern-bits = <0b11101110111000000000000000000000>;
+      pattern-length = <18>;
+      frequency = <10>;
+    };
+
+  Example 3: PWM-like brightness control (20% duty cycle at 1kHz)
+    dim_led: dim-led {
+      compatible = "lq,gpio-pattern";
+      gpios = <&gpiog 15 GPIO_ACTIVE_HIGH>;
+      pattern-type = "pwm";
+      frequency = <1000>;
+      duty-cycle = <20>;
+    };
+
+  Example 4: Signal-controlled LED (driven by FMI)
+    fault_led: fault-led {
+      compatible = "lq,gpio-pattern";
+      gpios = <&gpioa 5 GPIO_ACTIVE_HIGH>;
+      pattern-type = "blink";
+      frequency = <2>;
+      control-signal = <&fault_monitor>;
+    };
+
+compatible: "lq,gpio-pattern"
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO specification for the output pin.
+      Example: gpios = <&gpiog 13 GPIO_ACTIVE_HIGH>;
+
+  pattern-type:
+    type: string
+    required: false
+    default: "blink"
+    enum:
+      - "static"
+      - "blink"
+      - "pwm"
+      - "custom"
+    description: |
+      Pattern type:
+      - static: Always on (no pattern)
+      - blink: 50% duty cycle square wave
+      - pwm: Configurable duty cycle (use with duty-cycle property)
+      - custom: User-defined bit pattern (use with pattern-bits/pattern-length)
+
+  frequency:
+    type: int
+    required: false
+    default: 1
+    description: |
+      Pattern frequency in Hz.
+      For blink: how many times per second LED toggles
+      For PWM: PWM frequency
+      For custom: how fast to cycle through pattern bits
+
+      Common values:
+      - 0.5 Hz = slow heartbeat (2 second period)
+      - 1 Hz = normal heartbeat
+      - 2-5 Hz = attention-grabbing blink
+      - 100-1000 Hz = PWM for brightness control
+
+  period-us:
+    type: int
+    required: false
+    description: |
+      Alternative to frequency: specify period in microseconds.
+      If both frequency and period-us are specified, period-us takes precedence.
+
+      period_us = 1000000 / frequency_hz
+
+  duty-cycle:
+    type: int
+    required: false
+    default: 50
+    description: |
+      Duty cycle percentage (0-100) for PWM patterns.
+      Only used when pattern-type = "pwm".
+
+      - 0 = always off
+      - 50 = 50% on (default for blink)
+      - 100 = always on
+
+  pattern-bits:
+    type: int
+    required: false
+    description: |
+      Custom bit pattern (32-bit integer, LSB first).
+      Only used when pattern-type = "custom".
+
+      Each bit represents one state in the pattern sequence:
+      - 0 = LED off
+      - 1 = LED on
+
+      Example: 0b10101010 = alternating on/off (8 bits)
+      Example: 0b11100000 = 3 quick flashes then pause (8 bits)
+
+  pattern-length:
+    type: int
+    required: false
+    description: |
+      Number of bits in custom pattern (1-32).
+      Required when pattern-type = "custom".
+
+      Pattern will repeat after pattern-length bits.
+
+  control-signal:
+    type: phandle
+    required: false
+    description: |
+      Optional signal phandle to control pattern enable.
+      When specified, the pattern is only active when signal value is non-zero.
+
+      This allows FMI or other drivers to control pattern generation:
+      - signal value = 0: pattern disabled (LED off)
+      - signal value != 0: pattern enabled
+
+      Example: control-signal = <&fault_monitor>;
+
+  inverted:
+    type: boolean
+    required: false
+    description: |
+      Invert output signal.
+      Useful when GPIO is active-low.
+
+  enabled:
+    type: boolean
+    required: false
+    default: true
+    description: |
+      Pattern generation enabled at startup.
+      Can be disabled to start with LED off.
