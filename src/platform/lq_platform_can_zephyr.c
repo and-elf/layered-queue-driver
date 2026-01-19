@@ -34,22 +34,22 @@ static void lq_can_init(void)
 
 	memset(lq_can_devices, 0, sizeof(lq_can_devices));
 
-	// Initialize each CAN device if it exists in devicetree
-#if DT_NODE_EXISTS(DT_NODELABEL(can0))
+	// Initialize each CAN device if it exists and is enabled in devicetree
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(can0), okay)
 	lq_can_devices[0].dev = DEVICE_DT_GET(DT_NODELABEL(can0));
 	k_msgq_init(&lq_can_devices[0].rx_msgq, lq_can_devices[0].msgq_buffer,
 		    sizeof(struct can_frame), LQ_CAN_RX_MSGQ_MAX);
 	lq_can_devices[0].rx_filter_id = -1;
 #endif
 
-#if DT_NODE_EXISTS(DT_NODELABEL(can1))
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(can1), okay)
 	lq_can_devices[1].dev = DEVICE_DT_GET(DT_NODELABEL(can1));
 	k_msgq_init(&lq_can_devices[1].rx_msgq, lq_can_devices[1].msgq_buffer,
 		    sizeof(struct can_frame), LQ_CAN_RX_MSGQ_MAX);
 	lq_can_devices[1].rx_filter_id = -1;
 #endif
 
-#if DT_NODE_EXISTS(DT_NODELABEL(can2))
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(can2), okay)
 	lq_can_devices[2].dev = DEVICE_DT_GET(DT_NODELABEL(can2));
 	k_msgq_init(&lq_can_devices[2].rx_msgq, lq_can_devices[2].msgq_buffer,
 		    sizeof(struct can_frame), LQ_CAN_RX_MSGQ_MAX);

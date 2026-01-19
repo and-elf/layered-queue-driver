@@ -1,10 +1,15 @@
 # Kconfig - Layered Queue Driver configuration
 
-config LAYERED_QUEUE
+config LQ_DRIVER
 	bool "Layered Queue Driver"
 	default y
 	help
 	  Enable Layered Queue driver library for signal-based event processing.
-	  
+
 	  This library provides a layered queue architecture for embedded systems
 	  with signal processing, hardware input abstraction, and output dispatching.
+
+	  The driver provides:
+	  - Platform-independent core drivers
+	  - Zephyr platform implementation
+	  - Hardware abstraction for CAN, GPIO, PWM, I2C, UART

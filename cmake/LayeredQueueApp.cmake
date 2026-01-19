@@ -173,29 +173,15 @@ function(add_lq_application TARGET_NAME)
     # Branch based on environment
     if(IS_ZEPHYR)
         # Zephyr mode: add sources to existing 'app' target
+        # Note: layered-queue-driver library is automatically linked via Zephyr module system
+        # (see modules/layered-queue-driver/zephyr/CMakeLists.txt)
         target_sources(app PRIVATE
             ${GEN_DIR}/main.c
             ${GEN_DIR}/lq_generated.c
             ${APP_SOURCES}
-            # Add layered-queue library sources directly
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_engine.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_hw_input.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_remap.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_scale.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_pid.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_verified_output.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/drivers/lq_util.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_zephyr.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_can_zephyr.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_gpio_zephyr.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_pwm_zephyr.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_i2c_zephyr.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/src/platform/lq_platform_uart_zephyr.c
-
         )
-        
+
         target_include_directories(app PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/modules/layered-queue-driver/include
             ${GEN_DIR}
         )
         

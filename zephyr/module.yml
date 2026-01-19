@@ -1,6 +1,4 @@
-name: layered-queue
+name: layered-queue-driver
 build:
-  cmake: .
-  kconfig: Kconfig
-  settings:
-    dts_root: .
+  cmake: zephyr
+  kconfig: zephyr/Kconfig
