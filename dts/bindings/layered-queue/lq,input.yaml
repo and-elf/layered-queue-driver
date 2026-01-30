@@ -1,0 +1,77 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Generic Input Wrapper - Hardware Abstraction Layer
+
+  Wraps any hardware input source (ADC, SPI, sensor, GPIO) into a
+  uniform signal source for the layered queue engine.
+
+  This is the v2.0 API that replaces direct use of lq,hw-*-input nodes.
+  Instead of directly specifying hardware parameters, you reference
+  an existing hardware source via phandle.
+
+  Benefits:
+  - Hardware independence: Change hardware source without changing logic
+  - Reusability: Multiple inputs can reference the same hardware
+  - Cleaner separation: Hardware config vs signal routing
+
+  Example (v2.0 - new API):
+    adc1: adc@40012000 {
+      compatible = "st,stm32-adc";
+      ...
+    };
+
+    speed_input: lq-input {
+      compatible = "lq,input";
+      input = <&adc1 1>;  /* ADC1 channel 1 */
+      stale-us = <100000>;
+    };
+
+  Example (v1.x - old API for comparison):
+    speed_input: lq-hw-adc-input {
+      compatible = "lq,hw-adc-input";
+      io-channels = <&adc1 1>;
+      max-raw = <4095>;
+      min-raw = <0>;
+      stale-us = <100000>;
+    };
+
+compatible: "lq,input"
+
+properties:
+  input:
+    type: phandle-array
+    required: true
+    description: |
+      Reference to hardware input source.
+
+      Format depends on the hardware type:
+      - ADC: <&adc_controller channel_number>
+        Example: input = <&adc0 2>;
+
+      - Sensor: <&sensor_device channel_id>
+        Example: input = <&tmp117 SENSOR_CHAN_AMBIENT_TEMP>;
+
+      - SPI: <&spi_device>
+        Example: input = <&pressure_sensor>;
+
+      - GPIO: <&gpio_controller pin_number flags>
+        Example: input = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+
+      The code generator will detect the hardware type and generate
+      appropriate ISR handlers and initialization code.
+
+  stale-us:
+    type: int
+    default: 100000
+    description: |
+      Staleness timeout in microseconds.
+      If no new sample arrives within this time, signal is marked stale.
+
+  init-priority:
+    type: int
+    default: 80
+    description: |
+      Device initialization priority.
+      Must be > hardware device priority to ensure hardware is ready.

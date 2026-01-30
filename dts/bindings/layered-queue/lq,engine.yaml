@@ -25,6 +25,31 @@ child-binding:
     Use labels to reference nodes in other sections.
 
 properties:
+  cycle-time-hz:
+    type: int
+    default: 100
+    description: |
+      Engine processing cycle frequency in Hz.
+      Overrides CONFIG_LQ_ENGINE_CYCLE_TIME_US if specified.
+
+      Common values:
+        10 Hz (100ms): Slow, low-priority monitoring
+        50 Hz (20ms): Medium-speed control loops
+        100 Hz (10ms): Fast control and monitoring (recommended)
+        1000 Hz (1ms): High-speed control loops
+        10000 Hz (100us): Very high-speed (motor commutation, power electronics)
+
+      Note: Must be compatible with RTOS tick rate and realistic for CPU load.
+
+  cycle-time-us:
+    type: int
+    description: |
+      Alternative: Engine cycle time in microseconds.
+      If both cycle-time-hz and cycle-time-us are specified,
+      cycle-time-us takes precedence.
+
+      Example: 10000 = 10ms = 100Hz
+
   max-signals:
     type: int
     default: 32
@@ -51,7 +76,7 @@ properties:
     description: |
       Device initialization priority for the engine subsystem.
       Must be after all sensor/input devices are initialized.
-      
+
       Typical priority order:
         50-59: I2C/SPI/CAN bus drivers
         60-69: Sensor drivers (TMP117, BME280, etc.)

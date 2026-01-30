@@ -182,24 +182,35 @@ void lq_log(lq_log_level_t level, const char *module, const char *fmt, ...)
 extern struct lq_engine g_lq_engine;
 extern void lq_generated_dispatch_outputs(void);
 
+/**
+ * @brief Single iteration of engine processing (baremetal mode)
+ *
+ * Wrapper around lq_engine_step() + lq_generated_dispatch_outputs()
+ * for use in polling loops.
+ */
+void lq_engine_tick(struct lq_engine *engine)
+{
+    uint64_t now = lq_platform_get_time_us();
+
+    /* Run engine processing - updates signals and creates output events */
+    lq_engine_step(engine, now, NULL, 0);
+
+    /* Dispatch output events to hardware/protocol drivers */
+    lq_generated_dispatch_outputs();
+}
+
 int lq_engine_run(void)
 {
     printk("Running layered-queue engine on Zephyr\n");
-    
+
     /* Main engine loop */
     while (1) {
-        uint64_t now = lq_platform_get_time_us();
-        
-        /* Run engine processing - updates signals and creates output events */
-        lq_engine_step(&g_lq_engine, now, NULL, 0);
-        
-        /* Dispatch output events to hardware/protocol drivers */
-        lq_generated_dispatch_outputs();
-        
+        lq_engine_tick(&g_lq_engine);
+
         /* Sleep for 10ms between cycles */
         lq_platform_sleep_ms(10);
     }
-    
+
     return 0;
 }
 

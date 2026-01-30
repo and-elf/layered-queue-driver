@@ -5,6 +5,9 @@
 #
 # Usage: Just use add_lq_application() as normal - it auto-detects!
 
+# Include requirements-driven development support
+include(${CMAKE_CURRENT_LIST_DIR}/RequirementsDriven.cmake)
+
 #[=======================================================================[.rst:
 add_lq_application (Zephyr-enhanced)
 -------------------------------------
@@ -131,24 +134,25 @@ function(add_lq_application TARGET_NAME)
     endif()
 
     # Stage 2: Generate lq_generated.c/h and main.c from DTS
+    # Note: motor_signals.h already generated in Stage 1, don't regenerate it
+    set(GEN_OUTPUTS
+        ${GEN_DIR}/lq_generated.c
+        ${GEN_DIR}/lq_generated.h
+        ${GEN_DIR}/main.c
+    )
+
+    # For Zephyr, also generate prj.conf
+    if(IS_ZEPHYR)
+        list(APPEND GEN_OUTPUTS ${GEN_DIR}/prj.conf)
+    endif()
+
     if(SIGNAL_HEADER)
-        set(GEN_OUTPUTS
-            ${GEN_DIR}/lq_generated.c
-            ${GEN_DIR}/lq_generated.h
-            ${GEN_DIR}/main.c
-            ${SIGNAL_HEADER}
-        )
         set(GEN_DEPENDS
             ${SCRIPT_DIR}/dts_gen.py
             ${PARSED_DTS}
             ${SIGNAL_HEADER}
         )
     else()
-        set(GEN_OUTPUTS
-            ${GEN_DIR}/lq_generated.c
-            ${GEN_DIR}/lq_generated.h
-            ${GEN_DIR}/main.c
-        )
         set(GEN_DEPENDS
             ${SCRIPT_DIR}/dts_gen.py
             ${PARSED_DTS}
@@ -162,13 +166,16 @@ function(add_lq_application TARGET_NAME)
             ${GEN_DIR}
             --platform=${APP_PLATFORM}
         DEPENDS ${GEN_DEPENDS}
-        COMMENT "Generating code from device tree for ${TARGET_NAME}"
+        COMMENT "Generating code from device tree for ${TARGET_NAME} (platform=${APP_PLATFORM}, rtos=${APP_RTOS})"
     )
 
     # Custom target to ensure generation happens
     add_custom_target(${TARGET_NAME}_codegen
         DEPENDS ${GEN_OUTPUTS}
     )
+
+    # Note: prj.conf is kept in build directory and referenced via CONF_FILE in CMakeLists.txt
+    # No need to copy to project root anymore
 
     # Branch based on environment
     if(IS_ZEPHYR)
@@ -408,6 +415,7 @@ function(add_lq_hil_tests)
     # Build the layered-queue library for native platform
     add_library(lq_lib STATIC
         ${HIL_LQ_DIR}/src/drivers/lq_engine.c
+        ${HIL_LQ_DIR}/src/drivers/lq_queue_core.c
         ${HIL_LQ_DIR}/src/drivers/lq_hw_input.c
         ${HIL_LQ_DIR}/src/drivers/lq_remap.c
         ${HIL_LQ_DIR}/src/drivers/lq_scale.c

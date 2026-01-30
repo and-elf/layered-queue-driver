@@ -11,6 +11,7 @@ if(CONFIG_LQ_DRIVER)
 
   # Core driver sources (platform-independent)
   zephyr_library_sources(
+    ${ZEPHYR_CURRENT_MODULE_DIR}/src/drivers/lq_queue_core.c
     ${ZEPHYR_CURRENT_MODULE_DIR}/src/drivers/lq_engine.c
     ${ZEPHYR_CURRENT_MODULE_DIR}/src/drivers/lq_hw_input.c
     ${ZEPHYR_CURRENT_MODULE_DIR}/src/drivers/lq_remap.c
@@ -35,4 +36,8 @@ if(CONFIG_LQ_DRIVER)
   zephyr_include_directories(
     ${ZEPHYR_CURRENT_MODULE_DIR}/include
   )
+
+  # Include app's generated headers (for lq_config.h with auto-calculated sizes)
+  # Must happen after lq_driver library is defined
+  zephyr_library_include_directories(${APPLICATION_BINARY_DIR}/app)
 endif()

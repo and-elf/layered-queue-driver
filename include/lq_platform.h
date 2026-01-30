@@ -18,6 +18,9 @@
 extern "C" {
 #endif
 
+/* Forward declarations */
+struct lq_engine;
+
 /* Platform detection */
 #if defined(ARDUINO)
     #define LQ_PLATFORM_ARDUINO 1
@@ -58,6 +61,17 @@ static inline void lq_platform_delay_ms(uint32_t ms) {
 }
 
 /**
+ * @brief Delay for specified microseconds
+ * @param us Microseconds to delay
+ */
+static inline void lq_platform_delay_us(uint32_t us) {
+    if (us >= 1000) {
+        lq_platform_sleep_ms(us / 1000);
+    }
+    /* For sub-millisecond delays, just return (too short to sleep) */
+}
+
+/**
  * @brief Get tick count in milliseconds (alias for uptime)
  * Used by event crosscheck timeout tracking
  * @return Milliseconds since system start
@@ -68,15 +82,25 @@ static inline uint32_t lq_get_tick_ms(void) {
 
 /**
  * @brief Start the engine task/thread or run the main loop
- * 
+ *
  * Platform-specific behavior:
  * - FreeRTOS: Creates task and starts scheduler (never returns)
  * - Zephyr: Creates thread (returns, threads continue)
  * - Native/Bare metal: Runs infinite loop (never returns)
- * 
+ *
  * @return 0 on success, negative on error
  */
 int lq_engine_run(void);
+
+/**
+ * @brief Single iteration of engine processing (baremetal mode)
+ *
+ * Processes hardware inputs, runs signal processing, and dispatches outputs.
+ * Call this repeatedly from a polling loop in baremetal applications.
+ *
+ * @param engine Pointer to engine struct
+ */
+void lq_engine_tick(struct lq_engine *engine);
 
 /* ============================================================================
  * Mutex API

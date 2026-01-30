@@ -1,0 +1,78 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Generic Output Wrapper - Hardware Abstraction Layer
+
+  Wraps any hardware output destination (CAN, GPIO, PWM, UART) into a
+  uniform output sink for the layered queue engine.
+
+  This is the v2.0 API that provides a cleaner abstraction for outputs.
+  Instead of directly specifying protocol parameters in output nodes,
+  you reference hardware peripherals via phandles.
+
+  Benefits:
+  - Hardware independence: Change output hardware without changing logic
+  - Reusability: Multiple outputs can share the same hardware
+  - Cleaner separation: Hardware config vs signal routing
+
+  Example (v2.0 - new API):
+    can0: can@40006400 {
+      compatible = "st,stm32-can";
+      ...
+    };
+
+    speed_output: lq-output {
+      compatible = "lq,output";
+      output = <&can0>;
+      source = <&speed_merge>;
+    };
+
+  Example (v1.x - old API for comparison):
+    speed_output: lq-cyclic-output {
+      compatible = "lq,cyclic-output";
+      source = <&speed_merge>;
+      output-type = "can";
+      target-id = <0x123>;
+      period-us = <10000>;
+    };
+
+compatible: "lq,output"
+
+properties:
+  output:
+    type: phandle-array
+    required: true
+    description: |
+      Reference to hardware output destination.
+
+      Format depends on the hardware type:
+      - CAN: <&can_controller>
+        Example: output = <&can0>;
+
+      - GPIO: <&gpio_controller pin_number flags>
+        Example: output = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+
+      - PWM: <&pwm_controller channel_number flags>
+        Example: output = <&pwm0 2 PWM_POLARITY_NORMAL>;
+
+      - UART: <&uart_device>
+        Example: output = <&uart0>;
+
+      The code generator will detect the hardware type and generate
+      appropriate transmission handlers and initialization code.
+
+  source:
+    type: phandle
+    required: true
+    description: |
+      Source signal to transmit.
+      Example: source = <&merge_result>;
+      Typically points to a merge, validator, or processing node output.
+
+  init-priority:
+    type: int
+    default: 90
+    description: |
+      Device initialization priority.
+      Must be > hardware device priority and > input priority.

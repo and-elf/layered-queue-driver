@@ -550,6 +550,55 @@ def generate_config_header(counts, output_path):
         ))
 
 
+def generate_prj_conf(counts, nodes, output_path):
+    """Generate a minimal Zephyr prj.conf reflecting resources discovered in DTS.
+
+    This writes Kconfig options that mirror the exact counts used in the
+    generated `lq_config.h` so that Zephyr builds allocate appropriate
+    resources when compiling the layered-queue-driver.
+    """
+    # Heuristics for enabling subsystems
+    has_can = any('can' in (n.compatible or '') or 'can' in n.label for n in nodes)
+    has_spi = any('spi' in (n.compatible or '') or 'spi' in n.label for n in nodes)
+    has_adc = any('adc' in (n.compatible or '') or 'adc' in n.label for n in nodes)
+
+    lines = []
+    lines.append('# Auto-generated prj.conf - do not edit')
+    lines.append('# Generated from DTS by dts_gen.py')
+    lines.append('')
+    lines.append('# Layered-queue-driver exact resource sizing (from DTS)')
+    lines.append(f'CONFIG_LQ_FROM_DTS=y')
+    lines.append(f'CONFIG_LQ_MAX_SIGNALS={counts.get("num_signals", 32)}')
+    lines.append(f'CONFIG_LQ_MAX_HW_INPUTS={counts.get("num_hw_inputs", 0)}')
+    lines.append(f'CONFIG_LQ_MAX_MERGES={counts.get("num_merges", 0)}')
+    lines.append(f'CONFIG_LQ_MAX_CYCLIC_OUTPUTS={counts.get("num_cyclic_outputs", 0)}')
+    lines.append(f'CONFIG_LQ_MAX_PID_CONTROLLERS={counts.get("num_pid_controllers", 0)}')
+    lines.append('')
+    lines.append('# Minimal runtime options')
+    lines.append('CONFIG_PRINTK=y')
+    lines.append('CONFIG_CONSOLE=y')
+    lines.append('CONFIG_LOG=y')
+    lines.append('')
+    # Enable drivers when present
+    if has_can:
+        lines.append('# CAN bus support required by DTS')
+        lines.append('CONFIG_CAN=y')
+    if has_spi:
+        lines.append('# SPI support required by DTS')
+        lines.append('CONFIG_SPI=y')
+    if has_adc:
+        lines.append('# ADC support required by DTS')
+        lines.append('CONFIG_ADC=y')
+
+    # Stack/workqueue sizing hints
+    lines.append('CONFIG_MAIN_STACK_SIZE=4096')
+    lines.append('CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=2048')
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
 def generate_header(nodes, output_path):
     """Generate lq_generated.h with declarations"""
     
@@ -636,12 +685,6 @@ def generate_source(nodes, output_path):
             # If device property references a CAN device, treat as CAN input/output
             dev = node.properties.get('device')
             if dev and (isinstance(dev, str) and 'can' in dev.lower()):
-                # Extract device index from device name (e.g., can0=0, can1=1, can2=2)
-                import re
-                match = re.search(r'can(\d+)', dev.lower())
-                device_index = int(match.group(1)) if match else 0
-                node.properties['device_index'] = device_index
-
                 if node.compatible == 'lq,input':
                     node.compatible = 'lq,hw-can-input'
                     hw_inputs.append(node)
@@ -743,7 +786,7 @@ def generate_source(nodes, output_path):
         f.write(" * or link with lq_platform_stubs.c for default no-op implementations */\n")
         
         if any(t in output_types_used for t in ['j1939', 'canopen', 'can']):
-            f.write("extern int lq_can_send(uint8_t device_index, uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);\n")
+            f.write("extern int lq_can_send(uint32_t can_id, bool is_extended, const uint8_t *data, uint8_t len);\n")
         
         if 'gpio' in output_types_used:
             f.write("extern int lq_gpio_set(uint8_t pin, bool state);\n")
@@ -863,7 +906,6 @@ def generate_source(nodes, output_path):
                 f.write(f"        [{i}] = {{\n")
                 f.write(f"            .type = {output_type},\n")
                 f.write(f"            .target_id = {node.properties.get('target_id', 0)},\n")
-                f.write(f"            .device_index = {node.properties.get('device_index', 0)},\n")
                 f.write(f"            .source_signal = {node.properties.get('source_signal_id', 0)},\n")
                 f.write(f"            .period_us = {node.properties.get('period_us', 100000)},\n")
                 f.write(f"            .next_deadline = {node.properties.get('deadline_offset_us', 0)},\n")
@@ -989,7 +1031,7 @@ def generate_source(nodes, output_path):
             f.write("                \n")
             f.write("                /* Build CAN ID from PGN (target_id) */\n")
             f.write("                uint32_t can_id = lq_j1939_build_id_from_pgn(evt->target_id, 6, 0);\n")
-            f.write("                lq_can_send(evt->device_index, can_id, true, data, 8);\n")
+            f.write("                lq_can_send(can_id, true, data, 8);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -1003,7 +1045,7 @@ def generate_source(nodes, output_path):
             f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
             f.write("                \n")
             f.write("                /* target_id is COB-ID */\n")
-            f.write("                lq_can_send(evt->device_index, evt->target_id, false, data, 4);\n")
+            f.write("                lq_can_send(evt->target_id, false, data, 4);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -1062,7 +1104,7 @@ def generate_source(nodes, output_path):
             f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
             f.write("                \n")
             f.write("                /* target_id is COB-ID */\n")
-            f.write("                lq_can_send(evt->device_index, evt->target_id, false, data, 4);\n")
+            f.write("                lq_can_send(evt->target_id, false, data, 4);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -1076,7 +1118,7 @@ def generate_source(nodes, output_path):
             f.write("                data[3] = (uint8_t)((evt->value >> 24) & 0xFF);\n")
             f.write("                \n")
             f.write("                bool extended = (evt->flags & 1) != 0;\n")
-            f.write("                lq_can_send(evt->device_index, evt->target_id, extended, data, 8);\n")
+            f.write("                lq_can_send(evt->target_id, extended, data, 8);\n")
             f.write("                break;\n")
             f.write("            }\n")
         
@@ -1702,6 +1744,13 @@ def main():
     # Generate platform-specific main.c
     generate_main(nodes, output_dir / 'main.c', platform or 'baremetal')
     print(f"Generated {output_dir}/main.c (platform: {platform or 'baremetal'})")
+
+    # Generate prj.conf so Zephyr builds get Kconfig tuned to DTS
+    try:
+        generate_prj_conf(resource_counts, nodes, output_dir / 'prj.conf')
+        print(f"Generated {output_dir}/prj.conf")
+    except Exception as e:
+        print(f"Warning: failed to generate prj.conf: {e}")
     
     # Generate platform-specific hardware interface if requested
     if platform:

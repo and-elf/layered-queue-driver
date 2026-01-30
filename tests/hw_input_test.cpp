@@ -201,22 +201,26 @@ TEST_F(HwInputTest, BufferFull) {
     for (int i = 0; i < 128; i++) {
         lq_hw_push(LQ_HW_ADC0, (uint32_t)i);
     }
-    
+
     EXPECT_EQ(lq_hw_pending(), 128);
-    
-    // Push one more - should be dropped
+
+    // Push one more - with DROP_OLDEST policy, oldest item (0) will be dropped
     lq_hw_push(LQ_HW_ADC0, 9999U);
-    
+
     // Should still be 128
     EXPECT_EQ(lq_hw_pending(), 128);
-    
-    // Pop all and verify the overflow sample was dropped
+
+    // Pop all and verify: items 1-127 + 9999 (item 0 was dropped)
     struct lq_hw_sample sample;
-    for (int i = 0; i < 128; i++) {
+    for (int i = 1; i < 128; i++) {
         ASSERT_EQ(lq_hw_pop(&sample), 0);
         EXPECT_EQ(sample.value, i);
     }
-    
+
+    // Last item should be the overflow sample
+    ASSERT_EQ(lq_hw_pop(&sample), 0);
+    EXPECT_EQ(sample.value, 9999);
+
     // Should be empty now
     EXPECT_EQ(lq_hw_pending(), 0);
 }
