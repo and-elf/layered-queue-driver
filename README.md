@@ -200,12 +200,18 @@ Define the complete pipeline in device tree:
 
 ### 3. Code Generation and Main Loop
 
-Generate C code from device tree:
+Generate C code from device tree using the modular generator:
 
 ```bash
 python3 scripts/dts_gen.py app.dts src/
-# Generates: src/lq_generated.h, src/lq_generated.c
+# Generates: src/lq_config.h, src/lq_generated.{h,c}
+
+# Platform-specific ISRs (STM32, Zephyr, etc.):
+python3 scripts/dts_gen.py app.dts src/ --platform=stm32
+# Also generates: src/lq_platform_hw.c, src/main.c
 ```
+
+> **Note**: The legacy monolithic generator is still available as `scripts/dts_gen_legacy.py` for backwards compatibility.
 
 The main application loop is simple:
 
