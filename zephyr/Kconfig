@@ -13,3 +13,235 @@ config LQ_DRIVER
 	  - Platform-independent core drivers
 	  - Zephyr platform implementation
 	  - Hardware abstraction for CAN, GPIO, PWM, I2C, UART
+
+if LQ_DRIVER
+
+config LQ_LOG_LEVEL
+	int "Log level for Layered Queue drivers"
+	default 3
+	help
+	  Log level for all LQ driver modules.
+	  0=OFF, 1=ERR, 2=WRN, 3=INF, 4=DBG
+
+# System Health Monitoring
+
+config LQ_SYSTEM_HEALTH
+	bool "System Health Monitoring"
+	default y
+	help
+	  Enable system health monitoring for safety-critical applications.
+	  
+	  Tracks initialization and runtime health of all hardware peripherals.
+	  Essential for fail-safe operation - detects when sensors/actuators fail.
+	  
+	  All hardware drivers automatically register with the health monitor.
+	  Application code can check lq_health_is_system_safe() before enabling
+	  actuators or entering operational modes.
+
+config LQ_SYSTEM_HEALTH_INIT_PRIORITY
+	int "System health monitor init priority"
+	default 10
+	depends on LQ_SYSTEM_HEALTH
+	help
+	  Must be very early (before hardware drivers) so they can register.
+
+# Hardware Input Drivers
+
+config LQ_HW_ADC
+	bool "ADC Hardware Input Driver"
+	default y
+	depends on ADC
+	help
+	  Enable ADC hardware input driver (lq,hw-adc-input).
+	  Provides interrupt-driven ADC sampling with ringbuffer.
+
+config LQ_HW_ADC_INIT_PRIORITY
+	int "ADC hardware input init priority"
+	default 80
+	depends on LQ_HW_ADC
+	help
+	  Must be > ADC driver priority (typically 60-70).
+
+config LQ_HW_SPI
+	bool "SPI Hardware Input Driver"
+	default y
+	depends on SPI
+	help
+	  Enable SPI hardware input driver (lq,hw-spi-input).
+
+config LQ_HW_SPI_INIT_PRIORITY
+	int "SPI hardware input init priority"
+	default 80
+	depends on LQ_HW_SPI
+
+config LQ_HW_SENSOR
+	bool "Sensor Hardware Input Driver"
+	default y
+	depends on SENSOR
+	help
+	  Enable sensor hardware input driver (lq,hw-sensor-input).
+	  Integrates with Zephyr sensor API.
+
+config LQ_HW_SENSOR_INIT_PRIORITY
+	int "Sensor hardware input init priority"
+	default 85
+	depends on LQ_HW_SENSOR
+	help
+	  Must be > sensor driver priority (typically 70-80).
+
+# Signal Processing Drivers
+
+config LQ_SCALE
+	bool "Scale Signal Processing Driver"
+	default y
+	help
+	  Enable scale driver (lq,scale).
+	  Applies linear transformations: output = (input * scale / 1000) + offset
+
+config LQ_SCALE_INIT_PRIORITY
+	int "Scale driver init priority"
+	default 90
+	depends on LQ_SCALE
+
+config LQ_REMAP
+	bool "Remap Signal Processing Driver"
+	default y
+	help
+	  Enable remap driver (lq,remap).
+	  Maps input range to output range with optional clamping.
+
+config LQ_REMAP_INIT_PRIORITY
+	int "Remap driver init priority"
+	default 90
+	depends on LQ_REMAP
+
+config LQ_PID
+	bool "PID Controller Driver"
+	default y
+	help
+	  Enable PID controller driver (lq,pid).
+	  Provides proportional-integral-derivative control loops.
+
+config LQ_PID_INIT_PRIORITY
+	int "PID driver init priority"
+	default 90
+	depends on LQ_PID
+
+config LQ_MID_MERGE
+	bool "Mid-Value Merge Driver"
+	default y
+	help
+	  Enable mid-value merge driver (lq,mid-merge).
+	  Provides redundancy voting and sensor fusion.
+
+config LQ_MID_MERGE_INIT_PRIORITY
+	int "Mid-merge driver init priority"
+	default 90
+	depends on LQ_MID_MERGE
+
+# Monitoring and Output Drivers
+
+config LQ_FAULT_MONITOR
+	bool "Fault Monitor Driver"
+	default y
+	help
+	  Enable fault monitor driver (lq,fault-monitor).
+	  Detects threshold violations with hysteresis and debouncing.
+
+config LQ_FAULT_MONITOR_INIT_PRIORITY
+	int "Fault monitor init priority"
+	default 91
+	depends on LQ_FAULT_MONITOR
+
+config LQ_VERIFIED_OUTPUT
+	bool "Verified Output Driver"
+	default y
+	help
+	  Enable verified output driver (lq,verified-output).
+	  Provides dual-channel safety verification for outputs.
+
+config LQ_VERIFIED_OUTPUT_INIT_PRIORITY
+	int "Verified output init priority"
+	default 91
+	depends on LQ_VERIFIED_OUTPUT
+
+config LQ_CYCLIC_OUTPUT
+	bool "Cyclic Output Driver"
+	default y
+	help
+	  Enable cyclic output driver (lq,cyclic-output).
+	  Periodic transmission of signals via CAN, GPIO, etc.
+
+config LQ_CYCLIC_OUTPUT_INIT_PRIORITY
+	int "Cyclic output init priority"
+	default 92
+	depends on LQ_CYCLIC_OUTPUT
+
+config LQ_GPIO_PATTERN
+	bool "GPIO Pattern Driver"
+	default y
+	depends on GPIO
+	help
+	  Enable GPIO pattern driver (lq,gpio-pattern).
+	  Generates complex GPIO timing patterns.
+
+config LQ_GPIO_PATTERN_INIT_PRIORITY
+	int "GPIO pattern init priority"
+	default 92
+	depends on LQ_GPIO_PATTERN
+
+# Protocol Drivers
+
+config LQ_PROTOCOL_J1939
+	bool "J1939 Protocol Driver"
+	default y
+	depends on CAN
+	help
+	  Enable J1939 protocol driver (lq,protocol-j1939).
+	  SAE J1939 automotive/heavy vehicle CAN protocol.
+
+config LQ_PROTOCOL_J1939_INIT_PRIORITY
+	int "J1939 protocol init priority"
+	default 85
+	depends on LQ_PROTOCOL_J1939
+
+config LQ_PROTOCOL_CANOPEN
+	bool "CANopen Protocol Driver"
+	default y
+	depends on CAN
+	help
+	  Enable CANopen protocol driver (lq,protocol-canopen).
+	  CANopen industrial automation protocol.
+
+config LQ_PROTOCOL_CANOPEN_INIT_PRIORITY
+	int "CANopen protocol init priority"
+	default 85
+	depends on LQ_PROTOCOL_CANOPEN
+
+config LQ_PROTOCOL_ISOTP
+	bool "ISO-TP Protocol Driver"
+	default y
+	depends on CAN
+	help
+	  Enable ISO-TP protocol driver (lq,protocol-isotp).
+	  ISO 15765-2 transport protocol for multi-frame CAN messages.
+
+config LQ_PROTOCOL_ISOTP_INIT_PRIORITY
+	int "ISO-TP protocol init priority"
+	default 85
+	depends on LQ_PROTOCOL_ISOTP
+
+config LQ_PROTOCOL_UDS
+	bool "UDS Protocol Driver"
+	default y
+	depends on LQ_PROTOCOL_ISOTP
+	help
+	  Enable UDS protocol driver (lq,protocol-uds).
+	  Unified Diagnostic Services (ISO 14229) over ISO-TP.
+
+config LQ_PROTOCOL_UDS_INIT_PRIORITY
+	int "UDS protocol init priority"
+	default 86
+	depends on LQ_PROTOCOL_UDS
+
+endif # LQ_DRIVER

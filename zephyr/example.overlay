@@ -1,0 +1,79 @@
+/*
+ * Example Zephyr Device Tree Overlay
+ * 
+ * This demonstrates the base case: manual DTS that works with west alone.
+ * No code generator required!
+ * 
+ * Usage:
+ *   1. Copy to your app as app.overlay
+ *   2. Enable CONFIG_LQ_DRIVER=y in prj.conf
+ *   3. west build -b your_board
+ */
+
+/ {
+	/* Hardware input - ADC channel for temperature sensor */
+	temp_raw: lq-hw-adc-temp {
+		compatible = "lq,hw-adc-input";
+		io-channels = <&adc0 2>;  /* Zephyr standard ADC binding */
+		min-raw = <0>;
+		max-raw = <4095>;
+		stale-us = <100000>;      /* 100ms timeout */
+		status = "okay";
+	};
+
+	/* Signal processing - convert ADC counts to degrees Celsius */
+	temp_celsius: lq-scale-temp {
+		compatible = "lq,scale";
+		source = <&temp_raw>;     /* Phandle reference - auto signal ID! */
+		scale-factor = <100>;     /* 0.01 multiplier */
+		offset = <-27315>;        /* Convert to Celsius */
+		status = "okay";
+	};
+
+	/* Fault detection - over-temperature alarm */
+	temp_alarm: lq-fault-overtemp {
+		compatible = "lq,fault-monitor";
+		input = <&temp_celsius>;  /* Monitor scaled temperature */
+		threshold-high = <8500>;  /* 85.00°C */
+		hysteresis = <500>;       /* 5.00°C hysteresis */
+		debounce-ms = <100>;      /* 100ms debounce */
+		status = "okay";
+	};
+
+	/* Optional: Periodic CAN output */
+	temp_can_tx: lq-output-temp-can {
+		compatible = "lq,cyclic-output";
+		source = <&temp_celsius>;
+		output-type = "can";
+		target-id = <0x123>;
+		period-ms = <100>;        /* Transmit every 100ms */
+		status = "okay";
+	};
+};
+
+/*
+ * Build Configuration (prj.conf):
+ * 
+ * CONFIG_LQ_DRIVER=y
+ * CONFIG_LQ_HW_ADC=y
+ * CONFIG_LQ_SCALE=y
+ * CONFIG_LQ_FAULT_MONITOR=y
+ * CONFIG_LQ_CYCLIC_OUTPUT=y
+ * CONFIG_ADC=y
+ * CONFIG_CAN=y
+ * 
+ * Application Code:
+ * 
+ * #include <zephyr/kernel.h>
+ * #include "lq_engine.h"
+ * 
+ * void main(void) {
+ *     // Drivers auto-instantiated by Zephyr
+ *     lq_engine_init();
+ *     
+ *     while (1) {
+ *         lq_engine_process();
+ *         k_msleep(10);
+ *     }
+ * }
+ */

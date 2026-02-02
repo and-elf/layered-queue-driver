@@ -1,0 +1,132 @@
+/*
+ * Safety-Critical System with Health Monitoring
+ * 
+ * Demonstrates peripheral init failure detection for fail-safe operation.
+ * 
+ * Critical components:
+ * 1. System health monitor - tracks all peripheral status
+ * 2. Hardware inputs - register init status (success/failure)
+ * 3. Fault monitor - detects system unsafe condition
+ * 4. Fail-safe logic - reacts to health failures
+ */
+
+/ {
+	/* System health monitor - MUST initialize first */
+	system_health: lq-system-health {
+		compatible = "lq,system-health";
+		update-period-ms = <50>;  /* 50ms for fast fault detection */
+		status = "okay";
+	};
+
+	/* Hardware inputs - will register with health monitor */
+	brake_pressure_adc: lq-hw-adc-brake {
+		compatible = "lq,hw-adc-input";
+		io-channels = <&adc0 0>;  /* If ADC0 fails init, health knows! */
+		status = "okay";
+	};
+
+	steering_angle_spi: lq-hw-spi-steering {
+		compatible = "lq,hw-spi-input";
+		/* If SPI device not ready, health monitor will detect */
+		spi-max-frequency = <1000000>;
+		status = "okay";
+	};
+
+	/* Fault monitor on system health - SAFETY CRITICAL */
+	system_safe_monitor: lq-fault-system-safe {
+		compatible = "lq,fault-monitor";
+		input = <&system_health>;
+		
+		/* Threshold: bit 16 must be set (0x10000 = 65536) */
+		/* If system health signal < 65536, bit 16 is clear = UNSAFE */
+		threshold-low = <65536>;
+		
+		/* No hysteresis - we need immediate detection */
+		hysteresis = <0>;
+		
+		/* No debounce - peripheral init failures are immediate */
+		debounce-ms = <0>;
+		
+		status = "okay";
+	};
+
+	/* Example: Fail-safe output control */
+	actuator_enable: lq-verified-output-actuator {
+		compatible = "lq,verified-output";
+		
+		/* Only enable actuator if system is safe */
+		primary = <&system_safe_monitor>;
+		secondary = <&system_safe_monitor>;
+		
+		tolerance = <0>;  /* Must be exactly safe */
+		status = "okay";
+	};
+
+	/* GPIO output for visual safety indicator */
+	safety_led: lq-cyclic-output-led {
+		compatible = "lq,cyclic-output";
+		source = <&system_safe_monitor>;
+		output-type = "gpio";
+		target-id = <13>;  /* LED pin */
+		period-ms = <50>;  /* Blink at 20Hz if unsafe */
+		status = "okay";
+	};
+};
+
+/*
+ * Application Code Example:
+ * 
+ * #include <zephyr/kernel.h>
+ * #include "lq_engine.h"
+ * #include "lq_system_health.h"
+ * 
+ * void main(void) {
+ *     lq_engine_init();
+ *     
+ *     // Check if any peripherals failed during init
+ *     if (!lq_health_is_system_safe()) {
+ *         LOG_ERR("CRITICAL: Peripheral initialization failed!");
+ *         LOG_ERR("Entering fail-safe mode - actuators disabled");
+ *         
+ *         // Log details
+ *         const struct lq_health_registry *health = lq_health_get_status();
+ *         for (int i = 0; i < health->num_devices; i++) {
+ *             if (health->entries[i].status == LQ_HEALTH_INIT_FAILED) {
+ *                 LOG_ERR("  Failed: %s (error %d)",
+ *                         health->entries[i].device_name,
+ *                         health->entries[i].error_code);
+ *             }
+ *         }
+ *         
+ *         // Stay in safe mode
+ *         while (1) {
+ *             k_msleep(1000);
+ *         }
+ *     }
+ *     
+ *     LOG_INF("All peripherals initialized successfully");
+ *     LOG_INF("Entering operational mode");
+ *     
+ *     // Normal operation
+ *     while (1) {
+ *         lq_engine_process();
+ *         
+ *         // Continuous health check
+ *         if (!lq_health_is_system_safe()) {
+ *             LOG_ERR("Runtime health failure detected!");
+ *             // Trigger fail-safe actions
+ *         }
+ *         
+ *         k_msleep(10);
+ *     }
+ * }
+ * 
+ * Configuration (prj.conf):
+ * 
+ * CONFIG_LQ_DRIVER=y
+ * CONFIG_LQ_SYSTEM_HEALTH=y
+ * CONFIG_LQ_HW_ADC=y
+ * CONFIG_LQ_HW_SPI=y
+ * CONFIG_LQ_FAULT_MONITOR=y
+ * CONFIG_LQ_VERIFIED_OUTPUT=y
+ */

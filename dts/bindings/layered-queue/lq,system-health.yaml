@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Layered Queue Driver
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  System Health Monitor
+  
+  Tracks initialization and runtime health of all hardware peripherals.
+  Publishes aggregated health status as a signal for fault monitoring.
+  
+  SAFETY CRITICAL: Essential for fail-safe operation.
+  
+  The health status signal encoding:
+    - bits 0-7:   Number of registered devices
+    - bits 8-15:  Number of critical failures
+    - bit 16:     System safe flag (1=safe, 0=UNSAFE)
+  
+  Example usage:
+    system_health: lq-system-health {
+        compatible = "lq,system-health";
+        update-period-ms = <100>;  // Publish health every 100ms
+        status = "okay";
+    };
+    
+    // Monitor health status
+    health_monitor: lq-fault {
+        compatible = "lq,fault-monitor";
+        input = <&system_health>;
+        threshold-low = <65536>;   // bit 16 must be set (system safe)
+        debounce-ms = <0>;         // No debounce - react immediately
+        status = "okay";
+    };
+
+compatible: "lq,system-health"
+
+properties:
+  update-period-ms:
+    type: int
+    default: 100
+    description: |
+      How often to publish health status (milliseconds).
+      Lower values = faster fault detection, but more CPU overhead.
+      
+      Recommended values:
+      - 50ms for safety-critical systems
+      - 100ms for typical applications
+      - 500ms for diagnostics-only
+
+  init-priority:
+    type: int
+    default: 10
+    description: |
+      Initialization priority. Must be very early (before any hardware drivers)
+      so they can register during their init.
+      
+      Typical: 10 (early application init)
+      Hardware drivers typically: 80-90
