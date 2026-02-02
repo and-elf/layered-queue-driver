@@ -5,7 +5,7 @@
  * Configuration Framework Implementation
  */
 
-#include "lq_config.h"
+#include "lq_config_registry.h"
 #include "lq_uds.h"
 #include <string.h>
 #include <errno.h>

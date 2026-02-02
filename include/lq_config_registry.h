@@ -9,8 +9,8 @@
  * signal values, and system status.
  */
 
-#ifndef LQ_CONFIG_H_
-#define LQ_CONFIG_H_
+#ifndef LQ_CONFIG_REGISTRY_H_
+#define LQ_CONFIG_REGISTRY_H_
 
 #include "lq_engine.h"
 #include "lq_remap.h"
@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "lq_config.h"  /* For LQ_MAX_REMAP_CONFIGS (auto-generated) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,20 +27,6 @@ extern "C" {
 /* ============================================================================
  * Configuration Registry
  * ============================================================================ */
-
-/**
- * @brief Maximum number of remap configurations
- */
-#ifndef LQ_MAX_REMAP_CONFIGS
-#define LQ_MAX_REMAP_CONFIGS 16
-#endif
-
-/**
- * @brief Maximum number of scale configurations
- */
-#ifndef LQ_MAX_SCALE_CONFIGS
-#define LQ_MAX_SCALE_CONFIGS 16
-#endif
 
 /**
  * @brief Configuration registry
@@ -299,4 +286,4 @@ int lq_config_uds_routine_control(struct lq_config_registry *registry,
 }
 #endif
 
-#endif /* LQ_CONFIG_H_ */
+#endif /* LQ_CONFIG_REGISTRY_H_ */

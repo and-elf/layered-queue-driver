@@ -12,7 +12,7 @@
  * - Calibration mode for secure configuration
  */
 
-#include "lq_config.h"
+#include "lq_config_registry.h"
 #include "lq_uds_can.h"
 #include "lq_engine.h"
 #include <stdio.h>

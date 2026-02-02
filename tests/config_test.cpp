@@ -9,7 +9,7 @@
 #include <cstring>
 
 extern "C" {
-#include "lq_config.h"
+#include "lq_config_registry.h"
 #include "lq_engine.h"
 #include "lq_uds.h"
 }
