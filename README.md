@@ -62,7 +62,7 @@ bldc_motor: bldc@0 {
 ```
 
 👉 **[BLDC Motor Documentation](docs/bldc-motor-driver.md)**  
-👉 **[Usage Comparison](BLDC_USAGE.md)** - Which approach to use?
+👉 **[Usage Comparison](docs/BLDC_USAGE.md)** - Which approach to use?
 
 ## Architecture
 

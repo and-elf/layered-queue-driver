@@ -49,8 +49,8 @@ void loop() {
 
 ### Documentation
 
-- **Getting Started**: [arduino/GETTING_STARTED.md](arduino/GETTING_STARTED.md)
-- **API Reference**: [arduino/README.md](arduino/README.md)
+- **Getting Started**: [arduino/GETTING_STARTED.md](../arduino/GETTING_STARTED.md)
+- **API Reference**: [arduino/README.md](../arduino/README.md)
 - **Examples**: See `arduino/examples/`
 
 ### Supported Boards
@@ -114,9 +114,9 @@ int main(void) {
 
 ### Documentation
 
-- **Architecture**: [docs/bldc-motor-driver.md](docs/bldc-motor-driver.md)
-- **Platform Guide**: [docs/platform-adaptors.md](docs/platform-adaptors.md)
-- **DTS Guide**: [docs/devicetree-guide.md](docs/devicetree-guide.md)
+- **Architecture**: [docs/bldc-motor-driver.md](bldc-motor-driver.md)
+- **Platform Guide**: [docs/platform-adaptors.md](platform-adaptors.md)
+- **DTS Guide**: [docs/devicetree-guide.md](devicetree-guide.md)
 
 ### Supported Platforms
 
@@ -252,7 +252,7 @@ Apache-2.0
 
 ## Support
 
-- **Arduino Questions**: See [arduino/GETTING_STARTED.md](arduino/GETTING_STARTED.md)
+- **Arduino Questions**: See [arduino/GETTING_STARTED.md](../arduino/GETTING_STARTED.md)
 - **Full System**: See [docs/](docs/)
 - **Issues**: GitHub Issues
 - **Hardware Help**: Check safety guidelines first!
