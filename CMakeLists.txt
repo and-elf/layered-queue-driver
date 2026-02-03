@@ -447,11 +447,6 @@ if(BUILD_ARDUINO_EXAMPLES)
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     
-    # NOTE: AVR boards (Uno, Mega, etc.) use reduced configuration (lq_config_avr.h)
-    # Default configuration requires >2KB RAM which exceeds Uno's 2KB limit
-    # AVR uses smaller limits: 8 signals, 4 scales, 2 PIDs, etc.
-    # This fits in ~1.8KB RAM on Uno, or ~2-3KB on Mega with room to grow
-    
     # Add targets for each installed core
     string(FIND "${ARDUINO_CORES}" "arduino:avr" AVR_FOUND)
     if(AVR_FOUND GREATER -1)
