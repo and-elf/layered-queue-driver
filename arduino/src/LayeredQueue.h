@@ -11,10 +11,6 @@
 #ifndef LAYEREDQUEUE_H_
 #define LAYEREDQUEUE_H_
 
-/* AVR-specific configuration MUST be included first, before any other headers */
-#ifdef __AVR__
-#include "../../include/lq_config_avr.h"
-#endif
 
 /* Include all headers from parent repository */
 #include "../../include/lq_common.h"
