@@ -3,7 +3,27 @@
 [![Build and Test](https://github.com/and-elf/layered-queue-driver/actions/workflows/test.yml/badge.svg)](https://github.com/and-elf/layered-queue-driver/actions/workflows/test.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/and-elf/layered-queue-driver/main/.github/badges/coverage.json)](https://github.com/and-elf/layered-queue-driver/actions/workflows/coverage-badge.yml)
 
-A declarative, device-tree-driven framework for building robust data pipelines in safety-critical embedded systems. The Layered Queue Driver enables hardware sensor abstraction, range validation, redundancy management, and fault detection—all configured through device tree.
+A requirements-driven framework for building safety-critical embedded systems. Write your requirements in structured YAML, and the Layered Queue Driver automatically generates production-ready implementations—complete with hardware abstraction, redundancy management, fault detection, and 10+ protocol outputs.
+
+## Why Layered Queue Driver?
+
+**Building safety-critical embedded systems shouldn't require engineers to translate every stakeholder requirement into thousands of lines of C code.** The Layered Queue Driver bridges the gap between what your system needs to do and the code that makes it happen—automatically.
+
+**The problem:** In automotive, aerospace, and industrial systems, requirements written by domain experts (engineers, safety officers, product managers) must be manually translated into driver code, data validation logic, and fault detection. This manual translation introduces errors, delays iteration, and makes traceability nearly impossible.
+
+**Our solution:** Write your requirements in structured YAML, and we generate production-ready implementations automatically. Need dual redundant RPM sensors with median voting? Write the requirement specifying your tolerance threshold and staleness timeout. Need BLDC motor control with emergency stop? Specify the phases, deadtime, and safety conditions. The framework handles the rest—generating fully tested code with built-in traceability from requirement to implementation.
+
+**Who's it for:** Safety-critical systems where DO-178C, ISO 26262, or IEC 61508 compliance demands complete traceability. Domain experts define *what* the system should do; the framework generates *how* it does it, with 444+ automated tests ensuring correctness.
+
+**The difference:** Requirements drive code, not the other way around. Change a tolerance threshold in your requirements file, regenerate, and you're done—no hunting through driver code, no manual updates to validation logic. Complete audit trail from high-level requirement to generated implementation, ready for certification.
+
+### Workflow
+
+```
+Requirements (YAML) → Code Generation → Production Binary
+     ↓
+  Automatic validation, conflict detection, and test generation
+```
 
 ## Features
 
