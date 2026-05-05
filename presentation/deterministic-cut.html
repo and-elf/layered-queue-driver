@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>The Deterministic Cut — layered-queue-driver</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+
+<style>
+  :root {
+    --bg: #000;
+    --fg: #fff;
+    --muted: #9aa0a6;
+    --accent: #ffd24a;
+    --line: #2a2a2a;
+    --code-bg: #0a0a0a;
+  }
+
+  html, body, .reveal { background: var(--bg); }
+  .reveal { color: var(--fg); font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
+
+  .reveal h1, .reveal h2, .reveal h3 {
+    color: var(--fg);
+    text-transform: none;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    line-height: 1.05;
+    text-shadow: none;
+    margin: 0;
+  }
+
+  .reveal .chapter {
+    color: var(--accent);
+    font-size: 0.55em;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.6em;
+  }
+
+  /* ---------- TITLE BOX ---------- */
+  .title-box {
+    border: 2px solid var(--line);
+    padding: 0.9em 1.4em;
+    margin: 0 auto 1.2em;
+    display: inline-block;
+    min-width: 60%;
+    background: #050505;
+  }
+  .title-box h2 { font-size: 1.7em; }
+  .title-box h1 { font-size: 2.6em; }
+
+  /* ---------- TWO-CARD ROW ---------- */
+  .card-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2em;
+    max-width: 86%;
+    margin: 0 auto;
+  }
+  .card {
+    border: 2px solid var(--line);
+    padding: 0.9em 1.2em;
+    text-align: left;
+    background: #050505;
+    min-height: 5em;
+  }
+  .card .label {
+    color: var(--accent);
+    font-size: 0.45em;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.5em;
+  }
+  .card ul { list-style: none; margin: 0; padding: 0; }
+  .card li {
+    padding: 0.18em 0;
+    font-size: 0.62em;
+    line-height: 1.35;
+  }
+  .card.takeaways li::before {
+    content: "—  ";
+    color: var(--accent);
+  }
+  .card.paths li {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    color: #cfcfcf;
+    font-size: 0.55em;
+  }
+  .card.paths li::before {
+    content: "·  ";
+    color: var(--accent);
+  }
+
+  /* ---------- CODE SLIDES ---------- */
+  .reveal pre {
+    background: var(--code-bg);
+    box-shadow: none;
+    border: 2px solid var(--line);
+    width: 86%;
+    margin: 0 auto;
+  }
+  .reveal pre code {
+    padding: 1em 1.2em;
+    font-size: 0.55em;
+    line-height: 1.5;
+    background: transparent;
+  }
+  .code-caption {
+    color: var(--muted);
+    font-size: 0.5em;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 0.8em;
+    font-family: "JetBrains Mono", monospace;
+  }
+
+  /* ---------- TITLE / END SLIDES ---------- */
+  .title-slide .title-box { min-width: 70%; }
+  .title-slide h1 { font-size: 3em; }
+  .title-slide h2 { font-size: 1em; color: var(--muted); font-weight: 400; margin-top: 0.4em; }
+
+  .filmstrip {
+    border-top: 4px dashed var(--line);
+    border-bottom: 4px dashed var(--line);
+    padding: 0.7em 0;
+    margin: 1em auto 0;
+    max-width: 70%;
+    color: var(--muted);
+    font-family: "Georgia", serif;
+    font-style: italic;
+    font-size: 0.65em;
+  }
+
+  .quote-card {
+    border-left: 3px solid var(--accent);
+    padding: 0.6em 1em;
+    max-width: 70%;
+    margin: 0 auto;
+    font-family: "Georgia", serif;
+    font-style: italic;
+    color: var(--muted);
+    font-size: 0.9em;
+    text-align: left;
+  }
+  .quote-card .attrib {
+    display: block;
+    font-size: 0.55em;
+    color: #777;
+    margin-top: 0.6em;
+    font-style: normal;
+    font-family: "Inter", sans-serif;
+  }
+
+  .reveal code {
+    background: #111;
+    padding: 0.05em 0.3em;
+    border-radius: 2px;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-size: 0.85em;
+  }
+
+  .closing-monolith {
+    width: 0.5em;
+    height: 1em;
+    background: #fff;
+    display: inline-block;
+    margin-bottom: 0.4em;
+  }
+
+  .reveal .progress { color: var(--accent); }
+  .reveal .controls { color: #333; }
+
+  /* Loading state */
+  #loading {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--muted);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.9em;
+    letter-spacing: 0.3em;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">LOADING…</div>
+
+<div class="reveal">
+  <div class="slides"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+
+<script>
+/* ============================================================
+   Markdown slide loader
+   - reads slides/manifest.json (ordered list of files)
+   - parses front-matter + body + Note: section
+   - builds DOM per `layout`: title | cards | code | quote | end
+   ============================================================ */
+
+function parseFrontMatter(text) {
+  const m = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!m) return { fm: {}, body: text };
+  const fm = {};
+  for (const line of m[1].split('\n')) {
+    const km = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
+    if (!km) continue;
+    let v = km[2].trim();
+    if ((v.startsWith('"') && v.endsWith('"')) ||
+        (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1);
+    }
+    fm[km[1]] = v;
+  }
+  return { fm, body: m[2] };
+}
+
+function splitNotes(body) {
+  const lines = body.split('\n');
+  let i = lines.findIndex(l => l.trim() === 'Note:');
+  if (i === -1) return { content: body.replace(/\s+$/, ''), notes: '' };
+  return {
+    content: lines.slice(0, i).join('\n').replace(/\s+$/, ''),
+    notes:   lines.slice(i + 1).join('\n').trim()
+  };
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function inline(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+function parseCardSections(body) {
+  const sections = [];
+  let cur = null;
+  for (const line of body.split('\n')) {
+    const h = line.match(/^##\s+(.+)$/);
+    if (h) {
+      if (cur) sections.push(cur);
+      cur = { label: h[1].trim(), items: [] };
+      continue;
+    }
+    const b = line.match(/^-\s+(.+)$/);
+    if (b && cur) cur.items.push(b[1].trim());
+  }
+  if (cur) sections.push(cur);
+  return sections;
+}
+
+function notesAside(notes) {
+  if (!notes) return '';
+  const paras = notes
+    .split(/\n\s*\n/)
+    .map(p => '<p>' + inline(p.trim().replace(/\n/g, ' ')) + '</p>')
+    .join('');
+  return `<aside class="notes">${paras}</aside>`;
+}
+
+function renderTitleBox(fm, withMonolith) {
+  let h = '<div class="title-box">';
+  if (withMonolith) h += '<div class="closing-monolith"></div>';
+  if (fm.chapter)  h += `<span class="chapter">${inline(fm.chapter)}</span>`;
+  if (fm.title)    h += `<h1>${inline(fm.title)}</h1>`;
+  if (fm.subtitle) h += `<h2>${inline(fm.subtitle)}</h2>`;
+  h += '</div>';
+  return h;
+}
+
+function renderTitleHeading(fm) {
+  let h = '<div class="title-box">';
+  if (fm.chapter) h += `<span class="chapter">${inline(fm.chapter)}</span>`;
+  if (fm.title)   h += `<h2>${inline(fm.title)}</h2>`;
+  h += '</div>';
+  return h;
+}
+
+function renderCardRow(content, defaultStyles) {
+  const sections = parseCardSections(content);
+  const styles = sections.map((_, i) => defaultStyles[i] || (i === 0 ? 'takeaways' : 'paths'));
+  let h = '<div class="card-row">';
+  sections.forEach((s, i) => {
+    h += `<div class="card ${styles[i]}">`;
+    h += `<span class="label">${inline(s.label)}</span>`;
+    h += '<ul>';
+    s.items.forEach(it => h += `<li>${inline(it)}</li>`);
+    h += '</ul></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function buildSlide(text, file) {
+  const { fm, body } = parseFrontMatter(text);
+  const { content, notes } = splitNotes(body);
+  const section = document.createElement('section');
+  section.setAttribute('data-transition', 'fade');
+  section.setAttribute('data-source', file);
+
+  let html = '';
+  switch (fm.layout) {
+    case 'title':
+      section.classList.add('title-slide');
+      html += renderTitleBox(fm, false);
+      if (fm.filmstrip) html += `<div class="filmstrip">${inline(fm.filmstrip)}</div>`;
+      break;
+
+    case 'cards':
+      html += renderTitleHeading(fm);
+      html += renderCardRow(content, [
+        fm.left_style  || 'takeaways',
+        fm.right_style || 'paths'
+      ]);
+      break;
+
+    case 'end':
+      section.classList.add('title-slide');
+      html += renderTitleBox(fm, true);
+      html += renderCardRow(content, [
+        fm.left_style  || 'paths',
+        fm.right_style || 'paths'
+      ]);
+      break;
+
+    case 'code': {
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      code.className = `language-${fm.language || 'text'}`;
+      code.textContent = content;
+      pre.appendChild(code);
+      section.appendChild(pre);
+      if (fm.caption) {
+        const cap = document.createElement('div');
+        cap.className = 'code-caption';
+        cap.innerHTML = inline(fm.caption);
+        section.appendChild(cap);
+      }
+      if (notes) {
+        const aside = document.createElement('aside');
+        aside.className = 'notes';
+        aside.innerHTML = notesAside(notes).replace(/^<aside class="notes">|<\/aside>$/g, '');
+        section.appendChild(aside);
+      }
+      return section;
+    }
+
+    case 'quote':
+      html += '<div class="quote-card">';
+      html += inline(content);
+      if (fm.attrib) html += `<span class="attrib">${inline(fm.attrib)}</span>`;
+      html += '</div>';
+      break;
+
+    default:
+      html += `<p style="color:#f55">Unknown layout: ${escapeHtml(fm.layout || '?')} (${file})</p>`;
+  }
+
+  section.innerHTML = html + notesAside(notes);
+  return section;
+}
+
+async function loadSlides() {
+  /* Dual mode:
+     - embedded:  <script type="text/markdown" data-slide="..."> blocks present (single-file build)
+     - fetch:     load slides/manifest.json + slides/*.md (dev mode)
+  */
+  let order, getText;
+
+  const embedded = document.querySelectorAll('script[type="text/markdown"][data-slide]');
+  if (embedded.length) {
+    const map = {};
+    embedded.forEach(s => map[s.dataset.slide] = s.textContent.replace(/^\n/, ''));
+    const manifestNode = document.getElementById('slides-manifest');
+    const manifest = manifestNode ? JSON.parse(manifestNode.textContent) : null;
+    order = (manifest && manifest.slides) || Array.from(embedded).map(s => s.dataset.slide);
+    getText = name => Promise.resolve(map[name]);
+  } else {
+    const manifest = await fetch('slides/manifest.json').then(r => r.json());
+    order = manifest.slides;
+    getText = name => fetch('slides/' + name).then(r => r.text());
+  }
+
+  const slidesContainer = document.querySelector('.reveal .slides');
+  for (const file of order) {
+    const text = await getText(file);
+    slidesContainer.appendChild(buildSlide(text, file));
+  }
+
+  document.getElementById('loading').remove();
+
+  Reveal.initialize({
+    hash: true,
+    controls: true,
+    progress: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    backgroundTransition: 'fade',
+    width: 1280,
+    height: 800,
+    margin: 0.06,
+    plugins: [ RevealHighlight, RevealNotes ]
+  });
+}
+
+function start() {
+  loadSlides().catch(err => {
+    const hasEmbedded = !!document.querySelector('script[type="text/markdown"][data-slide]');
+    document.getElementById('loading').textContent = hasEmbedded
+      ? 'LOAD FAILED — see console'
+      : 'LOAD FAILED — serve via http (e.g. python3 -m http.server)';
+    console.error(err);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', start);
+} else {
+  start();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+name: Build Presentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'presentation/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Skip when this workflow's own bot commit triggered the run, to avoid loops
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+
+      - name: Build single-file presentation
+        run: python3 presentation/build_singlefile.py docs/index.html
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- docs/index.html; then
+            echo "docs/index.html already up to date"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git commit -m "Rebuild presentation [skip ci]"
+          git push

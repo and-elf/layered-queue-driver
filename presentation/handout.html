@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>The Deterministic Cut — Handout</title>
+<style>
+@page { size: A4; margin: 18mm 18mm 20mm 18mm; }
+
+body {
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  color: #111;
+  background: #fff;
+  line-height: 1.45;
+  font-size: 10.5pt;
+  margin: 0;
+}
+
+h1, h2, h3, h4 { margin: 0; padding: 0; line-height: 1.15; }
+
+.slide {
+  display: block;
+  page-break-after: always;
+  break-after: page;
+  min-height: 257mm;
+}
+.slide:last-child {
+  page-break-after: auto;
+  break-after: auto;
+  min-height: 0;
+}
+
+.slide-num {
+  color: #aaa;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8pt;
+  text-align: right;
+  margin-bottom: 0.6em;
+}
+
+.chapter {
+  color: #b88a00;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  font-size: 9pt;
+  margin-bottom: 0.4em;
+}
+
+h1 { font-size: 22pt; font-weight: 700; margin-bottom: 0.3em; }
+h2 { font-size: 14pt; color: #555; font-weight: 400; margin-bottom: 0.4em; }
+
+.layout-title h1, .layout-end h1 { font-size: 26pt; }
+
+.filmstrip {
+  border-top: 2px dashed #ccc;
+  border-bottom: 2px dashed #ccc;
+  padding: 0.4em 0;
+  margin: 0.6em 0;
+  color: #777;
+  font-style: italic;
+  font-size: 10pt;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8em;
+  margin: 0.8em 0 1em;
+}
+.card {
+  border: 1px solid #ddd;
+  padding: 0.6em 0.9em;
+  background: #fafafa;
+}
+.card .label {
+  color: #b88a00;
+  font-size: 8pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 0.4em;
+}
+.card ul { list-style: none; margin: 0; padding: 0; }
+.card li {
+  padding: 0.12em 0 0.12em 1em;
+  text-indent: -1em;
+  font-size: 10pt;
+}
+.card li::before { content: "—  "; color: #b88a00; }
+
+.caption {
+  color: #888;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9pt;
+  margin-bottom: 0.5em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+pre {
+  background: #f6f6f6;
+  border: 1px solid #ddd;
+  padding: 0.8em 1em;
+  margin: 0.4em 0 1em;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 9pt;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+pre code { background: none; padding: 0; font-family: inherit; }
+
+blockquote {
+  border-left: 4px solid #ddd;
+  padding: 0.4em 1em;
+  margin: 1em 0;
+  font-style: italic;
+  color: #333;
+  font-size: 13pt;
+}
+blockquote .attrib {
+  display: block;
+  margin-top: 0.4em;
+  color: #777;
+  font-style: normal;
+  font-size: 9pt;
+}
+
+.notes {
+  border-top: 1px solid #e0e0e0;
+  margin-top: 1.2em;
+  padding-top: 0.8em;
+}
+.notes h4 {
+  font-size: 8pt;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #b88a00;
+  margin-bottom: 0.4em;
+}
+.notes p { margin: 0 0 0.6em; }
+
+code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.92em;
+  background: #f0f0f0;
+  padding: 0.05em 0.3em;
+  border-radius: 2px;
+}
+</style>
+</head>
+<body>
+<section class="slide layout-title">
+<div class="slide-num">01 / 25</div>
+<div class="chapter">A presentation in 14 reels</div>
+<h1>The Deterministic Cut</h1>
+<h2>Från krav till silikon — en cinematografs guide till layered-queue-driver</h2>
+<div class="filmstrip">30 minuter · vit på svart · projector klar</div>
+<div class="notes"><h4>Manus</h4><p>Välkomna. Jag tänker inte prata om kod på klassiskt vis idag — jag tänker använda filmen som lins.</p><p>För det visar sig att en film, precis som en säkerhetskritisk produkt, är en <em>deterministisk</em> artefakt. Samma rulle, samma bilder, varje gång. Det är vad publiken förväntar sig — och det är vad regulatorer förväntar sig av kod som flyger flygplan eller kör bilar.</p><p>Vi bygger inte alltid så. Vi har en process där manuset — kraven — viskas vidare genom flera roller och artefakter, och i varje steg kan något gå förlorat.</p><p>Det jag ska visa är ett verkligt repository som tar filmens determinism och applicerar den hela vägen från krav till flashbar binär. Vi kommer prata kod, arkitektur och test. Men ramberättelsen är film.</p><p>Fjorton "reels" framför oss. Cirka 30 minuter. Sätt på er säkerhetsbälten — vi börjar i rymden.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">02 / 25</div>
+<div class="chapter">Cold Open · 2001</div>
+<h1>I'm sorry, Dave.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>HAL var deterministisk — kraven var inte</li>
+<li>30% av kritiska fel = översättning</li>
+<li>Lösning: kravet <em>blir</em> koden</li>
+</ul></div>
+<div class="card">
+<div class="label">Tema</div>
+<ul>
+<li>determinism = säkerhet</li>
+<li>översättning = risk</li>
+<li>SPEECH_AI_SAFETY_CRITICAL.md</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Vi börjar med en av filmhistoriens mest berömda repliker. HAL 9000 vägrar öppna pod-dörrarna: "I'm sorry, Dave. I'm afraid I can't do that."</p><p>Men vad var egentligen problemet? HAL var bevisat korrekt mjukvara. Hans kod gjorde precis vad den skulle. Felet låg i kraven. HAL hade fått två motstridiga direktiv: att hjälpa besättningen, och att skydda uppdragets hemligheter. När konflikten uppstod löste den sig på det enda sätt en deterministisk dator kan: tragiskt.</p><p>I säkerhetskritisk industri vet vi att uppemot 30% av kritiska fel i ISO 26262-system spårs till missförstånd i kraven, inte till buggar i koden. Och det har vi accepterat alldeles för länge.</p><p>Min tes idag: om vi tar bort viskningsleken mellan krav och kod — om vi låter kravet <em>bli</em> koden — då försvinner hela den felklass som HAL representerade.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">03 / 25</div>
+<div class="chapter">Reel I · A New Hope</div>
+<h1>A long time ago, in a codebase far, far away…</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Krav → spec → arkitektur → kod → test</li>
+<li>Sex roller, sex tolkningar</li>
+<li>Spårbarhetsmatrisen ingen orkar</li>
+</ul></div>
+<div class="card">
+<div class="label">I detta repo</div>
+<ul>
+<li>requirements/high-level/</li>
+<li>requirements/low-level/</li>
+<li>en källa, många artefakter</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Tänk er Star Wars opening crawl: "A long time ago, in a galaxy far, far away…" och sedan rullar texten uppåt i lutande perspektiv. Bakgrunden för det vi gör.</p><p>Den traditionella vägen från krav till kod ser ungefär ut så här: en produktägare skriver "systemet ska detektera överhettning inom 100 ms". En systemingenjör tolkar det till en specifikation. En arkitekt designar en lösning. En utvecklare implementerar i C. En testare validerar — om vi har tur. En teknisk skribent försöker hänga med.</p><p>Sex roller, sex tolkningar, sex artefakter — och en spårbarhetsmatris som ingen mänsklig själ orkar hålla uppdaterad.</p><p>I detta repository finns bara två platser där krav lever: high-level som markdown, low-level som YAML. Allt annat — DTS, C-kod, tester, dokumentation — är genererat. En källa, många artefakter. Det är hjältarnas resa vi ska följa idag.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">04 / 25</div>
+<div class="chapter">Reel II · The Studio System</div>
+<h1>West är studion.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Manifest binder Zephyr + moduler</li>
+<li>west build = "Action"</li>
+<li>Modulen exponeras till Zephyr</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>west.yml</li>
+<li>zephyr/module.yml</li>
+<li>zephyr/CMakeLists.txt</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>För att förstå inspelningen måste vi först förstå studion. I vår värld heter studion <em>west</em>.</p><p>West är Zephyr-projektets verktyg för att hämta källkod, bygga, flasha och felsöka. Det är som ett gammalt Hollywood-studiosystem: alla avdelningar — kameran, ljuset, scenografin, ljudet — koordineras under ett tak. När du skriver <code>west build</code> är det "Action!" — alla avdelningar börjar samtidigt rulla.</p><p>Filen <code>west.yml</code> är studions kontraktsbok. Den binder ihop vårt repository med Zephyr-kärnan och alla beroenden, alla på exakta versioner. Inget får drifta.</p><p>Och det här repot exponeras till Zephyr som en modul via <code>zephyr/module.yml</code> och <code>zephyr/CMakeLists.txt</code>. Det innebär att när någon annan kör <code>west build</code> på sitt projekt, blir layered-queue-driver automatiskt en del av deras inspelning. Som ett produktionsbolag som hyrs in.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">05 / 25</div>
+<div class="caption">west.yml — studions kontraktsbok</div>
+<pre><code>manifest:
+  version: "0.5"
+  self:
+    path: .
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: main
+      import: true</code></pre>
+<div class="notes"><h4>Manus</h4><p>Här är hela manifestet. Det är allt som behövs.</p><p>Notera att <code>import: true</code> betyder att vi ärver hela Zephyrs egen manifest — alla deras moduler, alla deras toolchain-definitioner. Vi behöver inte lista varje hjälpbibliotek, det sköter Zephyr.</p><p>Två kommandon räcker för att klona hela världen:</p><p>``<code> west init -l . west update </code>``</p><p>Och därefter är allt vi behöver tillgängligt på exakta, reproducerbara versioner. Detta är grunden för allt annat vi ska prata om — utan reproducerbart byggsystem är determinism omöjlig.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">06 / 25</div>
+<div class="chapter">Reel III · The Director's Chair</div>
+<h1>Regissörsstolen.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>En CMake-funktion, en entry point</li>
+<li>NORMAL · STRICT · AUTO_FIX · FORCE</li>
+<li>Hookar in före build</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>cmake/RequirementsDriven.cmake</li>
+<li>cmake/LayeredQueueApp.cmake</li>
+<li>add_lq_application_from_requirements()</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Studion är förberedd. Nu sätter sig regissören i stolen.</p><p>I vårt fall är regissörsstolen en CMake-funktion: <code>add_lq_application_from_requirements()</code>. Du anropar den en gång i din <code>CMakeLists.txt</code>. Du pekar på en mapp med krav, anger plattform och RTOS, och du är klar. Allt annat är delegerat.</p><p>Den har fyra lägen: <em>NORMAL</em> bygger på dina krav som de är. <em>STRICT</em> behandlar varningar som fel — bra för CI. <em>AUTO_FIX</em> försöker lösa konflikter automatiskt. <em>FORCE</em> bygger även med fel — det vill man aldrig i produktion, bara för felsökning.</p><p>Den hookar in i Zephyrs <code>${TARGET}_codegen</code> så att ingen kompilering ens <em>startar</em> innan kraven är validerade. Konflikter, motstridiga toleranser, saknade länkar mellan HLR och LLR — allt fångas här. Som en regissör som vägrar säga "Action" om manuset inte är klart.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">07 / 25</div>
+<div class="caption">cmake/RequirementsDriven.cmake — "Action!"</div>
+<pre><code>add_lq_application_from_requirements(my_app
+  REQUIREMENTS requirements/
+  PLATFORM    zephyr
+  RTOS        zephyr
+  STRICT
+)</code></pre>
+<div class="notes"><h4>Manus</h4><p>Det här är hela anropet. Sex rader.</p><p><code>REQUIREMENTS</code> pekar på en mapp där HLR och LLR ligger. <code>PLATFORM</code> och <code>RTOS</code> styr vilka generatorer som körs — vi kan byta från <code>zephyr</code> till <code>stm32</code> till <code>esp32</code> med en enradsändring. <code>STRICT</code> säger att varningar är fel.</p><p>Det som händer under huven är att CMake först kör <code>reqgen.py validate</code>, sedan <code>reqgen.py generate-dts</code>, sedan kallas vidare till <code>add_lq_application()</code> som hanterar resten — DTS-parsning, C-kodgenerering, kompilering, länkning.</p><p>Det vackra är: om vi behöver byta plattform, ändra ett tröskelvärde, eller lägga till en ny redundansvotare, så är detta den enda raden vi rör vid på CMake-nivån. Resten flödar uppåt från kraven.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">08 / 25</div>
+<div class="chapter">Reel IV · The Pipeline</div>
+<h1>Manus → Premiär.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Steg</div>
+<ul>
+<li>Krav (YAML/MD)</li>
+<li>DTS (storyboard)</li>
+<li>C + tester (inspelat)</li>
+<li>ELF (final cut)</li>
+</ul></div>
+<div class="card">
+<div class="label">Verktyg</div>
+<ul>
+<li>scripts/reqgen.py</li>
+<li>scripts/dts_gen.py</li>
+<li>scripts/generators/</li>
+<li>west build → ninja</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Innan vi går in på detaljer — låt mig rita upp hela flödet på en bild.</p><p>Steg ett: kraven, som markdown och YAML i <code>requirements/</code>. Det är manuset.</p><p>Steg två: <code>reqgen.py</code> validerar och översätter dem till DTS — Device Tree Source. Det är vår storyboard, en deterministisk beskrivning av vad varje bild i systemet ska innehålla.</p><p>Steg tre: <code>dts_gen.py</code> läser DTS:en och genererar C-kod. För Zephyr körs den genom modulen <code>scripts/generators/platforms/zephyr.py</code>. För STM32 körs <code>stm32.py</code>. Samma manus, olika kameror.</p><p>Steg fyra: <code>west build</code> orkestrerar CMake och Ninja, kompilerar, länkar, och spottar ut en <code>zephyr.elf</code>. Det är vår final cut.</p><p>Tester genereras parallellt, från samma krav. När vi flashar binären på riktig hårdvara kör vi också HIL-tester som genererats från samma källa. Symmetriskt. Det är den V-modell som vi alltid pratat om men sällan uppnått.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">09 / 25</div>
+<div class="chapter">Reel V · The Script</div>
+<h1>Manuset — High-Level Requirements.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Markdown av domänexperter</li>
+<li>ID · ASIL · rationale</li>
+<li>Versionerat med koden</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>requirements/high-level/*.md</li>
+<li>HLR-* IDn länkar till LLR</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Nu öppnar vi manuset.</p><p>High-Level Requirements skrivs i markdown av de som faktiskt vet <em>vad</em> systemet ska göra: säkerhetschefer, systemingenjörer, produktägare. Inte programmerare. Det är en viktig poäng — programmerare ska inte tolka kraven, de ska implementera dem.</p><p>Varje HLR har ett ID, en ASIL-nivå (eller motsvarande för andra standarder), en rationale, och en länkad lista av LLR:er som realiserar den. Allt versionerat i Git, granskat i samma pull request som koden.</p><p>Det betyder att kraven inte är ett dokument som finns någonstans i Confluence och som någon glömmer uppdatera. De är källkod. När säkerhetsanalytikern ändrar något i kraven, går det genom samma review-process, samma CI-pipeline, samma godkännandekedja som varje annan kodändring.</p><p>Och om kravet ändras — så regenereras allt. Kod, tester, dokumentation. Synkat.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">10 / 25</div>
+<div class="caption">requirements/high-level/safety-monitoring.md</div>
+<pre><code># HLR-SAFE-001: Engine overheat protection
+**ASIL:** D
+**Rationale:** Förhindra katastrofal motorskada
+
+Systemet ska detektera kylvätsketemperatur &gt; 115 °C
+inom 100 ms och initiera nödstopp.
+
+Spårbarhet: → LLR-1.4-temp-monitor, LLR-3.2-shutdown</code></pre>
+<div class="notes"><h4>Manus</h4><p>Här är ett verkligt HLR. Notera vad det inte säger.</p><p>Det säger ingenting om vilken ADC-kanal vi mäter på. Inget om vilket protokoll som ska kommunicera nödstoppet. Inget om hur vi implementerar timern. Inget om vilken plattform.</p><p>Det säger bara <em>vad</em> — beteendet — och <em>varför</em> — säkerhetsskälet. ASIL-nivån D säger oss att detta är högsta säkerhetsklassen. Spårbarhetslänkarna pekar på de LLR:er som tar hand om detaljerna.</p><p>En domänexpert kan skriva detta. En jurist kan läsa det. En revisor från TÜV kan auditera det. Ingen av dem behöver kunna C.</p><p>Det är hela poängen.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">11 / 25</div>
+<div class="chapter">Reel VI · The Shot List</div>
+<h1>Shot list — Low-Level Requirements.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Strukturerad YAML</li>
+<li>Konflikter detekteras automatiskt</li>
+<li>Ändra → regenerera → klart</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>requirements/low-level/*.yaml</li>
+<li>scripts/reqgen.py</li>
+<li>scripts/conflict_handler.py</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Om HLR är manuset är LLR shot list — den detaljerade listan över exakt vilka tagningar som ska göras.</p><p>LLR är YAML. Strukturerad, maskinläsbar, men fortfarande mänsklig — ingen kod, ingen pseudokod. Bara fakta: den här ADC-kanalen, det här tröskelvärdet, den här toleransen, det här protokollet, den här hertzfrekvensen.</p><p>Varje LLR har en <code>parent</code> som pekar tillbaka till sitt HLR. Det betyder att spårbarheten är <em>inneboende</em> — du kan inte skriva ett LLR utan att deklarera vilket HLR det realiserar.</p><p>Det andra som händer är konfliktdetektering. Modulen <code>conflict_handler.py</code> läser alla LLR:er och letar efter motstridigheter — samma signal med olika gränser, två LLR:er som båda hävdar äganderätt över samma utgång, dödläsningar i schemaläggningen. När en konflikt hittas i STRICT-läge stannar bygget. Du kan inte producera en binär från motstridiga krav.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">12 / 25</div>
+<div class="caption">requirements/low-level/llr-1.1-rpm-sampling.yaml</div>
+<pre><code>id: LLR-1.1-rpm-sampling
+parent: HLR-CTRL-001
+input:
+  type: adc
+  channel: 0
+  stale_us: 5000
+redundancy:
+  pair_with: LLR-1.2-rpm-spi
+  vote: median
+  tolerance: 50
+output:
+  protocol: j1939
+  pgn: 0xFEF1
+  rate_hz: 10</code></pre>
+<div class="notes"><h4>Manus</h4><p>En tagning. Tolv rader.</p><p>Notera redundansblocket. Det här LLR:et säger: vi har en RPM-sensor på ADC-kanal noll. Den ska paras ihop med LLR-1.2 som är samma RPM mätt över SPI. Median-voting används för att slå ihop dem. Om de skiljer sig mer än 50 RPM markeras inkonsistens.</p><p>Och utgången: J1939-protokollet, PGN 0xFEF1, tio gånger per sekund.</p><p>Tolv rader YAML genererar — vänta tills nästa slide — något i storleksordningen 387 rader produktionsfärdig C-kod. ISR-handlers, lock-free ringbuffer-pushes, validering, voter-logik, deadline-scheduling, J1939-frame-encoding, allt. Hand på hjärtat: hur många buggar tror ni det blir när en människa skriver de raderna?</p><p>Genererad kod har deterministiska buggar. Hittas en, fixas den i generatorn, försvinner från alla LLR:er.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">13 / 25</div>
+<div class="chapter">Reel VII · The Storyboard</div>
+<h1>Device Tree är vår storyboard.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Komplett, deterministisk beskrivning</li>
+<li>Genereras från krav</li>
+<li>Läses även av Zephyr-kärnan</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>${BUILD}/app.dts</li>
+<li>samples/automotive/app.dts</li>
+<li>dts/bindings/</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Mellan manuset och inspelningen ligger storyboarden. För filmare är det en serie tecknade rutor, en per scen, som visar exakt vad kameran ska se. Det är vad regissören delar med ljusmästaren och scenografen och kostymdesignern.</p><p>I vårt system är storyboarden Device Tree. DTS är ett gammalt format från Linux-världen som beskriver hårdvara hierarkiskt. Zephyr använder det för allt — vilka pinnar är vad, vilka bussar finns, hur är de kopplade.</p><p>Vi har utökat det. Vår DTS beskriver inte bara hårdvaran utan hela databehandlingsdiagrammet: ingångar, mid-level-validatorer, voters, range-checkers, utgångar, deadlines.</p><p>Det fina är att DTS:en <em>redan läses</em> av Zephyrs egen kärna och drivers. Vi piggybackar på ett standardformat som varje embedded-utvecklare redan kan. Inget nytt språk att lära sig. Och det är genererat — inget vi handskriver.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">14 / 25</div>
+<div class="caption">app.dts — autogenererad från krav</div>
+<pre><code>rpm_adc: lq-hw-adc-input@0 {
+    compatible = "lq,hw-adc-input";
+    io-channels = &lt;&amp;adc0 0&gt;;
+    stale-us   = &lt;5000&gt;;
+};
+
+rpm_merge: lq-mid-merge@0 {
+    compatible    = "lq,mid-merge";
+    sources       = &lt;&amp;rpm_adc &amp;rpm_spi&gt;;
+    voting-method = "median";
+    tolerance     = &lt;50&gt;;
+};</code></pre>
+<div class="notes"><h4>Manus</h4><p>Här är delen av DTS:en som motsvarar vårt LLR från förra sliden.</p><p>Två noder: en ADC-ingång och en merge-nod som tar två sourcer och voterar. Allt med <code>compatible</code>-strängar som matchar våra Zephyr-bindings i <code>dts/bindings/</code>.</p><p>Den intressanta detaljen: Zephyrs <em>egen</em> DTS-kompilator validerar den här filen mot bindingsen. Det betyder att om generatorn genererar något som inte är välformat — fel typ på ett fält, saknad property — så fångas det redan av Zephyr, innan vår C-kodgenerator ens körs.</p><p>Vi får alltså validering i två lager: vår egen <code>reqgen.py validate</code> på krav-nivå, och Zephyrs DTS-validering på arkitektur-nivå. Två oberoende grindar. Båda måste passera innan en enda C-rad genereras.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">15 / 25</div>
+<div class="chapter">Reel VIII · The Cinematography Crew</div>
+<h1>Filmteamet.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Moduler</div>
+<ul>
+<li>core · config · platform</li>
+<li>hil · uds</li>
+<li>Samma manus, olika kameror</li>
+</ul></div>
+<div class="card">
+<div class="label">Plattformar</div>
+<ul>
+<li>scripts/generators/platforms/zephyr.py</li>
+<li>stm32.py · esp32.py</li>
+<li>nrf52.py · samd.py · baremetal.py</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Bakom varje regissör finns ett team. I filmen kallar vi DP — director of photography, fotograf — och så finns det specialister för varje aspekt: ljus, kamera, ljud, effekter.</p><p>I vår kodgenerator är teamet modulärt uppdelat. <code>core.py</code> är produktionsledaren — den orkestrerar. <code>config.py</code> läser DTS:en och bygger den interna modellen. <code>platform.py</code> väljer vilken kamera som ska användas. <code>hil.py</code> är vår testkamera. <code>uds.py</code> hanterar diagnostik.</p><p>Och i <code>platforms/</code>-mappen ligger varje "kamera": <code>zephyr.py</code>, <code>stm32.py</code>, <code>esp32.py</code>, <code>nrf52.py</code>, <code>samd.py</code>, <code>baremetal.py</code>. Samma manus — samma DTS — kan filmas med vilken som helst av dem. Du byter kamera med en kommandoradflagga.</p><p>Det är arkitekturen som gör det möjligt att portera till en ny plattform genom att skriva en ny modul, inte genom att modifiera generatorns kärna. Open-closed-principen i praktiken.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">16 / 25</div>
+<div class="chapter">Reel IX · Set Design</div>
+<h1>Scenografin — Input → Engine → Output.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Tunna lager mot hårdvara</li>
+<li>Pure processing-engine</li>
+<li>Pollning &gt; ISR där det går</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>src/drivers/lq_engine.c</li>
+<li>src/drivers/lq_hw_input.c</li>
+<li>include/lq_engine.h · lq_event.h</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Bakom kulisserna måste alla scener spelas in i en scenografi. Och i vår kodbas är scenografin oerhört enkel — och det är det som gör den säker.</p><p>Tre lager. Inget mer.</p><p>Lager ett: ett tunt, RTOS-medvetet hårdvarulager. ISR:er och pollning. Det enda jobbet är att ta in data från fysiken och skuffa in den i en lock-free ringbuffer. Inga affärsregler här.</p><p>Lager två: en <em>ren</em> processing-engine. Pure. Inga RTOS-anrop, ingen dynamisk minnesallokering, ingen hårdvarukännedom. Bara logik som äter events från ringbuffern och spottar ut events till utgångskön. Det är detta lager som är unit-testbart, formellt verifierbart, kompilerbart till ren x86 för testning.</p><p>Lager tre: utgångsdrivers — också tunna, hårdvarunära.</p><p>En subtilitet: vi pollar där vi kan. GPIO, ADC, SPI, I2C — det är <em>deterministiskt</em> timad sampling, inte interrupt-driven. Endast asynkrona protokoll som CAN och UART använder ISR, eftersom meddelanden där kommer när de kommer. Determinism är inte en känsla, det är en arkitekturbeslut.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">17 / 25</div>
+<div class="caption">arkitektur — två tunna HW-lager, ren kärna</div>
+<pre><code>ISR / Polling
+   │ lq_hw_push()
+Lock-free ringbuffer
+   │ lq_hw_pop()
+Mid-level vtables   (PURE)
+   │
+ENGINE STEP        (deterministic)
+   │
+Output dispatch    (bounded)
+   │
+CAN · J1939 · CANopen · GPIO · PWM · DAC · SPI · I2C · UART · Modbus</code></pre>
+<div class="notes"><h4>Manus</h4><p>Här är samma sak som ett ASCII-diagram.</p><p>Notera ordet PURE. Mellan-lagret — där voters, validators och range-checkers bor — är ren kod. Inga locks, inga mutexes, inga RTOS-anrop. Det betyder att det går att köra exakt samma kod på en utvecklarmaskin som i firmwaren. Vi kompilerar samma kärna med GCC på Linux för unit-tester, och med arm-none-eabi-gcc för målsystemet. Identisk bytkod-logik.</p><p>ENGINE STEP är det centrala. Ett anrop per cykel. Ingen multitasking inuti, ingen icke-determinism. Tar in events, spottar ut events. Bounded execution time — vi kan räkna ut den värsta tänkbara körtiden statiskt.</p><p>Output dispatch är en simpel for-loop. Inget jobbflöde, inga köer. När engine-step är klar, dispatchar vi alla utgångsevent som är schemalagda för den cykeln. Det är allt.</p><p>Det är inte raketforskning. Det är gammal aerospace-arkitektur, DO-178C-stil. Men <em>det är genererat från krav</em>.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">18 / 25</div>
+<div class="chapter">Reel X · Dr. Strangelove</div>
+<h1>Stop worrying. Love the generator.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Ingen AI vid generering</li>
+<li>Bit-identisk output</li>
+<li>Tool qualification: ISO 26262-8</li>
+</ul></div>
+<div class="card">
+<div class="label">Bevis</div>
+<ul>
+<li>444 tester</li>
+<li>92–100% kritisk täckning</li>
+<li>gitleaks · ruff (hooks)</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Stanley Kubricks "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb" handlar om att lära sig leva med teknologi som är skrämmande men oundviklig. Idag måste vi lära oss något liknande om kodgenerering.</p><p>Den första frågan jag får är alltid: "Använder ni AI för att skriva säkerhetskritisk kod?" Svaret är <em>nej</em>. AI hjälpte till att bygga <em>generatorn</em>. Generatorn själv är ren, deterministisk Python. Samma <code>requirements/</code> och samma version av generatorn ger bit-identisk <code>lq_generated.c</code>. Du kan checka in genererad kod i Git och se den som data, inte som artefakt.</p><p>Det här passar perfekt in i ISO 26262-8: Tool Qualification. Du behöver inte certifiera <em>koden</em> den genererar — du certifierar <em>generatorn</em>, en gång, och sedan kan vilken kod den genererar som helst räknas som korrekt så länge inputen är korrekt.</p><p>Vi har 444 automatiserade tester på generatorn själv. 92 till 100% täckning av kritiska paths. Pre-commit-hooks med gitleaks och ruff. Generatorn behandlas som vad den är: säkerhetskritisk mjukvara.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">19 / 25</div>
+<div class="chapter">Reel XI · The Test Screening</div>
+<h1>V-modellen sluts.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Vänster sida — SW</div>
+<ul>
+<li>Unit-tester per LLR</li>
+<li>GoogleTest · CTest</li>
+<li>Mock av HW-gränssnitt</li>
+</ul></div>
+<div class="card">
+<div class="label">Höger sida — HW</div>
+<ul>
+<li>tests/hil/</li>
+<li>scripts/hil_test_gen.py</li>
+<li>generate_comprehensive_hil_tests.py</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Före premiären har varje stor film en testvisning. Publik bjuds in, reagerar, och regissören klipper om baserat på reaktioner.</p><p>För oss är det dubbla testvisningar — V-modellens båda sidor.</p><p>Vänster sida, mjukvaruverifiering: unit-tester, ett per LLR, autogenererade. GoogleTest under CTest. Mockade hårdvarugränssnitt så vi kan köra på vilken laptop som helst. När du ändrar ett LLR, regenereras dess test, och CI fångar regression.</p><p>Höger sida, hårdvaruverifiering: HIL-scenarier, också autogenererade från samma LLR. Skickas till en testrigg med riktig STM32, riktig CAN-buss, riktig sensor. Vi injicerar 120 °C på temperatursensorn — verifierar att shutdown sker inom 100 ms.</p><p>Det här är V-modellens heliga gral: <em>bevisad korrespondens mellan krav och verifiering</em>. Inte hoppat på, utan inneboende. Samma rad i samma fil genererar både implementation och dess test. Du kan inte ändra ena utan den andra. Och du kan inte få ut en grön CI utan båda.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">20 / 25</div>
+<div class="chapter">Reel XII · The Final Cut</div>
+<h1>Action — kameran rullar.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Klipp manuset</li>
+<li>west build (Action)</li>
+<li>west flash + ctest (Premiär)</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>scripts/build_firmware.sh</li>
+<li>scripts/west_build_with_prjconf.sh</li>
+<li>build/ · Testing/</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Nu sätter vi ihop allt. Ett verkligt arbetsflöde.</p><p>Steg ett: någon — en säkerhetsanalytiker, en domänexpert — öppnar ett LLR och justerar ett toleransvärde. En liten textändring. Commit, push, pull request.</p><p>Steg två: jag, eller CI, kör <code>west build</code>. Och nu händer magin. CMake konfigurerar. Vår RequirementsDriven.cmake aktiveras. <code>reqgen.py</code> validerar i STRICT-läge. Genererar DTS. <code>dts_gen.py</code> genererar C-koden. Ninja kompilerar. Linker länkar. Ut kommer en <code>zephyr.elf</code>.</p><p>Steg tre: <code>west flash</code> skickar binären till hårdvaran. <code>ctest</code> kör hela testsviten. 444 av 444 grönt. Och vi har en uppdaterad produkt.</p><p>Mellan steg ett och steg tre har ingen människa skrivit en rad C-kod. Ingen har uppdaterat en spårbarhetsmatris. Ingen har skrivit ett test. Ingen har uppdaterat dokumentationen. Allt detta är <em>biprodukter</em> av byggprocessen.</p></div>
+</section>
+<section class="slide layout-code">
+<div class="slide-num">21 / 25</div>
+<div class="caption">en tagning — krav → flashbar binär</div>
+<pre><code>$ vim requirements/low-level/llr-1.1-rpm-sampling.yaml
+
+$ west build -b nucleo_f429zi samples/automotive
+   → reqgen.py validate (STRICT)
+   → reqgen.py generate-dts → build/prereq/app.dts
+   → dts_gen.py            → lq_generated.[ch]
+   → ninja                 → zephyr.elf
+
+$ west flash
+$ ctest --test-dir build         # 444 / 444</code></pre>
+<div class="notes"><h4>Manus</h4><p>Här är hela kommandorad-sekvensen.</p><p>Det första kommandot — <code>vim</code> — är den enda mänskliga insatsen. Resten är automatik. Lägg märke till hur <code>west build</code> triggar en kedja av Python-skript: validate, generate-dts, dts_gen. Och därefter Ninja som kompilerar.</p><p>Det är värt att stanna upp på <code>STRICT</code> här. Det är rekommenderat läge för CI och för release-byggen. Det betyder att en varning från konflikt-handlern stoppar bygget. En mjukare <code>NORMAL</code> kan vara rimlig under utveckling när du vet att du har konflikter du jobbar på.</p><p>Och <code>444 / 444</code> på sista raden — det är inte en marknadsföringssiffra. Det är det verkliga antalet tester som körs på varje commit. Misslyckas en — bygget rött. Misslyckas inga — färdigt att flasha.</p><p>Det här är vad "smidig och säker" betyder i praktiken: en commit, en kommando, en deterministisk binär.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">22 / 25</div>
+<div class="chapter">Reel XIII · The Distributor</div>
+<h1>CI är distributören.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Samma kommando som dev</li>
+<li>Ingen "works on my machine"</li>
+<li>Coverage-badge alltid synkad</li>
+</ul></div>
+<div class="card">
+<div class="label">Sökvägar</div>
+<ul>
+<li>.github/workflows/</li>
+<li>docs/CI_HIL_SETUP.md</li>
+<li>pre-commit: gitleaks + ruff</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>När filmen är klipplagd och godkänd är distributören som tar den vidare till biograferna. För oss är distributören CI-pipelinen.</p><p>Det viktiga med vår CI är att den inte gör något <em>speciellt</em>. Den kör exakt samma kommandon som du och jag kör lokalt: <code>west init</code>, <code>west update</code>, <code>west build</code>, <code>ctest</code>. Inga särskilda CI-mode-flaggor som drifter över tid. Det betyder ingen "works on my machine" — om bygget passerar lokalt, passerar det i CI. Om CI misslyckas, kan du reproducera felet på din laptop på minuter.</p><p>Coverage-badgen i README:n regenereras automatiskt vid varje merge. Den är aldrig osynkad med koden. Du har inga gamla siffror som ljuger.</p><p>På ingångssidan har vi pre-commit-hooks. <code>gitleaks</code> förhindrar att hemligheter checkas in. <code>ruff</code> linter och formaterar Python-koden i generatorn. Hookar är inte valbara — det är en organisationsregel hos oss, eftersom säkerheten på <em>verktyget</em> är säkerheten på <em>produkten</em>.</p></div>
+</section>
+<section class="slide layout-cards">
+<div class="slide-num">23 / 25</div>
+<div class="chapter">Reel XIV · A Determinism Odyssey</div>
+<h1>Vad det betyder.</h1>
+<div class="cards">
+<div class="card">
+<div class="label">Takeaways</div>
+<ul>
+<li>Designa, inte översätta</li>
+<li>"What if" blir billigt</li>
+<li>Spårbarhet som biprodukt</li>
+</ul></div>
+<div class="card">
+<div class="label">Konsekvens</div>
+<ul>
+<li>Ny plattform → samma manus</li>
+<li>10–15 h byggtid med AI-stöd</li>
+<li>Ekonomisk barriär: borta</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Slutet närmar sig. Vad har vi sett?</p><p>Det första: ingenjörer slutar översätta och börjar designa. Tiden som tidigare gick åt till att skriva ISR-handlers och voter-logik fri från fel går nu åt till att verkligen <em>fundera</em> över systembeteende. Det är ett yrkesskifte — från hantverkare till arkitekt.</p><p>Det andra: "What if" blir billigt. Vad händer om vi byter från ASIL B till ASIL D? Regenerera och kör testerna. Vad händer om vi byter från CAN till J1939? Ändra protokoll-fältet i LLR:en. Vad händer om vi vill stödja en fjärde plattform? Skriv en ny generator-modul. Iteration som kostade veckor kostar nu minuter.</p><p>Det tredje, och kanske viktigaste: spårbarhet är en biprodukt. Inte ett dokumentationsprojekt som körs i sista minuten innan TÜV-inspektion. Det är inneboende i hur vi bygger.</p><p>Och slutligen: hela det här verktyget byggdes på 10 till 15 timmar med AI-assistans. Den ekonomiska barriären — som tidigare var "200 timmar och vi har inte budget" — är borta. Det är inte AI som skriver din säkerhetskritiska kod. Det är AI som gjorde det möjligt att bygga <em>verktyget</em> som genererar den.</p></div>
+</section>
+<section class="slide layout-quote">
+<div class="slide-num">24 / 25</div>
+<blockquote>"Its origin and purpose, still a total mystery."
+<div class="attrib">— Monoliten i 2001. Vår är generatorn — liten, svart, deterministisk. Och fullt revisionsbar.</div>
+</blockquote>
+<div class="notes"><h4>Manus</h4><p>Och så åter till 2001.</p><p>I Kubricks film dyker monoliten upp på platser där mänsklig evolution tar ett språng. Den är liten, svart, deterministiskt rektangulär — sidorna i förhållandet 1 till 4 till 9, kvadrater på de tre första heltalen. Den är obegriplig för dem som finner den, men dess effekt är obestridlig.</p><p>Vår monolit är kodgeneratorn. Liten — några tusen rader Python. Svart — i den mening att den är opaque för användaren, du behöver inte förstå dess insida för att använda den. Deterministisk — samma input, samma output, varje gång.</p><p>Men till skillnad från Kubricks monolit är vår <em>fullt revisionsbar</em>. Du kan öppna den, läsa varje rad, köra varje test, granska varje commit i dess historik. Den är ett mysterium endast för den som väljer att inte titta.</p><p>Och det är skillnaden mellan magi och teknik. Båda imponerar. Bara den ena bär du in i en certifieringsaudit.</p></div>
+</section>
+<section class="slide layout-end">
+<div class="slide-num">25 / 25</div>
+<h1>The End.</h1>
+<h2>Frågor är välkomna · git clone är ännu varmare</h2>
+<div class="cards">
+<div class="card">
+<div class="label">Entry points</div>
+<ul>
+<li>cmake/RequirementsDriven.cmake</li>
+<li>scripts/reqgen.py</li>
+<li>west.yml</li>
+</ul></div>
+<div class="card">
+<div class="label">Manus &amp; scen</div>
+<ul>
+<li>requirements/high-level/</li>
+<li>requirements/low-level/</li>
+<li>samples/automotive/</li>
+</ul></div>
+</div>
+<div class="notes"><h4>Manus</h4><p>Tack för uppmärksamheten.</p><p>Fyra platser i repot är värda en personlig titt om ni vill gå vidare:</p><p>För det första, <code>cmake/RequirementsDriven.cmake</code> — själva regissörsstolen, det enda CMake-anropet ni behöver veta om.</p><p>För det andra, <code>scripts/reqgen.py</code> — kärnan i kravbehandlingen och konfliktdetekteringen.</p><p>För det tredje, <code>west.yml</code> — manifestet som binder ihop hela studion.</p><p>Och för det fjärde, <code>samples/automotive/</code> — ett komplett, körbart exempel: en motorövervakare med dubbla RPM-givare, median-voting och J1939-utgång. Bygg och kör det själva — det är det bästa sättet att förstå vad jag har pratat om.</p><p>Frågor?</p><p>Och som sagt: en <code>git clone</code> är välkomnare än en fråga, för då kan ni ge feedback också.</p></div>
+</section>
+</body>
+</html>

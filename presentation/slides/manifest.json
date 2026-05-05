@@ -1,0 +1,31 @@
+{
+  "title": "The Deterministic Cut",
+  "lang": "sv",
+  "slides": [
+    "01-title.md",
+    "02-cold-open.md",
+    "03-new-hope.md",
+    "04-studio-system.md",
+    "05-code-west-yml.md",
+    "06-directors-chair.md",
+    "07-code-cmake.md",
+    "08-pipeline.md",
+    "09-script.md",
+    "10-code-hlr.md",
+    "11-shot-list.md",
+    "12-code-llr.md",
+    "13-storyboard.md",
+    "14-code-dts.md",
+    "15-cinematography-crew.md",
+    "16-set-design.md",
+    "17-code-architecture.md",
+    "18-strangelove.md",
+    "19-test-screening.md",
+    "20-final-cut.md",
+    "21-code-build.md",
+    "22-distributor.md",
+    "23-odyssey.md",
+    "24-quote.md",
+    "25-end.md"
+  ]
+}
